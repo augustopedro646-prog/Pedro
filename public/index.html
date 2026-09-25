@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>CEPE / ATPN — Gestão</title>
+<style>
+  /* Paleta neutra provisória — trocar quando tiver a identidade visual
+     real do CEPE/ATPN (logo, cores). Nunca usar cor fixa fora daqui:
+     sempre var(--token). */
+  :root {
+    --cor-fundo: #f4f5f7;
+    --cor-superficie: #ffffff;
+    --cor-borda: #dfe3e8;
+    --cor-texto: #1c2430;
+    --cor-texto-fraco: #64707d;
+    --cor-primaria: #2f6f4f;
+    --cor-primaria-texto: #ffffff;
+    --cor-perigo: #b3413a;
+    --cor-sucesso: #2f6f4f;
+    --sombra: 0 1px 3px rgba(0,0,0,.08);
+    --raio: 10px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --cor-fundo: #12161c;
+      --cor-superficie: #1b212a;
+      --cor-borda: #2b333e;
+      --cor-texto: #e7ebf0;
+      --cor-texto-fraco: #97a3b0;
+      --cor-primaria: #4c9770;
+      --cor-primaria-texto: #0b1310;
+      --sombra: 0 1px 3px rgba(0,0,0,.4);
+    }
+  }
+  :root[data-theme="dark"] {
+    --cor-fundo: #12161c;
+    --cor-superficie: #1b212a;
+    --cor-borda: #2b333e;
+    --cor-texto: #e7ebf0;
+    --cor-texto-fraco: #97a3b0;
+    --cor-primaria: #4c9770;
+    --cor-primaria-texto: #0b1310;
+    --sombra: 0 1px 3px rgba(0,0,0,.4);
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    background: var(--cor-fundo);
+    color: var(--cor-texto);
+  }
+  button, input, select { font: inherit; color: inherit; }
+  .oculto { display: none !important; }
+
+  /* ---------- Login ---------- */
+  #tela-login {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+  }
+  .cartao-login {
+    background: var(--cor-superficie);
+    border: 1px solid var(--cor-borda);
+    border-radius: var(--raio);
+    box-shadow: var(--sombra);
+    padding: 28px;
+    width: 100%;
+    max-width: 360px;
+  }
+  .cartao-login h1 { font-size: 1.1rem; margin: 0 0 4px; }
+  .cartao-login .sub { color: var(--cor-texto-fraco); font-size: .85rem; margin: 0 0 20px; }
+  .campo { margin-bottom: 14px; }
+  .campo label { display: block; font-size: .8rem; color: var(--cor-texto-fraco); margin-bottom: 4px; }
+  .campo select, .campo input {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid var(--cor-borda);
+    border-radius: 8px;
+    background: var(--cor-fundo);
+    color: var(--cor-texto);
+  }
+  #pin-display {
+    display: flex;
+    gap: 8px;
+    justify-content: center;
+    margin: 16px 0;
+  }
+  #pin-display span {
+    width: 14px; height: 14px; border-radius: 50%;
+    border: 1px solid var(--cor-texto-fraco);
+    background: transparent;
+  }
+  #pin-display span.preenchido { background: var(--cor-primaria); border-color: var(--cor-primaria); }
+  #teclado-pin {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+  }
+  #teclado-pin button {
+    padding: 14px 0;
+    border-radius: 8px;
+    border: 1px solid var(--cor-borda);
+    background: var(--cor-superficie);
+    cursor: pointer;
+    font-size: 1.1rem;
+  }
+  #teclado-pin button:active { background: var(--cor-fundo); }
+  .erro-login { color: var(--cor-perigo); font-size: .85rem; min-height: 1.2em; margin-top: 8px; text-align: center; }
+
+  /* ---------- Shell / sidebar ---------- */
+  #app { display: none; min-height: 100vh; }
+  #app.logado { display: flex; }
+
+  #sidebar {
+    width: 220px;
+    flex-shrink: 0;
+    background: var(--cor-superficie);
+    border-right: 1px solid var(--cor-borda);
+    display: flex;
+    flex-direction: column;
+    transition: margin-left .15s ease;
+  }
+  #sidebar.escondida { margin-left: -220px; }
+  #sidebar .cabecalho { padding: 16px; border-bottom: 1px solid var(--cor-borda); }
+  #sidebar .cabecalho strong { display: block; }
+  #sidebar .cabecalho span { color: var(--cor-texto-fraco); font-size: .8rem; }
+  #lista-abas { list-style: none; margin: 0; padding: 8px; flex: 1; overflow-y: auto; }
+  #lista-abas li a {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 10px 12px; border-radius: 8px; color: var(--cor-texto);
+    text-decoration: none; font-size: .92rem; cursor: pointer;
+  }
+  #lista-abas li a.ativa { background: var(--cor-primaria); color: var(--cor-primaria-texto); }
+  #lista-abas li a:not(.ativa):hover { background: var(--cor-fundo); }
+  .contagem {
+    background: var(--cor-perigo); color: #fff; border-radius: 999px;
+    font-size: .7rem; padding: 1px 7px; min-width: 18px; text-align: center;
+  }
+  #btn-esconder {
+    margin: 8px; padding: 10px; border: 1px solid var(--cor-borda); border-radius: 8px;
+    background: transparent; cursor: pointer; color: var(--cor-texto-fraco); font-size: .85rem;
+  }
+  #btn-mostrar {
+    position: fixed; top: 14px; left: 14px; z-index: 20;
+    width: 40px; height: 40px; border-radius: 50%;
+    border: 1px solid var(--cor-borda); background: var(--cor-superficie);
+    box-shadow: var(--sombra); cursor: pointer; font-size: 1.1rem;
+  }
+  #backdrop { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.4); z-index: 15; }
+
+  #conteudo { flex: 1; padding: 28px; overflow-y: auto; }
+  #conteudo h2 { margin-top: 0; }
+  .placeholder { color: var(--cor-texto-fraco); }
+
+  @media (max-width: 720px) {
+    #sidebar { position: fixed; inset: 0 auto 0 0; z-index: 16; margin-left: -220px; }
+    #sidebar.aberta-mobile { margin-left: 0; }
+    #sidebar:not(.aberta-mobile) ~ #backdrop { display: none; }
+  }
+
+  /* ---------- Configurações: permissões ---------- */
+  table.permissoes { border-collapse: collapse; width: 100%; }
+  table.permissoes th, table.permissoes td {
+    border: 1px solid var(--cor-borda); padding: 8px 10px; text-align: center; font-size: .85rem;
+  }
+  table.permissoes th:first-child, table.permissoes td:first-child { text-align: left; }
+  .secao { background: var(--cor-superficie); border: 1px solid var(--cor-borda); border-radius: var(--raio); padding: 18px; margin-bottom: 20px; }
+  .secao h3 { margin-top: 0; }
+  .linha-form { display: flex; gap: 8px; margin-top: 10px; }
+  .linha-form input { flex: 1; padding: 8px 10px; border: 1px solid var(--cor-borda); border-radius: 6px; background: var(--cor-fundo); color: var(--cor-texto); }
+  .botao { background: var(--cor-primaria); color: var(--cor-primaria-texto); border: none; border-radius: 6px; padding: 8px 14px; cursor: pointer; }
+</style>
+</head>
+<body>
+
+<div id="tela-login">
+  <div class="cartao-login">
+    <h1>CEPE / ATPN</h1>
+    <p class="sub">Entre com seu cargo e PIN</p>
+
+    <div class="campo">
+      <label for="sel-cargo">Cargo / Função</label>
+      <select id="sel-cargo"></select>
+    </div>
+    <div class="campo">
+      <label for="sel-pessoa">Pessoa</label>
+      <select id="sel-pessoa"></select>
+    </div>
+    <div class="campo oculto" id="campo-unidade">
+      <label for="sel-unidade">Unidade</label>
+      <select id="sel-unidade"></select>
+    </div>
+
+    <div id="pin-display"><span></span><span></span><span></span><span></span></div>
+    <div id="teclado-pin">
+      <button data-tecla="1">1</button><button data-tecla="2">2</button><button data-tecla="3">3</button>
+      <button data-tecla="4">4</button><button data-tecla="5">5</button><button data-tecla="6">6</button>
+      <button data-tecla="7">7</button><button data-tecla="8">8</button><button data-tecla="9">9</button>
+      <button data-tecla="limpar">C</button><button data-tecla="0">0</button><button data-tecla="apagar">⌫</button>
+    </div>
+    <p class="erro-login" id="erro-login"></p>
+  </div>
+</div>
+
+<div id="app">
+  <aside id="sidebar">
+    <div class="cabecalho">
+      <strong id="nome-usuario"></strong>
+      <span id="cargo-usuario"></span>
+    </div>
+    <ul id="lista-abas"></ul>
+    <button id="btn-esconder">« Esconder</button>
+  </aside>
+  <button id="btn-mostrar" class="oculto">☰</button>
+  <div id="backdrop"></div>
+  <main id="conteudo"></main>
+</div>
+
+<script src="/js/util.js"></script>
+<script src="/js/app.js"></script>
+</body>
+</html>
