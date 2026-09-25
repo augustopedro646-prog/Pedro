@@ -7,11 +7,21 @@ forma de trabalhar, domínio de negócio diferente (associação/sócio, não re
 ## Estado atual
 
 Esqueleto inicial: base de dados, login por PIN, menu lateral, permissões configuráveis por
-cargo e cadastro de unidades/cargos. **Ainda não tem a aba "Sócios"** — o modelo de dado dela
-depende da visita do Pedro à associação pra ver o sistema que eles já usam hoje (ver histórico da
-conversa). As demais abas (Início, Relatórios, Fluxo de caixa, Calendário, Eventos, Tarefas,
-Bater ponto) existem no menu mas ainda são só placeholder — conteúdo real vem depois que os
-cargos e o fluxo de trabalho real da associação estiverem confirmados.
+cargo e cadastro de unidades/cargos. Duas abas já têm conteúdo real, por não dependerem do
+levantamento de cargos/modelo de sócio:
+
+- **Bater ponto** — cada pessoa bate o próprio (entrada/saída alterna sozinho), Administrador
+  corrige (`PUT /api/ponto/:id`, ainda sem tela própria pra isso) ou apaga qualquer registro.
+- **Fluxo de caixa** — lançamento manual de despesas e receitas por unidade, navegação por mês,
+  categoria e forma de pagamento livres. "Receita" ainda não vem de mensalidade de sócio (isso
+  depende do modelo de Sócio, a confirmar com o Pedro) — por ora é lançamento manual, igual à
+  despesa.
+
+**Ainda não tem a aba "Sócios"** — o modelo de dado dela depende da visita do Pedro à associação
+pra ver o sistema que eles já usam hoje (ver histórico da conversa). As demais abas (Início,
+Relatórios, Calendário, Eventos, Tarefas) existem no menu mas ainda são só placeholder — o
+"quiosque" de bater ponto por outra pessoa via PIN (como o PDV Jabá tem) também não entrou ainda,
+por depender de como a associação opera fisicamente na prática.
 
 O "Robô WhatsApp" do PDV Jabá não entrou aqui ainda — precisa confirmar com o Pedro se faz
 sentido pra esse contexto antes de construir.
@@ -56,10 +66,10 @@ Abrir `http://localhost:3000`.
 ## Estrutura
 
 ```
-db/schema.sql        tabelas (unidades, cargos, pessoas, permissões, histórico de versão)
+db/schema.sql        tabelas (unidades, cargos, pessoas, permissões, ponto, despesas/receitas, histórico)
 db/seed.sql           cargos/unidades provisórios
-server/               Express: auth HMAC (12h), rate limiting, rotas de config
-public/index.html     tela de login + shell inteiros num arquivo só (tema, sidebar, permissões)
+server/               Express: auth HMAC (12h), rate limiting, rotas de config/ponto/financeiro
+public/index.html     tela de login + shell + Bater ponto + Fluxo de caixa, tudo num arquivo só
 scripts/seed-admin.js  cria o primeiro Administrador
 ```
 

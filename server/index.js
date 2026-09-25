@@ -4,6 +4,8 @@ const express = require('express');
 const { geral } = require('./rateLimit');
 const authRoutes = require('./routes/auth');
 const configRoutes = require('./routes/config');
+const pontoRoutes = require('./routes/ponto');
+const financeiroRoutes = require('./routes/financeiro');
 
 const app = express();
 app.set('trust proxy', 1); // necessário pro ipKeyGenerator ver o IP real atrás do proxy da hospedagem
@@ -14,6 +16,8 @@ app.use(express.static(path.join(__dirname, '..', 'public')));
 
 app.use('/api/auth', authRoutes);
 app.use('/api/config', configRoutes);
+app.use('/api/ponto', pontoRoutes);
+app.use('/api/financeiro', financeiroRoutes);
 
 app.use((err, req, res, next) => {
   console.error(err);

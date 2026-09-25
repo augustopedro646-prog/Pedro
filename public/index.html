@@ -158,12 +158,25 @@
   /* ---------- Configurações ---------- */
   .secao { background: var(--superficie); border: 1px solid var(--borda); border-radius: var(--radius); padding: 18px; margin-bottom: 20px; }
   .secao h3 { margin-top: 0; }
-  .linha-form { display: flex; gap: 8px; margin-top: 10px; }
-  .linha-form input { flex: 1; padding: 8px 10px; border: 1px solid var(--borda); border-radius: 6px; background: var(--fundo); color: var(--texto); }
+  .linha-form { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+  .linha-form input, .linha-form select {
+    flex: 1 1 160px; min-width: 120px; padding: 8px 10px; border: 1px solid var(--borda);
+    border-radius: 6px; background: var(--fundo); color: var(--texto);
+  }
   .botao { background: var(--primaria); color: var(--primaria-texto); border: none; border-radius: 6px; padding: 8px 14px; cursor: pointer; }
   table.permissoes { border-collapse: collapse; width: 100%; }
   table.permissoes th, table.permissoes td { border: 1px solid var(--borda); padding: 8px 10px; text-align: center; font-size: .85rem; }
   table.permissoes th:first-child, table.permissoes td:first-child { text-align: left; }
+
+  /* ---------- Bater ponto / Fluxo de caixa ---------- */
+  table.tabela-lista { border-collapse: collapse; width: 100%; font-size: .88rem; }
+  table.tabela-lista th, table.tabela-lista td { border-bottom: 1px solid var(--borda); padding: 8px 10px; text-align: left; }
+  table.tabela-lista th { color: var(--texto-fraco); font-weight: 600; }
+  .botao-link { background: none; border: none; color: var(--perigo); cursor: pointer; padding: 0; font-size: .82rem; text-decoration: underline; }
+  .abas-secundarias { display: flex; gap: 6px; margin-bottom: 14px; }
+  .abas-secundarias button { padding: 6px 14px; border: 1px solid var(--borda); background: var(--fundo); border-radius: 999px; cursor: pointer; font-size: .85rem; }
+  .abas-secundarias button.ativa { background: var(--primaria); color: var(--primaria-texto); border-color: var(--primaria); }
+  .navegacao-mes { display: flex; align-items: center; gap: 12px; }
 </style>
 </head>
 <body>
@@ -199,7 +212,20 @@
     configCargos: [],
     configAbas: [],
     configMatriz: [],
+
+    // bater ponto
+    pontoCarregado: false,
+    pontoRegistros: [],
+
+    // fluxo de caixa
+    financeiroCarregado: false,
+    financeiroMesRef: null, // {ano, mes(0-indexado)}
+    financeiroAba: 'despesas', // ou 'receitas'
+    financeiroDespesas: [],
+    financeiroReceitas: [],
   };
+
+  const FORMAS_PAGAMENTO = ['Dinheiro', 'Cartão de crédito', 'Cartão de débito', 'Pix', 'Boleto', 'Transferência'];
 
   // Escapa texto livre digitado por qualquer pessoa antes de ir pro
   // innerHTML. Sem isso é XSS armazenado — usar em TODO dado de usuário.
@@ -324,10 +350,114 @@
 
   function viewConteudo() {
     if (state.abaAtual === 'config') return viewConfiguracoes();
+    if (state.abaAtual === 'ponto') return viewPonto();
+    if (state.abaAtual === 'fluxo_caixa') return viewFluxoCaixa();
     const nomeAba = (state.abas.find((a) => a.id === state.abaAtual) || {}).nome || '';
     return `
       <h2>${esc(nomeAba)}</h2>
       <p class="placeholder">Tela ainda não desenhada — depende do que o Pedro trouxer da visita à associação.</p>`;
+  }
+
+  // ---------- bater ponto ----------
+  function viewPonto() {
+    if (!state.pontoCarregado) return '<h2>Bater ponto</h2><p class="placeholder">Carregando…</p>';
+
+    const meuUltimo = [...state.pontoRegistros].reverse().find((r) => r.pessoaId === state.usuario.pessoaId);
+    const proximoTipo = meuUltimo?.tipo === 'entrada' ? 'saída' : 'entrada';
+
+    const linhas = [...state.pontoRegistros].reverse().map((r) => `
+      <tr>
+        <td>${esc(r.pessoaNome)}</td>
+        <td>${r.tipo === 'entrada' ? 'Entrada' : 'Saída'}</td>
+        <td>${new Date(r.registradoEm).toLocaleString('pt-BR')}</td>
+        ${state.usuario.administrador ? `<td><button class="botao-link" data-action="remover-ponto" data-id="${r.id}">remover</button></td>` : ''}
+      </tr>`).join('') || `<tr><td colspan="${state.usuario.administrador ? 4 : 3}" class="placeholder">Nenhum registro nos últimos 30 dias.</td></tr>`;
+
+    return `
+      <h2>Bater ponto</h2>
+      <div class="secao">
+        <p>Seu próximo registro será: <strong>${proximoTipo}</strong></p>
+        <button class="botao" data-action="bater-ponto">Bater ponto (${proximoTipo})</button>
+      </div>
+      <div class="secao">
+        <h3>Últimos registros ${state.usuario.administrador ? '(toda a unidade)' : '(seus)'}</h3>
+        <table class="tabela-lista">
+          <thead><tr><th>Pessoa</th><th>Tipo</th><th>Quando</th>${state.usuario.administrador ? '<th></th>' : ''}</tr></thead>
+          <tbody>${linhas}</tbody>
+        </table>
+      </div>`;
+  }
+
+  // ---------- fluxo de caixa ----------
+  function refMesAtual() {
+    const hoje = new Date();
+    return { ano: hoje.getFullYear(), mes: hoje.getMonth() };
+  }
+
+  function limitesMes(ref) {
+    const fmt = (d) => d.toISOString().slice(0, 10);
+    return {
+      inicio: fmt(new Date(ref.ano, ref.mes, 1)),
+      fim: fmt(new Date(ref.ano, ref.mes + 1, 0)),
+    };
+  }
+
+  function nomeMes(ref) {
+    const texto = new Date(ref.ano, ref.mes, 1).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+    return texto.charAt(0).toUpperCase() + texto.slice(1);
+  }
+
+  function formatarMoeda(valor) {
+    return `R$ ${Number(valor).toFixed(2).replace('.', ',')}`;
+  }
+
+  function viewFluxoCaixa() {
+    if (!state.financeiroCarregado) return '<h2>Fluxo de caixa</h2><p class="placeholder">Carregando…</p>';
+
+    const lista = state.financeiroAba === 'despesas' ? state.financeiroDespesas : state.financeiroReceitas;
+    const total = lista.reduce((soma, l) => soma + Number(l.valor), 0);
+
+    const linhas = lista.map((l) => `
+      <tr>
+        <td>${esc(l.data.split('-').reverse().join('/'))}</td>
+        <td>${esc(l.descricao)}</td>
+        <td>${esc(l.categoria || '—')}</td>
+        <td>${esc(l.formaPagamento || '—')}</td>
+        <td>${formatarMoeda(l.valor)}</td>
+        <td><button class="botao-link" data-action="remover-lancamento" data-id="${l.id}">remover</button></td>
+      </tr>`).join('') || `<tr><td colspan="6" class="placeholder">Nenhum lançamento no mês.</td></tr>`;
+
+    return `
+      <h2>Fluxo de caixa</h2>
+      <div class="secao">
+        <div class="navegacao-mes">
+          <button class="botao" data-action="mes-anterior">‹</button>
+          <strong>${nomeMes(state.financeiroMesRef)}</strong>
+          <button class="botao" data-action="mes-seguinte">›</button>
+        </div>
+      </div>
+      <div class="secao">
+        <div class="abas-secundarias">
+          <button class="${state.financeiroAba === 'despesas' ? 'ativa' : ''}" data-action="financeiro-aba" data-aba="despesas">Despesas</button>
+          <button class="${state.financeiroAba === 'receitas' ? 'ativa' : ''}" data-action="financeiro-aba" data-aba="receitas">Receitas</button>
+        </div>
+        <table class="tabela-lista">
+          <thead><tr><th>Data</th><th>Descrição</th><th>Categoria</th><th>Forma de pagamento</th><th>Valor</th><th></th></tr></thead>
+          <tbody>${linhas}</tbody>
+        </table>
+        <p><strong>Total: ${formatarMoeda(total)}</strong></p>
+        <div class="linha-form">
+          <input type="date" id="novo-lancamento-data" value="${new Date().toISOString().slice(0, 10)}" />
+          <input type="text" id="novo-lancamento-descricao" placeholder="Descrição" />
+          <input type="text" id="novo-lancamento-categoria" placeholder="Categoria (opcional)" />
+          <select id="novo-lancamento-forma">
+            <option value="">Forma de pagamento…</option>
+            ${FORMAS_PAGAMENTO.map((f) => `<option value="${esc(f)}">${esc(f)}</option>`).join('')}
+          </select>
+          <input type="text" inputmode="decimal" id="novo-lancamento-valor" placeholder="Valor" />
+          <button class="botao" data-action="add-lancamento">Adicionar</button>
+        </div>
+      </div>`;
   }
 
   function viewConfiguracoes() {
@@ -419,6 +549,30 @@
 
     const btnSalvarPermissoes = document.querySelector('[data-action="salvar-permissoes"]');
     if (btnSalvarPermissoes) btnSalvarPermissoes.addEventListener('click', salvarPermissoes);
+
+    const btnBaterPonto = document.querySelector('[data-action="bater-ponto"]');
+    if (btnBaterPonto) btnBaterPonto.addEventListener('click', baterPonto);
+
+    document.querySelectorAll('[data-action="remover-ponto"]').forEach((el) => {
+      el.addEventListener('click', () => removerPonto(Number(el.dataset.id)));
+    });
+
+    document.querySelectorAll('[data-action="financeiro-aba"]').forEach((el) => {
+      el.addEventListener('click', () => { state.financeiroAba = el.dataset.aba; render(); });
+    });
+
+    const btnMesAnterior = document.querySelector('[data-action="mes-anterior"]');
+    if (btnMesAnterior) btnMesAnterior.addEventListener('click', () => mudarMesFinanceiro(-1));
+
+    const btnMesSeguinte = document.querySelector('[data-action="mes-seguinte"]');
+    if (btnMesSeguinte) btnMesSeguinte.addEventListener('click', () => mudarMesFinanceiro(1));
+
+    const btnAddLancamento = document.querySelector('[data-action="add-lancamento"]');
+    if (btnAddLancamento) btnAddLancamento.addEventListener('click', adicionarLancamento);
+
+    document.querySelectorAll('[data-action="remover-lancamento"]').forEach((el) => {
+      el.addEventListener('click', () => removerLancamento(Number(el.dataset.id)));
+    });
   }
 
   // ---------- login ----------
@@ -490,6 +644,9 @@
       token: null, usuario: null, pin: '', erroLogin: '',
       unidadesPendentes: null, unidadeSelecionada: null,
       abas: [], abaAtual: null, configCarregado: false,
+      pontoCarregado: false, pontoRegistros: [],
+      financeiroCarregado: false, financeiroMesRef: null, financeiroAba: 'despesas',
+      financeiroDespesas: [], financeiroReceitas: [],
     });
     carregarCargos().then(render);
   }
@@ -517,6 +674,17 @@
       render();
       await carregarConfiguracoes();
       state.configCarregado = true;
+    }
+    if (id === 'ponto' && !state.pontoCarregado) {
+      render();
+      await carregarPonto();
+      state.pontoCarregado = true;
+    }
+    if (id === 'fluxo_caixa' && !state.financeiroCarregado) {
+      render();
+      if (!state.financeiroMesRef) state.financeiroMesRef = refMesAtual();
+      await carregarFinanceiro();
+      state.financeiroCarregado = true;
     }
     render();
   }
@@ -558,6 +726,78 @@
       linha.abas.forEach((a) => itens.push({ cargoId: linha.cargoId, aba: a.aba, permitido: a.permitido }));
     });
     await api('/config/permissoes', { method: 'PUT', body: { itens } });
+  }
+
+  // ---------- bater ponto ----------
+  async function carregarPonto() {
+    state.pontoRegistros = await api('/ponto');
+  }
+
+  async function baterPonto() {
+    try {
+      await api('/ponto', { method: 'POST' });
+      await carregarPonto();
+      render();
+    } catch (err) {
+      alert(err.message);
+    }
+  }
+
+  async function removerPonto(id) {
+    if (!confirm('Remover esse registro de ponto?')) return;
+    await api(`/ponto/${id}`, { method: 'DELETE' });
+    await carregarPonto();
+    render();
+  }
+
+  // ---------- fluxo de caixa ----------
+  async function carregarFinanceiro() {
+    const { inicio, fim } = limitesMes(state.financeiroMesRef);
+    const qs = `?inicio=${inicio}&fim=${fim}`;
+    const [despesas, receitas] = await Promise.all([
+      api(`/financeiro/despesas${qs}`),
+      api(`/financeiro/receitas${qs}`),
+    ]);
+    state.financeiroDespesas = despesas;
+    state.financeiroReceitas = receitas;
+  }
+
+  async function mudarMesFinanceiro(delta) {
+    let { ano, mes } = state.financeiroMesRef;
+    mes += delta;
+    if (mes < 0) { mes = 11; ano -= 1; } else if (mes > 11) { mes = 0; ano += 1; }
+    state.financeiroMesRef = { ano, mes };
+    await carregarFinanceiro();
+    render();
+  }
+
+  async function adicionarLancamento() {
+    const data = document.getElementById('novo-lancamento-data').value;
+    const descricao = document.getElementById('novo-lancamento-descricao').value.trim();
+    const categoria = document.getElementById('novo-lancamento-categoria').value.trim();
+    const formaPagamento = document.getElementById('novo-lancamento-forma').value;
+    const valor = parseNumero(document.getElementById('novo-lancamento-valor').value);
+    if (!data || !descricao || !(valor > 0)) {
+      alert('Preencha data, descrição e um valor maior que zero.');
+      return;
+    }
+    try {
+      await api(`/financeiro/${state.financeiroAba}`, {
+        method: 'POST',
+        body: { data, descricao, categoria: categoria || null, formaPagamento: formaPagamento || null, valor },
+      });
+      await carregarFinanceiro();
+      render();
+    } catch (err) {
+      alert(err.message);
+    }
+  }
+
+  async function removerLancamento(id) {
+    if (!confirm('Remover esse lançamento?')) return;
+    await api(`/financeiro/${state.financeiroAba}/${id}`, { method: 'DELETE' });
+    await carregarFinanceiro();
+    render();
   }
 
   // teclado físico só ativo enquanto não logado
