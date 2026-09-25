@@ -1,0 +1,420 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Loja Gutto — Protótipo</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700&family=Work+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #FFF8F0;
+    --surface: #FFFFFF;
+    --text: #2B2B2E;
+    --text-2: #6B6560;
+    --border: #EAE3D9;
+    --border-2: #F1ECE3;
+    --accent: #E8664A;
+    --teal: #3E9C8D;
+    --ok-bg: #EDF6F1; --ok-border: #CFE8DA; --ok-text: #2F6B52;
+    --baixo-bg: #FFF4E5; --baixo-border: #F0D9A8; --baixo-text: #8A5A00;
+    --zero-bg: #F5F1EA; --zero-border: var(--border); --zero-text: #B3261E;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); font-family: 'Work Sans', sans-serif; color: var(--text); }
+  button { font-family: 'Work Sans', sans-serif; cursor: pointer; }
+  .titulo { font-family: 'Baloo 2', sans-serif; font-weight: 700; }
+  .dot { width: 12px; height: 12px; border-radius: 50%; display: inline-block; border: 1px solid var(--border); vertical-align: middle; margin-right: 4px; flex-shrink: 0; }
+
+  header { height: 64px; flex-shrink: 0; display: flex; align-items: center; justify-content: space-between; padding: 0 24px; background: var(--surface); border-bottom: 1px solid var(--border); }
+  .logo { font-size: 20px; color: var(--accent); }
+  .nav { display: flex; gap: 8px; margin-left: 20px; }
+  .tab { padding: 6px 16px; border-radius: 999px; border: 1px solid var(--border); background: var(--surface); color: var(--text); font-size: 13px; font-weight: 600; }
+  .tab.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .header-left { display: flex; align-items: center; }
+  .user-badge { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text-2); }
+  .avatar { width: 26px; height: 26px; border-radius: 50%; background: var(--teal); color: #fff; display: flex; align-items: center; justify-content: center; font-family: 'Baloo 2', sans-serif; font-weight: 700; font-size: 12px; }
+
+  main { height: calc(100vh - 64px); display: flex; overflow: hidden; }
+  .view { display: none; width: 100%; }
+
+  /* ---------- Venda rápida ---------- */
+  #view-venda { flex-direction: row; }
+  .col-produtos { flex-grow: 1; padding: 20px 24px; overflow-y: auto; }
+  .col-produtos h1 { font-size: 22px; margin: 0; }
+  .col-produtos p.sub { font-size: 13px; color: var(--text-2); margin: 2px 0 16px; }
+  .produtos-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 14px; }
+  .produto-card { display: flex; flex-direction: column; gap: 8px; text-align: left; background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 14px; }
+  .produto-thumb { width: 100%; height: 78px; border-radius: 10px; display: flex; align-items: center; justify-content: center; }
+  .produto-avatar { width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: #fff; font-family: 'Baloo 2', sans-serif; font-weight: 700; font-size: 16px; }
+  .produto-nome { font-family: 'Baloo 2', sans-serif; font-weight: 600; font-size: 14px; }
+  .produto-meta { font-size: 11px; color: var(--text-2); }
+  .produto-preco { font-family: 'Baloo 2', sans-serif; font-weight: 700; font-size: 14px; color: var(--accent); }
+
+  .col-carrinho { width: 320px; flex-shrink: 0; background: var(--surface); border-left: 1px solid var(--border); display: flex; flex-direction: column; padding: 20px; overflow-y: auto; }
+  .col-carrinho h2 { font-size: 18px; margin: 0 0 12px; }
+  .carrinho-vazio { font-size: 13px; color: var(--text-2); text-align: center; padding: 24px 0; }
+  .carrinho-linha { display: flex; align-items: center; gap: 8px; border-bottom: 1px solid var(--border-2); padding: 8px 0; }
+  .carrinho-info { flex-grow: 1; min-width: 0; }
+  .carrinho-nome { font-size: 13px; font-weight: 600; }
+  .carrinho-detalhe { font-size: 11px; color: var(--text-2); }
+  .carrinho-qtd { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+  .carrinho-qtd button { width: 22px; height: 22px; border-radius: 6px; border: 1px solid var(--border); background: #fff; font-size: 13px; line-height: 1; }
+  .carrinho-total { width: 58px; text-align: right; font-size: 13px; font-weight: 600; flex-shrink: 0; }
+  .totais { margin-top: auto; padding-top: 12px; border-top: 1px solid var(--border); display: flex; flex-direction: column; gap: 8px; }
+  .linha-total { display: flex; justify-content: space-between; font-size: 13px; color: var(--text-2); }
+  .linha-total.grande { font-family: 'Baloo 2', sans-serif; font-weight: 700; font-size: 18px; color: var(--text); }
+  .formas { display: flex; gap: 6px; flex-wrap: wrap; margin: 4px 0; }
+  .forma { padding: 7px 12px; border-radius: 999px; border: 1px solid var(--border); background: #fff; font-size: 12px; font-weight: 600; }
+  .forma.ativo { background: var(--accent); border-color: var(--accent); color: #fff; }
+  #confirmar { margin-top: 4px; padding: 13px; border-radius: 12px; border: none; background: #D9D2C4; color: #fff; font-family: 'Baloo 2', sans-serif; font-weight: 700; font-size: 14px; cursor: not-allowed; }
+  #confirmar.ativo { background: var(--accent); cursor: pointer; }
+
+  /* modal */
+  #modal { display: none; position: fixed; inset: 0; background: rgba(43,43,46,0.45); align-items: center; justify-content: center; z-index: 20; padding: 16px; }
+  .modal-card { width: 100%; max-width: 560px; max-height: 90vh; overflow-y: auto; background: #fff; border-radius: 18px; padding: 24px; display: flex; flex-direction: column; gap: 14px; box-shadow: 0 20px 60px rgba(0,0,0,.25); }
+  .modal-head { display: flex; justify-content: space-between; align-items: flex-start; }
+  .modal-titulo { font-family: 'Baloo 2', sans-serif; font-weight: 700; font-size: 19px; }
+  .modal-sub { font-size: 12px; color: var(--text-2); margin-top: 2px; }
+  .btn-fechar { width: 30px; height: 30px; border-radius: 8px; border: 1px solid var(--border); background: #fff; font-size: 15px; }
+  .modal-dica { font-size: 12px; color: var(--text-2); }
+
+  .grade { display: flex; flex-direction: column; gap: 8px; }
+  .grade-row { display: flex; gap: 8px; align-items: center; }
+  .grade-header { padding-left: 56px; }
+  .grade-tamanho { width: 48px; font-weight: 700; font-size: 13px; flex-shrink: 0; }
+  .grade-cor-label { width: 82px; text-align: center; font-size: 11px; font-weight: 600; color: var(--text-2); display: flex; align-items: center; justify-content: center; gap: 4px; }
+  .cel { width: 82px; height: 52px; border-radius: 9px; border: 1px solid; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; }
+  .cel-lg { width: 92px; height: 60px; }
+  .cel.normal { background: var(--ok-bg); border-color: var(--ok-border); color: var(--ok-text); }
+  .cel.baixo { background: var(--baixo-bg); border-color: var(--baixo-border); color: var(--baixo-text); }
+  .cel.esgotado { background: var(--zero-bg); border-color: var(--zero-border); color: var(--zero-text); cursor: not-allowed; }
+  .cel-num { font-size: 15px; font-weight: 700; }
+  .cel-legenda { font-size: 9px; }
+
+  /* ---------- Estoque ---------- */
+  #view-estoque { flex-direction: row; }
+  .col-lista { width: 380px; flex-shrink: 0; border-right: 1px solid var(--border); background: var(--surface); display: flex; flex-direction: column; overflow: hidden; }
+  .lista-topo { padding: 16px 16px 10px; border-bottom: 1px solid var(--border-2); display: flex; flex-direction: column; gap: 10px; }
+  .lista-topo-head { display: flex; justify-content: space-between; align-items: center; }
+  .lista-topo h2 { font-size: 18px; margin: 0; }
+  .btn-primario { padding: 7px 12px; border-radius: 9px; border: none; background: var(--accent); color: #fff; font-size: 12px; font-weight: 700; }
+  #busca { padding: 8px 10px; border-radius: 9px; border: 1px solid var(--border); font-size: 13px; width: 100%; }
+  .chips { display: flex; gap: 6px; flex-wrap: wrap; }
+  .chip { padding: 5px 11px; border-radius: 999px; border: 1px solid var(--border); background: #fff; font-size: 11px; font-weight: 600; }
+  .chip.ativo { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .lista-scroll { flex-grow: 1; overflow-y: auto; padding: 8px; }
+  .produto-row { width: 100%; display: flex; align-items: center; gap: 10px; text-align: left; background: #fff; border: 1px solid var(--border); border-radius: 11px; padding: 9px 10px; margin-bottom: 6px; }
+  .produto-row.ativo { border-color: var(--accent); background: #FFF4EF; }
+  .produto-row-avatar { width: 36px; height: 36px; border-radius: 9px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; color: #fff; font-family: 'Baloo 2', sans-serif; font-weight: 700; font-size: 14px; }
+  .produto-row-info { flex-grow: 1; min-width: 0; }
+  .produto-row-nome { font-size: 13px; font-weight: 600; }
+  .produto-row-meta { font-size: 11px; color: var(--text-2); }
+  .produto-row-estoque { text-align: right; flex-shrink: 0; font-size: 13px; }
+  .baixo-tag { font-size: 9px; color: #C94A3B; font-weight: 600; }
+
+  .col-detalhe { flex-grow: 1; padding: 24px 30px; overflow-y: auto; }
+  .detalhe-head { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 18px; }
+  .detalhe-categoria { font-size: 11px; color: var(--text-2); font-weight: 600; }
+  .detalhe-nome { font-family: 'Baloo 2', sans-serif; font-weight: 700; font-size: 24px; }
+  .detalhe-acoes { display: flex; gap: 8px; }
+  .btn-secundario { padding: 9px 14px; border-radius: 9px; border: 1px solid var(--border); background: #fff; font-size: 12px; font-weight: 600; }
+  .stats-row { display: flex; gap: 14px; margin-bottom: 20px; flex-wrap: wrap; }
+  .stat-card { flex: 1; min-width: 130px; background: #fff; border: 1px solid var(--border); border-radius: 12px; padding: 14px; }
+  .stat-label { font-size: 11px; color: var(--text-2); }
+  .stat-valor { font-family: 'Baloo 2', sans-serif; font-weight: 700; font-size: 20px; margin-top: 4px; }
+  .grade-painel { background: #fff; border: 1px solid var(--border); border-radius: 14px; padding: 18px; overflow-x: auto; }
+  .grade-titulo { font-family: 'Baloo 2', sans-serif; font-weight: 700; font-size: 15px; }
+  .grade-sub { font-size: 11px; color: var(--text-2); margin-bottom: 14px; }
+
+  @media (max-width: 860px) {
+    .col-carrinho { width: 100%; position: fixed; bottom: 0; left: 0; right: 0; height: 45vh; border-left: none; border-top: 1px solid var(--border); }
+    #view-venda { flex-direction: column; overflow-y: auto; }
+    .col-produtos { padding-bottom: 46vh; }
+    .col-lista { width: 100%; height: 40vh; border-right: none; border-bottom: 1px solid var(--border); }
+    #view-estoque { flex-direction: column; overflow-y: auto; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-left">
+    <div class="logo titulo">Loja Gutto</div>
+    <div class="nav">
+      <button class="tab active" id="tab-venda">Venda rápida</button>
+      <button class="tab" id="tab-estoque">Estoque</button>
+    </div>
+  </div>
+  <div class="user-badge"><div class="avatar">A</div>Equipe: Ana</div>
+</header>
+
+<main>
+  <div class="view" id="view-venda">
+    <div class="col-produtos">
+      <h1 class="titulo">Venda rápida</h1>
+      <p class="sub">Toque num produto pra escolher tamanho e cor</p>
+      <div class="produtos-grid" id="produtos-grid"></div>
+    </div>
+    <div class="col-carrinho">
+      <h2 class="titulo">Carrinho</h2>
+      <div id="carrinho-lista"></div>
+      <div class="totais">
+        <div class="linha-total"><span>Subtotal</span><span id="subtotal">R$ 0,00</span></div>
+        <div class="linha-total grande"><span>Total</span><span id="total">R$ 0,00</span></div>
+        <div style="font-size:11px;color:var(--text-2);margin-top:4px">Forma de pagamento</div>
+        <div class="formas" id="formas"></div>
+        <button id="confirmar">Confirmar venda</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="view" id="view-estoque">
+    <div class="col-lista">
+      <div class="lista-topo">
+        <div class="lista-topo-head">
+          <h2 class="titulo">Produtos</h2>
+          <button class="btn-primario">+ Novo produto</button>
+        </div>
+        <input id="busca" type="text" placeholder="Buscar produto...">
+        <div class="chips" id="categorias-chips"></div>
+      </div>
+      <div class="lista-scroll" id="produtos-lista"></div>
+    </div>
+    <div class="col-detalhe" id="produto-detalhe"></div>
+  </div>
+</main>
+
+<div id="modal"></div>
+
+<script>
+  const PRODUTOS_DEF = [
+    { id: 'p1', nome: 'Camiseta Foguete', categoria: 'Camisetas', precoBase: 39.90, tamanhos: ['2','4','6','8','10','12'], cores: [{ nome: 'Azul', hex: '#3E6FA8' }, { nome: 'Amarelo', hex: '#E8B23D' }], swatch: '#3E6FA8' },
+    { id: 'p2', nome: 'Vestido Florido', categoria: 'Vestidos', precoBase: 59.90, tamanhos: ['P','M','G'], cores: [{ nome: 'Rosa', hex: '#D9748C' }, { nome: 'Branco', hex: '#D8CFC0' }], swatch: '#D9748C' },
+    { id: 'p3', nome: 'Conjunto Moletom', categoria: 'Conjuntos', precoBase: 89.90, tamanhos: ['4','6','8','10'], cores: [{ nome: 'Cinza', hex: '#8B8680' }, { nome: 'Verde', hex: '#4E8C6E' }], swatch: '#4E8C6E' },
+    { id: 'p4', nome: 'Calça Jogger', categoria: 'Calças', precoBase: 49.90, tamanhos: ['2','4','6','8','10','12'], cores: [{ nome: 'Preto', hex: '#2B2B2E' }, { nome: 'Azul', hex: '#3E6FA8' }], swatch: '#2B2B2E' },
+    { id: 'p5', nome: 'Body Bebê', categoria: 'Bebê', precoBase: 29.90, tamanhos: ['RN','P','M','G'], cores: [{ nome: 'Branco', hex: '#D8CFC0' }, { nome: 'Amarelo', hex: '#E8B23D' }], swatch: '#E8B23D' },
+    { id: 'p6', nome: 'Shorts Praia', categoria: 'Verão', precoBase: 34.90, tamanhos: ['2','4','6','8'], cores: [{ nome: 'Azul', hex: '#3E6FA8' }, { nome: 'Coral', hex: '#E8664A' }], swatch: '#E8664A' },
+    { id: 'p7', nome: 'Blusa Unicórnio', categoria: 'Camisetas', precoBase: 42.90, tamanhos: ['4','6','8','10'], cores: [{ nome: 'Rosa', hex: '#D9748C' }, { nome: 'Lilás', hex: '#9B7FC7' }], swatch: '#9B7FC7' },
+    { id: 'p8', nome: 'Macacão Safari', categoria: 'Conjuntos', precoBase: 64.90, tamanhos: ['P','M','G'], cores: [{ nome: 'Verde', hex: '#4E8C6E' }, { nome: 'Caqui', hex: '#B79C6B' }], swatch: '#B79C6B' },
+  ];
+
+  function buildProdutos() {
+    return PRODUTOS_DEF.map((d, pIdx) => {
+      const variacoes = [];
+      d.tamanhos.forEach((tamanho, tIdx) => {
+        d.cores.forEach((cor, cIdx) => {
+          const estoque = ((tIdx + cIdx * 3 + pIdx) % 6) * 2;
+          variacoes.push({ id: d.id + '-' + tamanho + '-' + cor.nome, tamanho, cor: cor.nome, corHex: cor.hex, estoque, preco: d.precoBase });
+        });
+      });
+      const estoqueTotal = variacoes.reduce((s, v) => s + v.estoque, 0);
+      const custoUnitario = Math.round(d.precoBase * 0.42 * 100) / 100;
+      return Object.assign({}, d, { variacoes, estoqueTotal, custoUnitario });
+    });
+  }
+  const PRODUTOS = buildProdutos();
+
+  const state = { view: 'venda', cart: [], modalProdutoId: null, formaPagamento: null, estoqueSelecionadoId: PRODUTOS[0].id, busca: '', filtroCategoria: null };
+
+  function fmt(v) { return 'R$ ' + v.toFixed(2).replace('.', ','); }
+  function esc(s) { return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
+  function setState(patch) { Object.assign(state, patch); render(); }
+
+  function render() {
+    document.getElementById('tab-venda').classList.toggle('active', state.view === 'venda');
+    document.getElementById('tab-estoque').classList.toggle('active', state.view === 'estoque');
+    document.getElementById('view-venda').style.display = state.view === 'venda' ? 'flex' : 'none';
+    document.getElementById('view-estoque').style.display = state.view === 'estoque' ? 'flex' : 'none';
+    if (state.view === 'venda') renderVenda(); else renderEstoque();
+  }
+
+  function gradeHtml(produto, { grande, onCellClass }) {
+    const coresHeader = produto.cores.map(c => `<div class="grade-cor-label"><span class="dot" style="background:${c.hex}"></span>${esc(c.nome)}</div>`).join('');
+    const rows = produto.tamanhos.map(tamanho => {
+      const cels = produto.cores.map(cor => {
+        const v = produto.variacoes.find(x => x.tamanho === tamanho && x.cor === cor.nome);
+        const semEstoque = v.estoque <= 0;
+        const baixo = !semEstoque && v.estoque <= 4;
+        const cls = 'cel ' + (grande ? 'cel-lg ' : '') + (semEstoque ? 'esgotado' : baixo ? 'baixo' : 'normal');
+        return `<button class="${cls}" data-variacao="${v.id}" ${semEstoque && !grande ? 'disabled' : ''}>
+          <div class="cel-num">${semEstoque && !grande ? '—' : v.estoque}</div>
+          <div class="cel-legenda">${semEstoque ? 'esgotado' : 'unid.'}</div>
+        </button>`;
+      }).join('');
+      return `<div class="grade-row"><div class="grade-tamanho">${esc(tamanho)}</div>${cels}</div>`;
+    }).join('');
+    return `<div class="grade"><div class="grade-row grade-header"><div class="grade-tamanho"></div>${coresHeader}</div>${rows}</div>`;
+  }
+
+  function renderVenda() {
+    const grid = document.getElementById('produtos-grid');
+    grid.innerHTML = PRODUTOS.map(p => `
+      <button class="produto-card" data-id="${p.id}">
+        <div class="produto-thumb" style="background:${p.swatch}22">
+          <div class="produto-avatar" style="background:${p.swatch}">${esc(p.nome.charAt(0))}</div>
+        </div>
+        <div class="produto-nome">${esc(p.nome)}</div>
+        <div class="produto-meta">${esc(p.categoria)} · ${p.variacoes.length} variações</div>
+        <div class="produto-preco">a partir de ${fmt(p.precoBase)}</div>
+      </button>
+    `).join('');
+    grid.querySelectorAll('.produto-card').forEach(btn => btn.addEventListener('click', () => setState({ modalProdutoId: btn.dataset.id })));
+    renderModal();
+    renderCarrinho();
+  }
+
+  function renderModal() {
+    const modal = document.getElementById('modal');
+    if (!state.modalProdutoId) { modal.style.display = 'none'; modal.innerHTML = ''; return; }
+    const produto = PRODUTOS.find(p => p.id === state.modalProdutoId);
+    modal.style.display = 'flex';
+    modal.innerHTML = `
+      <div class="modal-card">
+        <div class="modal-head">
+          <div>
+            <div class="modal-titulo">${esc(produto.nome)}</div>
+            <div class="modal-sub">${esc(produto.categoria)} · ${fmt(produto.precoBase)} por unidade</div>
+          </div>
+          <button class="btn-fechar" id="fechar-modal" aria-label="Fechar">×</button>
+        </div>
+        <div class="modal-dica">Toque numa combinação com estoque pra adicionar ao carrinho</div>
+        ${gradeHtml(produto, { grande: false })}
+      </div>
+    `;
+    document.getElementById('fechar-modal').addEventListener('click', () => setState({ modalProdutoId: null }));
+    modal.addEventListener('click', (e) => { if (e.target === modal) setState({ modalProdutoId: null }); });
+    modal.querySelectorAll('button[data-variacao]').forEach(btn => btn.addEventListener('click', () => adicionarAoCarrinho(produto, btn.dataset.variacao)));
+  }
+
+  function adicionarAoCarrinho(produto, variacaoId) {
+    const v = produto.variacoes.find(x => x.id === variacaoId);
+    if (!v || v.estoque <= 0) return;
+    const cart = state.cart.slice();
+    const idx = cart.findIndex(l => l.variacaoId === v.id);
+    if (idx >= 0) cart[idx] = Object.assign({}, cart[idx], { qtd: cart[idx].qtd + 1 });
+    else cart.push({ variacaoId: v.id, produtoId: produto.id, produtoNome: produto.nome, tamanho: v.tamanho, cor: v.cor, corHex: v.corHex, precoUnit: v.preco, qtd: 1 });
+    setState({ cart, modalProdutoId: null });
+  }
+
+  function alterarQtd(variacaoId, delta) {
+    const cart = state.cart.map(l => l.variacaoId === variacaoId ? Object.assign({}, l, { qtd: l.qtd + delta }) : l).filter(l => l.qtd > 0);
+    setState({ cart });
+  }
+
+  function renderCarrinho() {
+    const el = document.getElementById('carrinho-lista');
+    if (state.cart.length === 0) {
+      el.innerHTML = `<div class="carrinho-vazio">Carrinho vazio — toque num produto pra começar.</div>`;
+    } else {
+      el.innerHTML = state.cart.map(l => `
+        <div class="carrinho-linha">
+          <span class="dot" style="background:${l.corHex}"></span>
+          <div class="carrinho-info">
+            <div class="carrinho-nome">${esc(l.produtoNome)}</div>
+            <div class="carrinho-detalhe">Tam ${esc(l.tamanho)} · ${esc(l.cor)} · ${fmt(l.precoUnit)}</div>
+          </div>
+          <div class="carrinho-qtd">
+            <button data-menos="${l.variacaoId}" aria-label="Diminuir">−</button>
+            <span>${l.qtd}</span>
+            <button data-mais="${l.variacaoId}" aria-label="Aumentar">+</button>
+          </div>
+          <div class="carrinho-total">${fmt(l.precoUnit * l.qtd)}</div>
+        </div>
+      `).join('');
+      el.querySelectorAll('[data-menos]').forEach(b => b.addEventListener('click', () => alterarQtd(b.dataset.menos, -1)));
+      el.querySelectorAll('[data-mais]').forEach(b => b.addEventListener('click', () => alterarQtd(b.dataset.mais, 1)));
+    }
+    const subtotal = state.cart.reduce((s, l) => s + l.precoUnit * l.qtd, 0);
+    document.getElementById('subtotal').textContent = fmt(subtotal);
+    document.getElementById('total').textContent = fmt(subtotal);
+
+    const formasEl = document.getElementById('formas');
+    formasEl.innerHTML = ['Dinheiro', 'Débito', 'Crédito', 'Pix'].map(f => `<button class="forma ${state.formaPagamento === f ? 'ativo' : ''}" data-forma="${f}">${f}</button>`).join('');
+    formasEl.querySelectorAll('[data-forma]').forEach(b => b.addEventListener('click', () => setState({ formaPagamento: b.dataset.forma })));
+
+    const podeConfirmar = state.cart.length > 0 && !!state.formaPagamento;
+    const btnConfirmar = document.getElementById('confirmar');
+    btnConfirmar.disabled = !podeConfirmar;
+    btnConfirmar.classList.toggle('ativo', podeConfirmar);
+  }
+
+  document.getElementById('confirmar').addEventListener('click', () => {
+    if (state.cart.length === 0 || !state.formaPagamento) return;
+    setState({ cart: [], formaPagamento: null });
+    alert('Venda confirmada (simulação) — carrinho zerado.');
+  });
+
+  function categoriasUnicas() { return [...new Set(PRODUTOS.map(p => p.categoria))]; }
+  function produtosFiltrados() {
+    return PRODUTOS.filter(p => {
+      const bateBusca = !state.busca || p.nome.toLowerCase().includes(state.busca.toLowerCase());
+      const bateCategoria = !state.filtroCategoria || p.categoria === state.filtroCategoria;
+      return bateBusca && bateCategoria;
+    });
+  }
+
+  function renderEstoque() {
+    const chipsEl = document.getElementById('categorias-chips');
+    chipsEl.innerHTML = categoriasUnicas().map(c => `<button class="chip ${state.filtroCategoria === c ? 'ativo' : ''}" data-cat="${esc(c)}">${esc(c)}</button>`).join('');
+    chipsEl.querySelectorAll('[data-cat]').forEach(b => b.addEventListener('click', () => setState({ filtroCategoria: state.filtroCategoria === b.dataset.cat ? null : b.dataset.cat })));
+
+    const lista = produtosFiltrados();
+    if (!lista.find(p => p.id === state.estoqueSelecionadoId)) state.estoqueSelecionadoId = lista.length ? lista[0].id : null;
+
+    const listaEl = document.getElementById('produtos-lista');
+    listaEl.innerHTML = lista.map(p => {
+      const temBaixo = p.variacoes.some(v => v.estoque > 0 && v.estoque <= 4);
+      const semEstoque = p.estoqueTotal === 0;
+      const cor = semEstoque ? 'var(--zero-text)' : temBaixo ? 'var(--baixo-text)' : 'var(--ok-text)';
+      return `<button class="produto-row ${p.id === state.estoqueSelecionadoId ? 'ativo' : ''}" data-id="${p.id}">
+        <div class="produto-row-avatar" style="background:${p.swatch}">${esc(p.nome.charAt(0))}</div>
+        <div class="produto-row-info">
+          <div class="produto-row-nome">${esc(p.nome)}</div>
+          <div class="produto-row-meta">${esc(p.categoria)} · ${fmt(p.precoBase)}</div>
+        </div>
+        <div class="produto-row-estoque">
+          <div style="color:${cor};font-weight:700">${p.estoqueTotal} un.</div>
+          ${temBaixo && !semEstoque ? '<div class="baixo-tag">estoque baixo</div>' : ''}
+        </div>
+      </button>`;
+    }).join('');
+    listaEl.querySelectorAll('[data-id]').forEach(b => b.addEventListener('click', () => setState({ estoqueSelecionadoId: b.dataset.id })));
+
+    const detalheEl = document.getElementById('produto-detalhe');
+    const produto = PRODUTOS.find(p => p.id === state.estoqueSelecionadoId);
+    if (!produto) { detalheEl.innerHTML = ''; return; }
+    const margem = produto.precoBase > 0 ? Math.round(((produto.precoBase - produto.custoUnitario) / produto.precoBase) * 100) : 0;
+    detalheEl.innerHTML = `
+      <div class="detalhe-head">
+        <div>
+          <div class="detalhe-categoria">${esc(produto.categoria)}</div>
+          <div class="detalhe-nome titulo">${esc(produto.nome)}</div>
+        </div>
+        <div class="detalhe-acoes">
+          <button class="btn-secundario">Editar produto</button>
+          <button class="btn-secundario">+ Nova variação</button>
+        </div>
+      </div>
+      <div class="stats-row">
+        <div class="stat-card"><div class="stat-label">Estoque total</div><div class="stat-valor">${produto.estoqueTotal} un.</div></div>
+        <div class="stat-card"><div class="stat-label">Preço de venda</div><div class="stat-valor" style="color:var(--accent)">${fmt(produto.precoBase)}</div></div>
+        <div class="stat-card"><div class="stat-label">Custo unitário</div><div class="stat-valor">${fmt(produto.custoUnitario)}</div></div>
+        <div class="stat-card"><div class="stat-label">Margem</div><div class="stat-valor" style="color:var(--teal)">${margem}%</div></div>
+      </div>
+      <div class="grade-painel">
+        <div class="grade-titulo">Grade de estoque</div>
+        <div class="grade-sub">Tamanho × cor</div>
+        ${gradeHtml(produto, { grande: true })}
+      </div>
+    `;
+  }
+
+  document.getElementById('tab-venda').addEventListener('click', () => setState({ view: 'venda' }));
+  document.getElementById('tab-estoque').addEventListener('click', () => setState({ view: 'estoque' }));
+  document.getElementById('busca').addEventListener('input', (e) => setState({ busca: e.target.value }));
+
+  render();
+</script>
+</body>
+</html>
