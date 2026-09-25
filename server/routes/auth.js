@@ -1,7 +1,7 @@
 const express = require('express');
 const bcrypt = require('bcryptjs');
 const { pool } = require('../db');
-const { emitirToken, requireAuth } = require('../auth');
+const { assinarToken, exigirAuth } = require('../auth');
 const { sensivel } = require('../rateLimit');
 const { ABAS } = require('../abas');
 
@@ -80,7 +80,7 @@ router.post('/login', sensivel, async (req, res, next) => {
 });
 
 function finalizarLogin(pessoa, unidadeId) {
-  const token = emitirToken({
+  const token = assinarToken({
     pessoaId: pessoa.id,
     nome: pessoa.nome,
     cargoId: pessoa.cargo_id,
@@ -99,13 +99,13 @@ function finalizarLogin(pessoa, unidadeId) {
   };
 }
 
-router.get('/me', requireAuth, (req, res) => {
+router.get('/me', exigirAuth, (req, res) => {
   res.json(req.usuario);
 });
 
 // Abas que a pessoa logada enxerga no menu lateral, na ordem fixa de config
 // (nunca na ordem em que o cargo foi salvo).
-router.get('/me/abas', requireAuth, async (req, res, next) => {
+router.get('/me/abas', exigirAuth, async (req, res, next) => {
   if (req.usuario.administrador) return res.json(ABAS);
   try {
     const { rows } = await pool.query(

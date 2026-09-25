@@ -27,10 +27,23 @@ sentido pra esse contexto antes de construir.
 - **Nota fiscal / recibo** — não é prioridade agora; confirmar com a contadora o que a
   associação realmente precisa emitir antes de desenhar isso.
 
+## Stack (mesmo padrão do PDV Jabá)
+
+- **Backend**: Node.js + Express puro, JavaScript sem TypeScript/build step. **PostgreSQL** via
+  `pg` direto (sem ORM), SQL sempre parametrizado. Schema em SQL puro, sem migration framework.
+- **Frontend**: `public/index.html` é **um único arquivo** — HTML/CSS/JS puro, sem
+  React/bundler/build step. Um `state` global guarda tudo; `render()` reconstrói `#app.innerHTML`
+  inteiro a cada mudança; `viewX()` devolvem string de HTML; `attachEvents()` religa os
+  `data-action`/`data-nav`/`data-tecla` depois de cada render. Servido como estático pelo Express.
+- **Auth**: token assinado à mão com HMAC (`crypto.createHmac`, sem JWT nem lib de sessão),
+  validade 12h, conferido sempre no servidor (`server/auth.js`). O PIN, diferente do trecho
+  original do PDV Jabá, fica com hash (`bcryptjs`) em vez de texto puro no banco — banco gerenciado
+  na nuvem é mais exposto que a máquina local de um restaurante, vale a camada extra.
+
 ## Rodando localmente
 
 ```bash
-cp .env.example .env   # ajustar DATABASE_URL e JWT_SECRET
+cp .env.example .env   # ajustar DATABASE_URL e AUTH_SECRET
 npm install
 npm run db:schema      # cria as tabelas
 npm run db:seed        # cargos provisórios + unidades CEPE/ATPN
@@ -43,10 +56,10 @@ Abrir `http://localhost:3000`.
 ## Estrutura
 
 ```
-db/schema.sql       tabelas (unidades, cargos, pessoas, permissões, histórico de versão)
-db/seed.sql          cargos/unidades provisórios
-server/              Express: auth (JWT 12h), rate limiting, rotas de config
-public/              tela de login + shell (tema claro/escuro, menu lateral, permissões)
+db/schema.sql        tabelas (unidades, cargos, pessoas, permissões, histórico de versão)
+db/seed.sql           cargos/unidades provisórios
+server/               Express: auth HMAC (12h), rate limiting, rotas de config
+public/index.html     tela de login + shell inteiros num arquivo só (tema, sidebar, permissões)
 scripts/seed-admin.js  cria o primeiro Administrador
 ```
 

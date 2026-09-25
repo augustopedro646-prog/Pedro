@@ -1,11 +1,11 @@
 const express = require('express');
 const { pool, registrarHistorico } = require('../db');
-const { requireAuth, requireCargo } = require('../auth');
+const { exigirAuth, exigirPapel } = require('../auth');
 const { ABAS } = require('../abas');
 
 const router = express.Router();
 
-router.use(requireAuth, requireCargo()); // só Administrador passa (requireCargo sem lista = só bypass admin)
+router.use(exigirAuth, exigirPapel()); // só Administrador passa (exigirPapel sem lista = só bypass admin)
 
 // Matriz aba x cargo pra tela de Configurações > Permissões. Administrador
 // não aparece: é sempre irrestrito.
