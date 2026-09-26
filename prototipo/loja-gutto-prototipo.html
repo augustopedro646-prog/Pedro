@@ -26,14 +26,34 @@
   .titulo { font-family: 'Baloo 2', sans-serif; font-weight: 700; }
   .dot { width: 12px; height: 12px; border-radius: 50%; display: inline-block; border: 1px solid var(--border); vertical-align: middle; margin-right: 4px; flex-shrink: 0; }
 
+  /* ---------- Login (cargo → pessoa → PIN) ---------- */
+  .login-screen { height: 100vh; display: flex; align-items: center; justify-content: center; padding: 16px; }
+  .login-card { width: 100%; max-width: 360px; background: var(--surface); border: 1px solid var(--border); border-radius: 20px; padding: 28px; text-align: center; box-shadow: 0 12px 40px rgba(0,0,0,.08); display: flex; flex-direction: column; align-items: center; gap: 6px; }
+  .login-logo { font-size: 22px; color: var(--accent); margin-bottom: 6px; }
+  .login-avatar-grande { width: 56px; height: 56px; border-radius: 50%; background: var(--teal); color: #fff; display: flex; align-items: center; justify-content: center; font-family: 'Baloo 2', sans-serif; font-weight: 700; font-size: 22px; margin-bottom: 4px; }
+  .login-titulo { font-family: 'Baloo 2', sans-serif; font-weight: 700; font-size: 18px; }
+  .login-sub { font-size: 12px; color: var(--text-2); margin-bottom: 14px; }
+  .login-opcoes { display: flex; flex-direction: column; gap: 8px; width: 100%; }
+  .login-opcao { width: 100%; display: flex; align-items: center; padding: 12px 14px; border-radius: 12px; border: 1px solid var(--border); background: #fff; font-size: 14px; font-weight: 600; text-align: left; }
+  .login-opcao .avatar { width: 26px; height: 26px; border-radius: 50%; background: var(--accent); color: #fff; display: inline-flex; align-items: center; justify-content: center; font-family: 'Baloo 2', sans-serif; font-weight: 700; font-size: 12px; flex-shrink: 0; }
+  .login-voltar { margin-top: 14px; border: none; background: none; color: var(--text-2); font-size: 12px; text-decoration: underline; }
+  .pin-dots { display: flex; gap: 10px; margin: 8px 0; }
+  .pin-dot { width: 14px; height: 14px; border-radius: 50%; border: 2px solid var(--border); }
+  .pin-dot.preenchido { background: var(--accent); border-color: var(--accent); }
+  .pin-erro { color: var(--zero-text); font-size: 12px; font-weight: 600; margin-bottom: 4px; }
+  .teclado { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; width: 220px; margin-top: 6px; }
+  .tecla { height: 52px; border-radius: 12px; border: 1px solid var(--border); background: #fff; font-size: 18px; font-weight: 600; }
+  .tecla:active { background: var(--border-2); }
+
   header { height: 64px; flex-shrink: 0; display: flex; align-items: center; justify-content: space-between; padding: 0 24px; background: var(--surface); border-bottom: 1px solid var(--border); }
   .logo { font-size: 20px; color: var(--accent); }
   .nav { display: flex; gap: 8px; margin-left: 20px; }
   .tab { padding: 6px 16px; border-radius: 999px; border: 1px solid var(--border); background: var(--surface); color: var(--text); font-size: 13px; font-weight: 600; }
   .tab.active { background: var(--accent); border-color: var(--accent); color: #fff; }
   .header-left { display: flex; align-items: center; }
-  .user-badge { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text-2); }
+  .user-badge { display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--text-2); }
   .avatar { width: 26px; height: 26px; border-radius: 50%; background: var(--teal); color: #fff; display: flex; align-items: center; justify-content: center; font-family: 'Baloo 2', sans-serif; font-weight: 700; font-size: 12px; }
+  #btn-sair { border: 1px solid var(--border); background: #fff; color: var(--text-2); font-size: 12px; font-weight: 600; padding: 6px 12px; border-radius: 999px; }
 
   main { height: calc(100vh - 64px); display: flex; overflow: hidden; }
   .view { display: none; width: 100%; }
@@ -138,56 +158,71 @@
 </head>
 <body>
 
-<header>
-  <div class="header-left">
-    <div class="logo titulo">Loja Gutto</div>
-    <div class="nav">
-      <button class="tab active" id="tab-venda">Venda rápida</button>
-      <button class="tab" id="tab-estoque">Estoque</button>
-    </div>
-  </div>
-  <div class="user-badge"><div class="avatar">A</div>Equipe: Ana</div>
-</header>
+<div id="login-screen" class="login-screen"></div>
 
-<main>
-  <div class="view" id="view-venda">
-    <div class="col-produtos">
-      <h1 class="titulo">Venda rápida</h1>
-      <p class="sub">Toque num produto pra escolher tamanho e cor</p>
-      <div class="produtos-grid" id="produtos-grid"></div>
-    </div>
-    <div class="col-carrinho">
-      <h2 class="titulo">Carrinho</h2>
-      <div id="carrinho-lista"></div>
-      <div class="totais">
-        <div class="linha-total"><span>Subtotal</span><span id="subtotal">R$ 0,00</span></div>
-        <div class="linha-total grande"><span>Total</span><span id="total">R$ 0,00</span></div>
-        <div style="font-size:11px;color:var(--text-2);margin-top:4px">Forma de pagamento</div>
-        <div class="formas" id="formas"></div>
-        <button id="confirmar">Confirmar venda</button>
+<div id="app-shell" style="display:none; flex-direction: column; height: 100vh;">
+  <header>
+    <div class="header-left">
+      <div class="logo titulo">Loja Gutto</div>
+      <div class="nav">
+        <button class="tab active" id="tab-venda">Venda rápida</button>
+        <button class="tab" id="tab-estoque">Estoque</button>
       </div>
     </div>
-  </div>
+    <div class="user-badge">
+      <div class="avatar" id="user-avatar"></div>
+      <span id="user-badge-nome"></span>
+      <button id="btn-sair">Sair</button>
+    </div>
+  </header>
 
-  <div class="view" id="view-estoque">
-    <div class="col-lista">
-      <div class="lista-topo">
-        <div class="lista-topo-head">
-          <h2 class="titulo">Produtos</h2>
-          <button class="btn-primario">+ Novo produto</button>
+  <main>
+    <div class="view" id="view-venda">
+      <div class="col-produtos">
+        <h1 class="titulo">Venda rápida</h1>
+        <p class="sub">Toque num produto pra escolher tamanho e cor</p>
+        <div class="produtos-grid" id="produtos-grid"></div>
+      </div>
+      <div class="col-carrinho">
+        <h2 class="titulo">Carrinho</h2>
+        <div id="carrinho-lista"></div>
+        <div class="totais">
+          <div class="linha-total"><span>Subtotal</span><span id="subtotal">R$ 0,00</span></div>
+          <div class="linha-total grande"><span>Total</span><span id="total">R$ 0,00</span></div>
+          <div style="font-size:11px;color:var(--text-2);margin-top:4px">Forma de pagamento</div>
+          <div class="formas" id="formas"></div>
+          <button id="confirmar">Confirmar venda</button>
         </div>
-        <input id="busca" type="text" placeholder="Buscar produto...">
-        <div class="chips" id="categorias-chips"></div>
       </div>
-      <div class="lista-scroll" id="produtos-lista"></div>
     </div>
-    <div class="col-detalhe" id="produto-detalhe"></div>
-  </div>
-</main>
+
+    <div class="view" id="view-estoque">
+      <div class="col-lista">
+        <div class="lista-topo">
+          <div class="lista-topo-head">
+            <h2 class="titulo">Produtos</h2>
+            <button class="btn-primario">+ Novo produto</button>
+          </div>
+          <input id="busca" type="text" placeholder="Buscar produto...">
+          <div class="chips" id="categorias-chips"></div>
+        </div>
+        <div class="lista-scroll" id="produtos-lista"></div>
+      </div>
+      <div class="col-detalhe" id="produto-detalhe"></div>
+    </div>
+  </main>
+</div>
 
 <div id="modal"></div>
 
 <script>
+  // Equipe (login por PIN) — cargo → pessoa → teclado, mesmo padrão do PDV Jabá.
+  const USUARIOS = [
+    { id: 'pedro', nome: 'Pedro', papel: 'Administrador', pin: '1103' },
+    { id: 'lorena', nome: 'Lorena', papel: 'Administrador', pin: '1007' },
+  ];
+  const CARGOS = [...new Set(USUARIOS.map(u => u.papel))];
+
   const PRODUTOS_DEF = [
     { id: 'p1', nome: 'Camiseta Foguete', categoria: 'Camisetas', precoBase: 39.90, tamanhos: ['2','4','6','8','10','12'], cores: [{ nome: 'Azul', hex: '#3E6FA8' }, { nome: 'Amarelo', hex: '#E8B23D' }], swatch: '#3E6FA8' },
     { id: 'p2', nome: 'Vestido Florido', categoria: 'Vestidos', precoBase: 59.90, tamanhos: ['P','M','G'], cores: [{ nome: 'Rosa', hex: '#D9748C' }, { nome: 'Branco', hex: '#D8CFC0' }], swatch: '#D9748C' },
@@ -215,13 +250,25 @@
   }
   const PRODUTOS = buildProdutos();
 
-  const state = { view: 'venda', cart: [], modalProdutoId: null, formaPagamento: null, estoqueSelecionadoId: PRODUTOS[0].id, busca: '', filtroCategoria: null };
+  const state = {
+    logado: null,
+    loginStep: 'cargo', loginCargo: null, loginPessoaId: null, loginPin: '', loginErro: false,
+    view: 'venda', cart: [], modalProdutoId: null, formaPagamento: null,
+    estoqueSelecionadoId: PRODUTOS[0].id, busca: '', filtroCategoria: null,
+  };
 
   function fmt(v) { return 'R$ ' + v.toFixed(2).replace('.', ','); }
   function esc(s) { return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
   function setState(patch) { Object.assign(state, patch); render(); }
 
   function render() {
+    document.getElementById('login-screen').style.display = state.logado ? 'none' : 'flex';
+    document.getElementById('app-shell').style.display = state.logado ? 'flex' : 'none';
+    if (!state.logado) { renderLogin(); return; }
+
+    document.getElementById('user-badge-nome').textContent = state.logado.nome + ' · ' + state.logado.papel;
+    document.getElementById('user-avatar').textContent = state.logado.nome.charAt(0);
+
     document.getElementById('tab-venda').classList.toggle('active', state.view === 'venda');
     document.getElementById('tab-estoque').classList.toggle('active', state.view === 'estoque');
     document.getElementById('view-venda').style.display = state.view === 'venda' ? 'flex' : 'none';
@@ -229,7 +276,73 @@
     if (state.view === 'venda') renderVenda(); else renderEstoque();
   }
 
-  function gradeHtml(produto, { grande, onCellClass }) {
+  function renderLogin() {
+    const el = document.getElementById('login-screen');
+
+    if (state.loginStep === 'cargo') {
+      el.innerHTML = `
+        <div class="login-card">
+          <div class="login-logo titulo">Loja Gutto</div>
+          <div class="login-titulo">Quem vai operar?</div>
+          <div class="login-sub">Selecione o cargo</div>
+          <div class="login-opcoes">
+            ${CARGOS.map(c => `<button class="login-opcao" data-cargo="${esc(c)}">${esc(c)}</button>`).join('')}
+          </div>
+        </div>`;
+      el.querySelectorAll('[data-cargo]').forEach(b => b.addEventListener('click', () => setState({ loginStep: 'pessoa', loginCargo: b.dataset.cargo })));
+      return;
+    }
+
+    if (state.loginStep === 'pessoa') {
+      const pessoas = USUARIOS.filter(u => u.papel === state.loginCargo);
+      el.innerHTML = `
+        <div class="login-card">
+          <div class="login-logo titulo">Loja Gutto</div>
+          <div class="login-titulo">${esc(state.loginCargo)}</div>
+          <div class="login-sub">Quem é você?</div>
+          <div class="login-opcoes">
+            ${pessoas.map(p => `<button class="login-opcao" data-pessoa="${p.id}"><span class="avatar" style="margin-right:8px">${esc(p.nome.charAt(0))}</span>${esc(p.nome)}</button>`).join('')}
+          </div>
+          <button class="login-voltar" id="login-voltar">← Voltar</button>
+        </div>`;
+      el.querySelectorAll('[data-pessoa]').forEach(b => b.addEventListener('click', () => setState({ loginStep: 'pin', loginPessoaId: b.dataset.pessoa, loginPin: '', loginErro: false })));
+      document.getElementById('login-voltar').addEventListener('click', () => setState({ loginStep: 'cargo', loginCargo: null }));
+      return;
+    }
+
+    // loginStep === 'pin'
+    const pessoa = USUARIOS.find(u => u.id === state.loginPessoaId);
+    const dots = Array.from({ length: 4 }).map((_, i) => `<div class="pin-dot ${i < state.loginPin.length ? 'preenchido' : ''}"></div>`).join('');
+    el.innerHTML = `
+      <div class="login-card">
+        <div class="login-avatar-grande">${esc(pessoa.nome.charAt(0))}</div>
+        <div class="login-titulo">${esc(pessoa.nome)}</div>
+        <div class="login-sub">Digite o PIN</div>
+        <div class="pin-dots">${dots}</div>
+        ${state.loginErro ? '<div class="pin-erro">PIN incorreto</div>' : ''}
+        <div class="teclado">
+          ${['1','2','3','4','5','6','7','8','9','','0','⌫'].map(k => k === '' ? '<div></div>' : `<button class="tecla" data-tecla="${k}">${k}</button>`).join('')}
+        </div>
+        <button class="login-voltar" id="login-voltar">← Voltar</button>
+      </div>`;
+    el.querySelectorAll('[data-tecla]').forEach(b => b.addEventListener('click', () => onTecla(b.dataset.tecla, pessoa)));
+    document.getElementById('login-voltar').addEventListener('click', () => setState({ loginStep: 'pessoa', loginPin: '', loginErro: false }));
+  }
+
+  function onTecla(tecla, pessoa) {
+    if (tecla === '⌫') { setState({ loginPin: state.loginPin.slice(0, -1), loginErro: false }); return; }
+    if (state.loginPin.length >= 4) return;
+    const pin = state.loginPin + tecla;
+    if (pin.length < 4) { setState({ loginPin: pin, loginErro: false }); return; }
+    if (pin === pessoa.pin) {
+      setState({ logado: pessoa, loginPin: '', loginStep: 'cargo', loginCargo: null, loginPessoaId: null });
+    } else {
+      state.loginPin = pin; state.loginErro = true; render();
+      setTimeout(() => setState({ loginPin: '', loginErro: false }), 600);
+    }
+  }
+
+  function gradeHtml(produto, { grande }) {
     const coresHeader = produto.cores.map(c => `<div class="grade-cor-label"><span class="dot" style="background:${c.hex}"></span>${esc(c.nome)}</div>`).join('');
     const rows = produto.tamanhos.map(tamanho => {
       const cels = produto.cores.map(cor => {
@@ -413,6 +526,7 @@
   document.getElementById('tab-venda').addEventListener('click', () => setState({ view: 'venda' }));
   document.getElementById('tab-estoque').addEventListener('click', () => setState({ view: 'estoque' }));
   document.getElementById('busca').addEventListener('input', (e) => setState({ busca: e.target.value }));
+  document.getElementById('btn-sair').addEventListener('click', () => setState({ logado: null, loginStep: 'cargo', loginCargo: null, loginPessoaId: null, loginPin: '' }));
 
   render();
 </script>
