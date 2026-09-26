@@ -76,6 +76,35 @@ body{
   gap:22px;
 }
 
+/* -------- botão de tema -------- */
+.btn-tema{
+  position:fixed;
+  top:calc(12px + env(safe-area-inset-top,0px));
+  right:14px;
+  z-index:10;
+  width:38px;
+  height:38px;
+  border-radius:50%;
+  display:grid;
+  place-items:center;
+  background:var(--card);
+  border:1px solid var(--line);
+  box-shadow:0 8px 18px -10px rgba(18,36,22,.4);
+  color:var(--ink);
+  cursor:pointer;
+  padding:0;
+  transition:transform .12s ease;
+}
+.btn-tema:active{transform:scale(.92)}
+.btn-tema svg{width:18px;height:18px}
+.btn-tema .icone-lua{display:none}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]) .btn-tema .icone-sol{display:none}
+  :root:not([data-theme="light"]) .btn-tema .icone-lua{display:block}
+}
+:root[data-theme="dark"] .btn-tema .icone-sol{display:none}
+:root[data-theme="dark"] .btn-tema .icone-lua{display:block}
+
 /* -------- topo / marca -------- */
 .marca{
   display:flex;
@@ -86,7 +115,7 @@ body{
 }
 .logo-envolto{
   position:relative;
-  width:min(280px,72vw);
+  width:min(256px,60vw);
   margin-bottom:6px;
 }
 .brilho::before{
@@ -300,7 +329,23 @@ body{
 </style>
 </head>
 <body>
-<div class="pagina">
+<script>
+(function(){
+  try{
+    var t = localStorage.getItem('volt-tema');
+    if(t === 'light' || t === 'dark'){
+      document.documentElement.setAttribute('data-theme', t);
+    }
+  }catch(e){}
+})();
+</script>
+
+<button class="btn-tema" id="btn-tema" type="button" aria-label="Alternar tema claro/escuro">
+    <svg class="icone-sol" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.2 4.2l1.4 1.4M18.4 18.4l1.4 1.4M2 12h2M20 12h2M4.2 19.8l1.4-1.4M18.4 5.6l1.4-1.4"/></svg>
+    <svg class="icone-lua" viewBox="0 0 24 24" fill="currentColor"><path d="M20.5 14.7A8.5 8.5 0 0 1 9.3 3.5a.6.6 0 0 0-.7-.8A10 10 0 1 0 21.3 15.4a.6.6 0 0 0-.8-.7z"/></svg>
+  </button>
+
+  <div class="pagina">
 
   <div class="marca">
     <div class="logo-envolto brilho">
@@ -393,6 +438,18 @@ body{
 
 <script>
 (function(){
+  var btnTema = document.getElementById('btn-tema');
+  if(btnTema){
+    btnTema.addEventListener('click', function(){
+      var atual = document.documentElement.getAttribute('data-theme');
+      var sistemaEscuro = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+      var efetivo = atual || (sistemaEscuro ? 'dark' : 'light');
+      var novo = efetivo === 'dark' ? 'light' : 'dark';
+      document.documentElement.setAttribute('data-theme', novo);
+      try{ localStorage.setItem('volt-tema', novo); }catch(e){}
+    });
+  }
+
   var btn = document.getElementById('btn-copiar');
   var rotulo = document.getElementById('copiar-rotulo');
   if(!btn) return;
