@@ -1,0 +1,833 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>CEPE / ATPN — Gestão</title>
+<style>
+  /* Paleta neutra provisória — trocar quando tiver a identidade visual
+     real do CEPE/ATPN (logo, cores). Nunca cor hardcoded num componente,
+     sempre var(--token). */
+  :root {
+    color-scheme: light;
+    --fundo: #f4f5f7;
+    --superficie: #ffffff;
+    --borda: #dfe3e8;
+    --texto: #1c2430;
+    --texto-fraco: #64707d;
+    --primaria: #2f6f4f;
+    --primaria-texto: #ffffff;
+    --perigo: #b3413a;
+    --sidebar-bg: #1c2430;
+    --sidebar-text: #cbd3dc;
+    --sidebar-active-bg: #2f6f4f;
+    --sidebar-active-text: #ffffff;
+    --shadow: 0 1px 3px rgba(0,0,0,.08);
+    --radius: 10px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      color-scheme: dark;
+      --fundo: #12161c;
+      --superficie: #1b212a;
+      --borda: #2b333e;
+      --texto: #e7ebf0;
+      --texto-fraco: #97a3b0;
+      --primaria: #4c9770;
+      --primaria-texto: #0b1310;
+      --shadow: 0 1px 3px rgba(0,0,0,.4);
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --fundo: #12161c;
+    --superficie: #1b212a;
+    --borda: #2b333e;
+    --texto: #e7ebf0;
+    --texto-fraco: #97a3b0;
+    --primaria: #4c9770;
+    --primaria-texto: #0b1310;
+    --shadow: 0 1px 3px rgba(0,0,0,.4);
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    background: var(--fundo);
+    color: var(--texto);
+  }
+  button, input, select { font: inherit; color: inherit; }
+
+  /* ---------- Login ---------- */
+  .tela-login {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+  }
+  .cartao-login {
+    background: var(--superficie);
+    border: 1px solid var(--borda);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 28px;
+    width: 100%;
+    max-width: 360px;
+  }
+  .cartao-login h1 { font-size: 1.1rem; margin: 0 0 4px; }
+  .cartao-login .sub { color: var(--texto-fraco); font-size: .85rem; margin: 0 0 20px; }
+  .campo { margin-bottom: 14px; }
+  .campo label { display: block; font-size: .8rem; color: var(--texto-fraco); margin-bottom: 4px; }
+  .campo select, .campo input {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid var(--borda);
+    border-radius: 8px;
+    background: var(--fundo);
+    color: var(--texto);
+  }
+  .pin-display { display: flex; gap: 8px; justify-content: center; margin: 16px 0; }
+  .pin-display span { width: 14px; height: 14px; border-radius: 50%; border: 1px solid var(--texto-fraco); }
+  .pin-display span.preenchido { background: var(--primaria); border-color: var(--primaria); }
+  .teclado-pin { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .teclado-pin button {
+    padding: 14px 0; border-radius: 8px; border: 1px solid var(--borda);
+    background: var(--superficie); cursor: pointer; font-size: 1.1rem;
+  }
+  .teclado-pin button:active { background: var(--fundo); }
+  .erro-login { color: var(--perigo); font-size: .85rem; min-height: 1.2em; margin-top: 8px; text-align: center; }
+
+  /* ---------- Sidebar / shell (mesmo padrão do PDV Jabá) ---------- */
+  .sidebar {
+    position: fixed; top: 0; left: 0; bottom: 0; width: 230px;
+    background: var(--sidebar-bg); color: var(--sidebar-text);
+    display: flex; flex-direction: column; transition: transform .2s ease; overflow-y: auto;
+    z-index: 10;
+  }
+  .sidebar.colapsada { transform: translateX(-100%); }
+  .main-content { margin-left: 230px; transition: margin-left .2s ease; min-height: 100vh; }
+  .main-content.sidebar-colapsada { margin-left: 0; }
+
+  .sidebar .marca { padding: 16px; border-bottom: 1px solid rgba(255,255,255,.1); }
+  .sidebar .marca strong { display: block; }
+  .sidebar .marca span { color: var(--sidebar-text); opacity: .7; font-size: .8rem; }
+  .sidebar .marca button {
+    margin-top: 10px; padding: 6px 10px; border: 1px solid rgba(255,255,255,.2); border-radius: 6px;
+    background: transparent; color: var(--sidebar-text); cursor: pointer; font-size: .8rem;
+  }
+
+  nav.tabs { display: flex; flex-direction: column; gap: 2px; padding: .75rem; flex: 1; overflow-y: auto; }
+  nav.tabs button {
+    position: relative; display: flex; align-items: center; text-align: left;
+    padding: 10px 12px; border-radius: 8px; border: none; background: transparent;
+    color: var(--sidebar-text); cursor: pointer; font-size: .92rem;
+  }
+  nav.tabs button.active { background: var(--sidebar-active-bg); color: var(--sidebar-active-text); }
+  nav.tabs button:not(.active):hover { background: rgba(255,255,255,.08); }
+  .tab-badge {
+    margin-left: auto; background: var(--perigo); color: #fff; border-radius: 999px;
+    font-size: .7rem; padding: 1px 7px; min-width: 18px; text-align: center;
+  }
+
+  .user-chip { padding: 14px 16px; border-top: 1px solid rgba(255,255,255,.1); font-size: .85rem; }
+  .user-chip button {
+    margin-top: 8px; background: transparent; border: 1px solid rgba(255,255,255,.2); color: var(--sidebar-text);
+    border-radius: 6px; padding: 6px 10px; cursor: pointer; font-size: .8rem;
+  }
+
+  .abrir-sidebar-btn {
+    position: fixed; top: 14px; left: 14px; z-index: 20;
+    width: 40px; height: 40px; border-radius: 50%;
+    border: 1px solid var(--borda); background: var(--superficie);
+    box-shadow: var(--shadow); cursor: pointer; font-size: 1.1rem;
+  }
+  .sidebar-backdrop { display: none; }
+
+  @media (max-width: 820px) {
+    .sidebar { width: 78vw; max-width: 280px; box-shadow: 2px 0 16px rgba(0,0,0,.35); }
+    .main-content { margin-left: 0 !important; }
+    .sidebar-backdrop { display: block; position: fixed; inset: 0; background: rgba(0,0,0,.4); z-index: 9; }
+  }
+
+  .conteudo { padding: 28px; }
+  .conteudo h2 { margin-top: 0; }
+  .placeholder { color: var(--texto-fraco); }
+
+  /* ---------- Configurações ---------- */
+  .secao { background: var(--superficie); border: 1px solid var(--borda); border-radius: var(--radius); padding: 18px; margin-bottom: 20px; }
+  .secao h3 { margin-top: 0; }
+  .linha-form { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+  .linha-form input, .linha-form select {
+    flex: 1 1 160px; min-width: 120px; padding: 8px 10px; border: 1px solid var(--borda);
+    border-radius: 6px; background: var(--fundo); color: var(--texto);
+  }
+  .botao { background: var(--primaria); color: var(--primaria-texto); border: none; border-radius: 6px; padding: 8px 14px; cursor: pointer; }
+  table.permissoes { border-collapse: collapse; width: 100%; }
+  table.permissoes th, table.permissoes td { border: 1px solid var(--borda); padding: 8px 10px; text-align: center; font-size: .85rem; }
+  table.permissoes th:first-child, table.permissoes td:first-child { text-align: left; }
+
+  /* ---------- Bater ponto / Fluxo de caixa ---------- */
+  table.tabela-lista { border-collapse: collapse; width: 100%; font-size: .88rem; }
+  table.tabela-lista th, table.tabela-lista td { border-bottom: 1px solid var(--borda); padding: 8px 10px; text-align: left; }
+  table.tabela-lista th { color: var(--texto-fraco); font-weight: 600; }
+  .botao-link { background: none; border: none; color: var(--perigo); cursor: pointer; padding: 0; font-size: .82rem; text-decoration: underline; }
+  .abas-secundarias { display: flex; gap: 6px; margin-bottom: 14px; }
+  .abas-secundarias button { padding: 6px 14px; border: 1px solid var(--borda); background: var(--fundo); border-radius: 999px; cursor: pointer; font-size: .85rem; }
+  .abas-secundarias button.ativa { background: var(--primaria); color: var(--primaria-texto); border-color: var(--primaria); }
+  .navegacao-mes { display: flex; align-items: center; gap: 12px; }
+</style>
+</head>
+<body>
+<div id="app"></div>
+
+<script>
+(() => {
+  // ---------- Estado global (SPA "na mão", sem framework/build step) ----------
+  const API_BASE = '/api';
+
+  const state = {
+    token: localStorage.getItem('token') || null,
+    usuario: null,        // {pessoaId, nome, cargoId, cargoNome, administrador, unidadeId}
+
+    // tela de login
+    cargos: [],
+    pessoasDoCargo: [],
+    cargoSelecionado: null,
+    pessoaSelecionada: null,
+    unidadesPendentes: null,
+    unidadeSelecionada: null,
+    pin: '',
+    erroLogin: '',
+
+    // shell
+    sidebarColapsada: localStorage.getItem('sidebarColapsada') === '1',
+    abas: [],
+    abaAtual: null,
+
+    // configurações
+    configCarregado: false,
+    configUnidades: [],
+    configCargos: [],
+    configAbas: [],
+    configMatriz: [],
+
+    // bater ponto
+    pontoCarregado: false,
+    pontoRegistros: [],
+
+    // fluxo de caixa
+    financeiroCarregado: false,
+    financeiroMesRef: null, // {ano, mes(0-indexado)}
+    financeiroAba: 'despesas', // ou 'receitas'
+    financeiroDespesas: [],
+    financeiroReceitas: [],
+  };
+
+  const FORMAS_PAGAMENTO = ['Dinheiro', 'Cartão de crédito', 'Cartão de débito', 'Pix', 'Boleto', 'Transferência'];
+
+  // Escapa texto livre digitado por qualquer pessoa antes de ir pro
+  // innerHTML. Sem isso é XSS armazenado — usar em TODO dado de usuário.
+  function esc(v) {
+    return String(v ?? '').replace(/[&<>"']/g, (c) => ({
+      '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+    }[c]));
+  }
+
+  // Padrão de campo numérico: nunca <input type="number"> puro (apaga
+  // "10," e depende do locale do navegador) — type="text" inputmode="decimal" + parser.
+  function parseNumero(texto) {
+    const limpo = String(texto ?? '').trim().replace(/\./g, '').replace(',', '.');
+    const n = parseFloat(limpo);
+    return Number.isFinite(n) ? n : 0;
+  }
+
+  async function api(caminho, opts = {}) {
+    const resp = await fetch(API_BASE + caminho, {
+      ...opts,
+      headers: {
+        'Content-Type': 'application/json',
+        ...(state.token ? { Authorization: `Bearer ${state.token}` } : {}),
+        ...(opts.headers || {}),
+      },
+      body: opts.body ? JSON.stringify(opts.body) : undefined,
+    });
+    const dado = await resp.json().catch(() => ({}));
+    if (!resp.ok) throw new Error(dado.erro || 'Erro na requisição');
+    return dado;
+  }
+
+  function ehMobile() { return window.matchMedia('(max-width: 820px)').matches; }
+  function badgeDaAba(_id) { return 0; } // pendências por aba entram quando as telas de negócio existirem
+
+  // ---------- render ----------
+  function render() {
+    document.getElementById('app').innerHTML = state.usuario ? viewApp() : viewLogin();
+    attachEvents();
+  }
+
+  function viewLogin() {
+    const unidadeBloco = state.unidadesPendentes ? `
+      <div class="campo">
+        <label for="sel-unidade">Unidade</label>
+        <select id="sel-unidade" data-action="mudar-unidade">
+          ${state.unidadesPendentes.map((u) => `<option value="${u.id}" ${u.id === state.unidadeSelecionada ? 'selected' : ''}>${esc(u.nome)}</option>`).join('')}
+        </select>
+      </div>` : '';
+
+    return `
+      <div class="tela-login">
+        <div class="cartao-login">
+          <h1>CEPE / ATPN</h1>
+          <p class="sub">Entre com seu cargo e PIN</p>
+
+          <div class="campo">
+            <label for="sel-cargo">Cargo / Função</label>
+            <select id="sel-cargo" data-action="mudar-cargo">
+              ${state.cargos.map((c) => `<option value="${c.id}" ${c.id === state.cargoSelecionado ? 'selected' : ''}>${esc(c.nome)}</option>`).join('')}
+            </select>
+          </div>
+          <div class="campo">
+            <label for="sel-pessoa">Pessoa</label>
+            <select id="sel-pessoa" data-action="mudar-pessoa">
+              ${state.pessoasDoCargo.map((p) => `<option value="${p.id}" ${p.id === state.pessoaSelecionada ? 'selected' : ''}>${esc(p.nome)}</option>`).join('')}
+            </select>
+          </div>
+          ${unidadeBloco}
+
+          <div class="pin-display">
+            ${[0, 1, 2, 3].map((i) => `<span class="${i < state.pin.length ? 'preenchido' : ''}"></span>`).join('')}
+          </div>
+          <div class="teclado-pin">
+            ${['1', '2', '3', '4', '5', '6', '7', '8', '9'].map((n) => `<button data-tecla="${n}">${n}</button>`).join('')}
+            <button data-tecla="clear">C</button>
+            <button data-tecla="0">0</button>
+            <button data-tecla="back">⌫</button>
+          </div>
+          <p class="erro-login">${esc(state.erroLogin)}</p>
+        </div>
+      </div>`;
+  }
+
+  function sidebarHtml() {
+    const itens = [...state.abas];
+    if (state.usuario.administrador) itens.push({ id: 'config', nome: 'Configurações' });
+
+    const nav = itens.map((a) => {
+      const n = badgeDaAba(a.id);
+      return `<button data-nav="${a.id}" class="${state.abaAtual === a.id ? 'active' : ''}">
+        ${esc(a.nome)}${n > 0 ? `<span class="tab-badge">${n > 99 ? '99+' : n}</span>` : ''}
+      </button>`;
+    }).join('');
+
+    return `
+      <aside class="sidebar ${state.sidebarColapsada ? 'colapsada' : ''}">
+        <div class="marca">
+          <strong>CEPE / ATPN</strong>
+          <span>Gestão</span>
+          <button data-action="toggle-sidebar">« Esconder</button>
+        </div>
+        <nav class="tabs">${nav}</nav>
+        <div class="user-chip">
+          <div>${esc(state.usuario.nome)}</div>
+          <div style="opacity:.7">${esc(state.usuario.cargoNome)}</div>
+          <button data-action="sair">Sair</button>
+        </div>
+      </aside>
+      ${state.sidebarColapsada
+        ? `<button class="abrir-sidebar-btn" data-action="toggle-sidebar">☰</button>`
+        : `<div class="sidebar-backdrop" data-action="toggle-sidebar"></div>`}`;
+  }
+
+  function viewApp() {
+    return `
+      ${sidebarHtml()}
+      <div class="main-content ${state.sidebarColapsada ? 'sidebar-colapsada' : ''}">
+        <div class="conteudo">${viewConteudo()}</div>
+      </div>`;
+  }
+
+  function viewConteudo() {
+    if (state.abaAtual === 'config') return viewConfiguracoes();
+    if (state.abaAtual === 'ponto') return viewPonto();
+    if (state.abaAtual === 'fluxo_caixa') return viewFluxoCaixa();
+    const nomeAba = (state.abas.find((a) => a.id === state.abaAtual) || {}).nome || '';
+    return `
+      <h2>${esc(nomeAba)}</h2>
+      <p class="placeholder">Tela ainda não desenhada — depende do que o Pedro trouxer da visita à associação.</p>`;
+  }
+
+  // ---------- bater ponto ----------
+  function viewPonto() {
+    if (!state.pontoCarregado) return '<h2>Bater ponto</h2><p class="placeholder">Carregando…</p>';
+
+    const meuUltimo = [...state.pontoRegistros].reverse().find((r) => r.pessoaId === state.usuario.pessoaId);
+    const proximoTipo = meuUltimo?.tipo === 'entrada' ? 'saída' : 'entrada';
+
+    const linhas = [...state.pontoRegistros].reverse().map((r) => `
+      <tr>
+        <td>${esc(r.pessoaNome)}</td>
+        <td>${r.tipo === 'entrada' ? 'Entrada' : 'Saída'}</td>
+        <td>${new Date(r.registradoEm).toLocaleString('pt-BR')}</td>
+        ${state.usuario.administrador ? `<td><button class="botao-link" data-action="remover-ponto" data-id="${r.id}">remover</button></td>` : ''}
+      </tr>`).join('') || `<tr><td colspan="${state.usuario.administrador ? 4 : 3}" class="placeholder">Nenhum registro nos últimos 30 dias.</td></tr>`;
+
+    return `
+      <h2>Bater ponto</h2>
+      <div class="secao">
+        <p>Seu próximo registro será: <strong>${proximoTipo}</strong></p>
+        <button class="botao" data-action="bater-ponto">Bater ponto (${proximoTipo})</button>
+      </div>
+      <div class="secao">
+        <h3>Últimos registros ${state.usuario.administrador ? '(toda a unidade)' : '(seus)'}</h3>
+        <table class="tabela-lista">
+          <thead><tr><th>Pessoa</th><th>Tipo</th><th>Quando</th>${state.usuario.administrador ? '<th></th>' : ''}</tr></thead>
+          <tbody>${linhas}</tbody>
+        </table>
+      </div>`;
+  }
+
+  // ---------- fluxo de caixa ----------
+  function refMesAtual() {
+    const hoje = new Date();
+    return { ano: hoje.getFullYear(), mes: hoje.getMonth() };
+  }
+
+  function limitesMes(ref) {
+    const fmt = (d) => d.toISOString().slice(0, 10);
+    return {
+      inicio: fmt(new Date(ref.ano, ref.mes, 1)),
+      fim: fmt(new Date(ref.ano, ref.mes + 1, 0)),
+    };
+  }
+
+  function nomeMes(ref) {
+    const texto = new Date(ref.ano, ref.mes, 1).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+    return texto.charAt(0).toUpperCase() + texto.slice(1);
+  }
+
+  function formatarMoeda(valor) {
+    return `R$ ${Number(valor).toFixed(2).replace('.', ',')}`;
+  }
+
+  function viewFluxoCaixa() {
+    if (!state.financeiroCarregado) return '<h2>Fluxo de caixa</h2><p class="placeholder">Carregando…</p>';
+
+    const lista = state.financeiroAba === 'despesas' ? state.financeiroDespesas : state.financeiroReceitas;
+    const total = lista.reduce((soma, l) => soma + Number(l.valor), 0);
+
+    const linhas = lista.map((l) => `
+      <tr>
+        <td>${esc(l.data.split('-').reverse().join('/'))}</td>
+        <td>${esc(l.descricao)}</td>
+        <td>${esc(l.categoria || '—')}</td>
+        <td>${esc(l.formaPagamento || '—')}</td>
+        <td>${formatarMoeda(l.valor)}</td>
+        <td><button class="botao-link" data-action="remover-lancamento" data-id="${l.id}">remover</button></td>
+      </tr>`).join('') || `<tr><td colspan="6" class="placeholder">Nenhum lançamento no mês.</td></tr>`;
+
+    return `
+      <h2>Fluxo de caixa</h2>
+      <div class="secao">
+        <div class="navegacao-mes">
+          <button class="botao" data-action="mes-anterior">‹</button>
+          <strong>${nomeMes(state.financeiroMesRef)}</strong>
+          <button class="botao" data-action="mes-seguinte">›</button>
+        </div>
+      </div>
+      <div class="secao">
+        <div class="abas-secundarias">
+          <button class="${state.financeiroAba === 'despesas' ? 'ativa' : ''}" data-action="financeiro-aba" data-aba="despesas">Despesas</button>
+          <button class="${state.financeiroAba === 'receitas' ? 'ativa' : ''}" data-action="financeiro-aba" data-aba="receitas">Receitas</button>
+        </div>
+        <table class="tabela-lista">
+          <thead><tr><th>Data</th><th>Descrição</th><th>Categoria</th><th>Forma de pagamento</th><th>Valor</th><th></th></tr></thead>
+          <tbody>${linhas}</tbody>
+        </table>
+        <p><strong>Total: ${formatarMoeda(total)}</strong></p>
+        <div class="linha-form">
+          <input type="date" id="novo-lancamento-data" value="${new Date().toISOString().slice(0, 10)}" />
+          <input type="text" id="novo-lancamento-descricao" placeholder="Descrição" />
+          <input type="text" id="novo-lancamento-categoria" placeholder="Categoria (opcional)" />
+          <select id="novo-lancamento-forma">
+            <option value="">Forma de pagamento…</option>
+            ${FORMAS_PAGAMENTO.map((f) => `<option value="${esc(f)}">${esc(f)}</option>`).join('')}
+          </select>
+          <input type="text" inputmode="decimal" id="novo-lancamento-valor" placeholder="Valor" />
+          <button class="botao" data-action="add-lancamento">Adicionar</button>
+        </div>
+      </div>`;
+  }
+
+  function viewConfiguracoes() {
+    if (!state.configCarregado) return '<h2>Configurações</h2><p class="placeholder">Carregando…</p>';
+
+    const linhasUnidades = state.configUnidades.map((u) => `<div>${esc(u.nome)}</div>`).join('')
+      || '<p class="placeholder">Nenhuma unidade cadastrada.</p>';
+    const linhasCargos = state.configCargos.map((c) => `<div>${esc(c.nome)}${c.administrador ? ' (irrestrito)' : ''}</div>`).join('');
+
+    const tabelaPermissoes = `
+      <table class="permissoes">
+        <thead><tr><th>Cargo</th>${state.configAbas.map((a) => `<th>${esc(a.nome)}</th>`).join('')}</tr></thead>
+        <tbody>
+          ${state.configMatriz.map((linha) => `
+            <tr data-cargo="${linha.cargoId}">
+              <td>${esc(linha.cargoNome)}</td>
+              ${linha.abas.map((a) => `
+                <td><input type="checkbox" data-action="toggle-permissao" data-cargo="${linha.cargoId}" data-aba="${a.aba}" ${a.permitido ? 'checked' : ''}></td>
+              `).join('')}
+            </tr>`).join('')}
+        </tbody>
+      </table>
+      <div class="linha-form"><button class="botao" data-action="salvar-permissoes">Salvar permissões</button></div>`;
+
+    return `
+      <h2>Configurações</h2>
+      <div class="secao">
+        <h3>Unidades</h3>
+        <div>${linhasUnidades}</div>
+        <div class="linha-form">
+          <input id="nova-unidade-nome" placeholder="Nome da unidade" />
+          <button class="botao" data-action="add-unidade">Adicionar</button>
+        </div>
+      </div>
+      <div class="secao">
+        <h3>Cargos</h3>
+        <div>${linhasCargos}</div>
+        <div class="linha-form">
+          <input id="novo-cargo-nome" placeholder="Nome do cargo" />
+          <button class="botao" data-action="add-cargo">Adicionar</button>
+        </div>
+      </div>
+      <div class="secao">
+        <h3>Permissões por cargo</h3>
+        ${tabelaPermissoes}
+      </div>`;
+  }
+
+  // ---------- eventos (religados depois de cada render, sem duplicar
+  // listener porque o innerHTML anterior já foi descartado) ----------
+  function attachEvents() {
+    document.querySelectorAll('[data-tecla]').forEach((el) => {
+      el.addEventListener('click', () => pressLoginKey(el.dataset.tecla));
+    });
+
+    const selCargo = document.getElementById('sel-cargo');
+    if (selCargo) selCargo.addEventListener('change', (e) => mudarCargo(Number(e.target.value)));
+
+    const selPessoa = document.getElementById('sel-pessoa');
+    if (selPessoa) selPessoa.addEventListener('change', (e) => { state.pessoaSelecionada = Number(e.target.value); });
+
+    const selUnidade = document.getElementById('sel-unidade');
+    if (selUnidade) selUnidade.addEventListener('change', (e) => { state.unidadeSelecionada = Number(e.target.value); });
+
+    document.querySelectorAll('[data-nav]').forEach((el) => {
+      el.addEventListener('click', () => abrirAba(el.dataset.nav));
+    });
+
+    document.querySelectorAll('[data-action="toggle-sidebar"]').forEach((el) => {
+      el.addEventListener('click', toggleSidebar);
+    });
+
+    const btnSair = document.querySelector('[data-action="sair"]');
+    if (btnSair) btnSair.addEventListener('click', sair);
+
+    const btnAddUnidade = document.querySelector('[data-action="add-unidade"]');
+    if (btnAddUnidade) btnAddUnidade.addEventListener('click', adicionarUnidade);
+
+    const btnAddCargo = document.querySelector('[data-action="add-cargo"]');
+    if (btnAddCargo) btnAddCargo.addEventListener('click', adicionarCargo);
+
+    document.querySelectorAll('[data-action="toggle-permissao"]').forEach((el) => {
+      el.addEventListener('change', () => {
+        const linha = state.configMatriz.find((l) => l.cargoId === Number(el.dataset.cargo));
+        const aba = linha?.abas.find((a) => a.aba === el.dataset.aba);
+        if (aba) aba.permitido = el.checked;
+      });
+    });
+
+    const btnSalvarPermissoes = document.querySelector('[data-action="salvar-permissoes"]');
+    if (btnSalvarPermissoes) btnSalvarPermissoes.addEventListener('click', salvarPermissoes);
+
+    const btnBaterPonto = document.querySelector('[data-action="bater-ponto"]');
+    if (btnBaterPonto) btnBaterPonto.addEventListener('click', baterPonto);
+
+    document.querySelectorAll('[data-action="remover-ponto"]').forEach((el) => {
+      el.addEventListener('click', () => removerPonto(Number(el.dataset.id)));
+    });
+
+    document.querySelectorAll('[data-action="financeiro-aba"]').forEach((el) => {
+      el.addEventListener('click', () => { state.financeiroAba = el.dataset.aba; render(); });
+    });
+
+    const btnMesAnterior = document.querySelector('[data-action="mes-anterior"]');
+    if (btnMesAnterior) btnMesAnterior.addEventListener('click', () => mudarMesFinanceiro(-1));
+
+    const btnMesSeguinte = document.querySelector('[data-action="mes-seguinte"]');
+    if (btnMesSeguinte) btnMesSeguinte.addEventListener('click', () => mudarMesFinanceiro(1));
+
+    const btnAddLancamento = document.querySelector('[data-action="add-lancamento"]');
+    if (btnAddLancamento) btnAddLancamento.addEventListener('click', adicionarLancamento);
+
+    document.querySelectorAll('[data-action="remover-lancamento"]').forEach((el) => {
+      el.addEventListener('click', () => removerLancamento(Number(el.dataset.id)));
+    });
+  }
+
+  // ---------- login ----------
+  function pressLoginKey(k) {
+    if (k === 'clear') state.pin = '';
+    else if (k === 'back') state.pin = state.pin.slice(0, -1);
+    else if (state.pin.length < 4) state.pin += k;
+
+    if (state.pin.length === 4) { tryLogin(); return; }
+    render();
+  }
+
+  async function mudarCargo(cargoId) {
+    state.cargoSelecionado = cargoId;
+    state.pessoaSelecionada = null;
+    await carregarPessoasDoCargo();
+    render();
+  }
+
+  async function carregarCargos() {
+    state.cargos = await api('/auth/cargos');
+    const lembrado = Number(localStorage.getItem('ultimoCargoId'));
+    state.cargoSelecionado = state.cargos.some((c) => c.id === lembrado) ? lembrado : state.cargos[0]?.id ?? null;
+    await carregarPessoasDoCargo();
+  }
+
+  async function carregarPessoasDoCargo() {
+    if (!state.cargoSelecionado) { state.pessoasDoCargo = []; return; }
+    state.pessoasDoCargo = await api(`/auth/pessoas?cargoId=${state.cargoSelecionado}`);
+    const lembrada = Number(localStorage.getItem('ultimaPessoaId'));
+    state.pessoaSelecionada = state.pessoasDoCargo.some((p) => p.id === lembrada)
+      ? lembrada
+      : state.pessoasDoCargo[0]?.id ?? null;
+  }
+
+  async function tryLogin() {
+    if (!state.pessoaSelecionada) { state.pin = ''; render(); return; }
+    try {
+      const body = { pessoaId: state.pessoaSelecionada, pin: state.pin };
+      if (state.unidadesPendentes) body.unidadeId = state.unidadeSelecionada;
+
+      const resposta = await api('/auth/login', { method: 'POST', body });
+
+      if (resposta.precisaUnidade) {
+        state.unidadesPendentes = resposta.unidades;
+        state.unidadeSelecionada = resposta.unidades[0]?.id ?? null;
+        state.pin = '';
+        state.erroLogin = '';
+        render();
+        return;
+      }
+
+      localStorage.setItem('token', resposta.token);
+      localStorage.setItem('ultimoCargoId', String(state.cargoSelecionado));
+      localStorage.setItem('ultimaPessoaId', String(state.pessoaSelecionada));
+      state.token = resposta.token;
+      state.usuario = resposta.usuario;
+      await entrarNoApp();
+    } catch (err) {
+      state.erroLogin = err.message;
+      state.pin = '';
+      render();
+    }
+  }
+
+  function sair() {
+    localStorage.removeItem('token');
+    Object.assign(state, {
+      token: null, usuario: null, pin: '', erroLogin: '',
+      unidadesPendentes: null, unidadeSelecionada: null,
+      abas: [], abaAtual: null, configCarregado: false,
+      pontoCarregado: false, pontoRegistros: [],
+      financeiroCarregado: false, financeiroMesRef: null, financeiroAba: 'despesas',
+      financeiroDespesas: [], financeiroReceitas: [],
+    });
+    carregarCargos().then(render);
+  }
+
+  // ---------- shell ----------
+  function toggleSidebar() {
+    state.sidebarColapsada = !state.sidebarColapsada;
+    localStorage.setItem('sidebarColapsada', state.sidebarColapsada ? '1' : '0');
+    render();
+  }
+
+  async function entrarNoApp() {
+    if (localStorage.getItem('sidebarColapsada') === null) {
+      state.sidebarColapsada = ehMobile();
+    }
+    state.abas = await api('/auth/me/abas');
+    const primeira = state.abas[0]?.id ?? (state.usuario.administrador ? 'config' : null);
+    await abrirAba(primeira);
+  }
+
+  async function abrirAba(id) {
+    if (!id) return;
+    state.abaAtual = id;
+    if (id === 'config' && !state.configCarregado) {
+      render();
+      await carregarConfiguracoes();
+      state.configCarregado = true;
+    }
+    if (id === 'ponto' && !state.pontoCarregado) {
+      render();
+      await carregarPonto();
+      state.pontoCarregado = true;
+    }
+    if (id === 'fluxo_caixa' && !state.financeiroCarregado) {
+      render();
+      if (!state.financeiroMesRef) state.financeiroMesRef = refMesAtual();
+      await carregarFinanceiro();
+      state.financeiroCarregado = true;
+    }
+    render();
+  }
+
+  // ---------- configurações ----------
+  async function carregarConfiguracoes() {
+    const [unidades, cargos, permissoes] = await Promise.all([
+      api('/config/unidades'),
+      api('/config/cargos'),
+      api('/config/permissoes'),
+    ]);
+    state.configUnidades = unidades;
+    state.configCargos = cargos;
+    state.configAbas = permissoes.abas;
+    state.configMatriz = permissoes.matriz;
+  }
+
+  async function adicionarUnidade() {
+    const campo = document.getElementById('nova-unidade-nome');
+    if (!campo.value.trim()) return;
+    await api('/config/unidades', { method: 'POST', body: { nome: campo.value.trim() } });
+    state.configUnidades = await api('/config/unidades');
+    render();
+  }
+
+  async function adicionarCargo() {
+    const campo = document.getElementById('novo-cargo-nome');
+    if (!campo.value.trim()) return;
+    await api('/config/cargos', { method: 'POST', body: { nome: campo.value.trim() } });
+    const permissoes = await api('/config/permissoes');
+    state.configCargos = await api('/config/cargos');
+    state.configMatriz = permissoes.matriz;
+    render();
+  }
+
+  async function salvarPermissoes() {
+    const itens = [];
+    state.configMatriz.forEach((linha) => {
+      linha.abas.forEach((a) => itens.push({ cargoId: linha.cargoId, aba: a.aba, permitido: a.permitido }));
+    });
+    await api('/config/permissoes', { method: 'PUT', body: { itens } });
+  }
+
+  // ---------- bater ponto ----------
+  async function carregarPonto() {
+    state.pontoRegistros = await api('/ponto');
+  }
+
+  async function baterPonto() {
+    try {
+      await api('/ponto', { method: 'POST' });
+      await carregarPonto();
+      render();
+    } catch (err) {
+      alert(err.message);
+    }
+  }
+
+  async function removerPonto(id) {
+    if (!confirm('Remover esse registro de ponto?')) return;
+    await api(`/ponto/${id}`, { method: 'DELETE' });
+    await carregarPonto();
+    render();
+  }
+
+  // ---------- fluxo de caixa ----------
+  async function carregarFinanceiro() {
+    const { inicio, fim } = limitesMes(state.financeiroMesRef);
+    const qs = `?inicio=${inicio}&fim=${fim}`;
+    const [despesas, receitas] = await Promise.all([
+      api(`/financeiro/despesas${qs}`),
+      api(`/financeiro/receitas${qs}`),
+    ]);
+    state.financeiroDespesas = despesas;
+    state.financeiroReceitas = receitas;
+  }
+
+  async function mudarMesFinanceiro(delta) {
+    let { ano, mes } = state.financeiroMesRef;
+    mes += delta;
+    if (mes < 0) { mes = 11; ano -= 1; } else if (mes > 11) { mes = 0; ano += 1; }
+    state.financeiroMesRef = { ano, mes };
+    await carregarFinanceiro();
+    render();
+  }
+
+  async function adicionarLancamento() {
+    const data = document.getElementById('novo-lancamento-data').value;
+    const descricao = document.getElementById('novo-lancamento-descricao').value.trim();
+    const categoria = document.getElementById('novo-lancamento-categoria').value.trim();
+    const formaPagamento = document.getElementById('novo-lancamento-forma').value;
+    const valor = parseNumero(document.getElementById('novo-lancamento-valor').value);
+    if (!data || !descricao || !(valor > 0)) {
+      alert('Preencha data, descrição e um valor maior que zero.');
+      return;
+    }
+    try {
+      await api(`/financeiro/${state.financeiroAba}`, {
+        method: 'POST',
+        body: { data, descricao, categoria: categoria || null, formaPagamento: formaPagamento || null, valor },
+      });
+      await carregarFinanceiro();
+      render();
+    } catch (err) {
+      alert(err.message);
+    }
+  }
+
+  async function removerLancamento(id) {
+    if (!confirm('Remover esse lançamento?')) return;
+    await api(`/financeiro/${state.financeiroAba}/${id}`, { method: 'DELETE' });
+    await carregarFinanceiro();
+    render();
+  }
+
+  // teclado físico só ativo enquanto não logado
+  document.onkeydown = (e) => {
+    if (state.usuario) return;
+    if (e.key >= '0' && e.key <= '9') pressLoginKey(e.key);
+    else if (e.key === 'Backspace') pressLoginKey('back');
+    else if (e.key === 'Escape') pressLoginKey('clear');
+  };
+
+  window.addEventListener('resize', () => {
+    if (state.usuario) render();
+  });
+
+  // ---------- boot ----------
+  (async function iniciar() {
+    await carregarCargos();
+    if (state.token) {
+      try {
+        state.usuario = await api('/auth/me');
+        await entrarNoApp();
+        return;
+      } catch {
+        localStorage.removeItem('token');
+        state.token = null;
+      }
+    }
+    render();
+  })();
+})();
+</script>
+</body>
+</html>
