@@ -19,22 +19,40 @@
     --ok-bg: #EDF6F1; --ok-border: #CFE8DA; --ok-text: #2F6B52;
     --baixo-bg: #FFF4E5; --baixo-border: #F0D9A8; --baixo-text: #8A5A00;
     --zero-bg: #F5F1EA; --zero-border: var(--border); --zero-text: #B3261E;
+    --shadow: rgba(0,0,0,.08);
+  }
+  [data-theme="dark"] {
+    --bg: #1E1A17;
+    --surface: #2A2521;
+    --text: #F3ECE3;
+    --text-2: #B3A99C;
+    --border: #3D3630;
+    --border-2: #332D27;
+    --accent: #FF7A5C;
+    --teal: #57B8A8;
+    --ok-bg: rgba(87,184,168,0.16); --ok-border: rgba(87,184,168,0.4); --ok-text: #8FDFCB;
+    --baixo-bg: rgba(232,178,61,0.16); --baixo-border: rgba(232,178,61,0.4); --baixo-text: #F0C572;
+    --zero-bg: rgba(179,38,29,0.16); --zero-border: rgba(179,38,29,0.45); --zero-text: #FF8A80;
+    --shadow: rgba(0,0,0,.5);
   }
   * { box-sizing: border-box; }
-  body { margin: 0; background: var(--bg); font-family: 'Work Sans', sans-serif; color: var(--text); }
+  body { margin: 0; background: var(--bg); color: var(--text); font-family: 'Work Sans', sans-serif; transition: background-color .2s, color .2s; }
   button { font-family: 'Work Sans', sans-serif; cursor: pointer; }
+  input, select, textarea { background: var(--surface); color: var(--text); }
   .titulo { font-family: 'Baloo 2', sans-serif; font-weight: 700; }
+  .sub { font-size: 13px; color: var(--text-2); margin: 2px 0 16px; }
   .dot { width: 12px; height: 12px; border-radius: 50%; display: inline-block; border: 1px solid var(--border); vertical-align: middle; margin-right: 4px; flex-shrink: 0; }
+  svg { display: block; }
 
   /* ---------- Login (cargo → pessoa → PIN) ---------- */
   .login-screen { height: 100vh; display: flex; align-items: center; justify-content: center; padding: 16px; }
-  .login-card { width: 100%; max-width: 360px; background: var(--surface); border: 1px solid var(--border); border-radius: 20px; padding: 28px; text-align: center; box-shadow: 0 12px 40px rgba(0,0,0,.08); display: flex; flex-direction: column; align-items: center; gap: 6px; }
+  .login-card { width: 100%; max-width: 360px; background: var(--surface); border: 1px solid var(--border); border-radius: 20px; padding: 28px; text-align: center; box-shadow: 0 12px 40px var(--shadow); display: flex; flex-direction: column; align-items: center; gap: 6px; }
   .login-logo { font-size: 22px; color: var(--accent); margin-bottom: 6px; }
   .login-avatar-grande { width: 56px; height: 56px; border-radius: 50%; background: var(--teal); color: #fff; display: flex; align-items: center; justify-content: center; font-family: 'Baloo 2', sans-serif; font-weight: 700; font-size: 22px; margin-bottom: 4px; }
   .login-titulo { font-family: 'Baloo 2', sans-serif; font-weight: 700; font-size: 18px; }
   .login-sub { font-size: 12px; color: var(--text-2); margin-bottom: 14px; }
   .login-opcoes { display: flex; flex-direction: column; gap: 8px; width: 100%; }
-  .login-opcao { width: 100%; display: flex; align-items: center; padding: 12px 14px; border-radius: 12px; border: 1px solid var(--border); background: #fff; font-size: 14px; font-weight: 600; text-align: left; }
+  .login-opcao { width: 100%; display: flex; align-items: center; padding: 12px 14px; border-radius: 12px; border: 1px solid var(--border); background: var(--surface); color: var(--text); font-size: 14px; font-weight: 600; text-align: left; }
   .login-opcao .avatar { width: 26px; height: 26px; border-radius: 50%; background: var(--accent); color: #fff; display: inline-flex; align-items: center; justify-content: center; font-family: 'Baloo 2', sans-serif; font-weight: 700; font-size: 12px; flex-shrink: 0; }
   .login-voltar { margin-top: 14px; border: none; background: none; color: var(--text-2); font-size: 12px; text-decoration: underline; }
   .pin-dots { display: flex; gap: 10px; margin: 8px 0; }
@@ -42,27 +60,84 @@
   .pin-dot.preenchido { background: var(--accent); border-color: var(--accent); }
   .pin-erro { color: var(--zero-text); font-size: 12px; font-weight: 600; margin-bottom: 4px; }
   .teclado { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; width: 220px; margin-top: 6px; }
-  .tecla { height: 52px; border-radius: 12px; border: 1px solid var(--border); background: #fff; font-size: 18px; font-weight: 600; }
+  .tecla { height: 52px; border-radius: 12px; border: 1px solid var(--border); background: var(--surface); color: var(--text); font-size: 18px; font-weight: 600; }
   .tecla:active { background: var(--border-2); }
 
-  header { height: 64px; flex-shrink: 0; display: flex; align-items: center; justify-content: space-between; padding: 0 24px; background: var(--surface); border-bottom: 1px solid var(--border); }
-  .logo { font-size: 20px; color: var(--accent); }
-  .nav { display: flex; gap: 8px; margin-left: 20px; }
-  .tab { padding: 6px 16px; border-radius: 999px; border: 1px solid var(--border); background: var(--surface); color: var(--text); font-size: 13px; font-weight: 600; }
-  .tab.active { background: var(--accent); border-color: var(--accent); color: #fff; }
-  .header-left { display: flex; align-items: center; }
-  .user-badge { display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--text-2); }
-  .avatar { width: 26px; height: 26px; border-radius: 50%; background: var(--teal); color: #fff; display: flex; align-items: center; justify-content: center; font-family: 'Baloo 2', sans-serif; font-weight: 700; font-size: 12px; }
-  #btn-sair { border: 1px solid var(--border); background: #fff; color: var(--text-2); font-size: 12px; font-weight: 600; padding: 6px 12px; border-radius: 999px; }
+  /* ---------- Shell / sidebar ---------- */
+  .shell-row { height: 100vh; display: flex; }
+  .avatar { width: 26px; height: 26px; border-radius: 50%; background: var(--teal); color: #fff; display: flex; align-items: center; justify-content: center; font-family: 'Baloo 2', sans-serif; font-weight: 700; font-size: 12px; flex-shrink: 0; }
+  .icon-btn { width: 34px; height: 34px; border-radius: 9px; border: 1px solid var(--border); background: var(--surface); color: var(--text-2); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .icon-btn:hover { background: var(--border-2); }
 
-  main { height: calc(100vh - 64px); display: flex; overflow: hidden; }
-  .view { display: none; width: 100%; }
+  .sidebar { width: 220px; flex-shrink: 0; background: var(--surface); border-right: 1px solid var(--border); display: flex; flex-direction: column; transition: width .15s ease; }
+  .sidebar-top { display: flex; align-items: center; gap: 10px; padding: 16px 14px; border-bottom: 1px solid var(--border-2); }
+  .brand { display: flex; align-items: center; gap: 8px; overflow: hidden; }
+  .brand-mark { width: 28px; height: 28px; border-radius: 8px; background: var(--accent); color: #fff; display: flex; align-items: center; justify-content: center; font-family: 'Baloo 2', sans-serif; font-weight: 700; font-size: 14px; flex-shrink: 0; }
+  .brand-nome { font-size: 16px; color: var(--accent); white-space: nowrap; }
+  .sidebar-nav { flex-grow: 1; overflow-y: auto; padding: 10px; display: flex; flex-direction: column; gap: 4px; }
+  .nav-item { display: flex; align-items: center; gap: 12px; width: 100%; padding: 10px 14px; border: none; background: none; color: var(--text-2); font-size: 13px; font-weight: 600; border-radius: 10px; text-align: left; }
+  .nav-item:hover { background: var(--border-2); }
+  .nav-item.active { background: var(--accent); color: #fff; }
+  .nav-label { white-space: nowrap; overflow: hidden; }
+  .sidebar-bottom { padding: 14px; border-top: 1px solid var(--border-2); display: flex; flex-direction: column; gap: 10px; }
+  .sidebar-user { display: flex; align-items: center; gap: 10px; }
+  .sidebar-user-info { flex-grow: 1; min-width: 0; }
+  .sidebar-user-nome { font-size: 12px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .sidebar-sair { border: none; background: none; color: var(--text-2); font-size: 11px; text-decoration: underline; padding: 0; }
+  @media (min-width: 861px) {
+    .sidebar.collapsed { width: 64px; }
+    .sidebar.collapsed .brand-nome, .sidebar.collapsed .nav-label, .sidebar.collapsed .sidebar-user-info { display: none; }
+    .sidebar.collapsed .nav-item { justify-content: center; padding: 10px; }
+    .sidebar.collapsed .sidebar-top { justify-content: center; }
+  }
+
+  .btn-menu-mobile { display: none; position: fixed; top: 14px; left: 14px; z-index: 45; width: 38px; height: 38px; border-radius: 10px; border: 1px solid var(--border); background: var(--surface); color: var(--text); align-items: center; justify-content: center; box-shadow: 0 2px 10px var(--shadow); }
+
+  #conteudo { flex-grow: 1; height: 100vh; overflow-y: auto; }
+  .view { display: none; }
+  .page { padding: 28px 32px; max-width: 1100px; }
+
+  .stats-row { display: flex; gap: 14px; margin-bottom: 8px; flex-wrap: wrap; }
+  .stat-card { flex: 1; min-width: 150px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 14px; }
+  .stat-label { font-size: 11px; color: var(--text-2); }
+  .stat-valor { font-family: 'Baloo 2', sans-serif; font-weight: 700; font-size: 20px; margin-top: 4px; }
+
+  .paineis-duas-colunas { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 20px; }
+  .painel { flex: 1; min-width: 280px; background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 18px; }
+  .painel-titulo { font-family: 'Baloo 2', sans-serif; font-weight: 700; font-size: 15px; margin-bottom: 12px; }
+  .painel-titulo-linha { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+  .linha-simples { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--border-2); }
+  .linha-simples:last-child { border-bottom: none; }
+
+  .btn-primario { padding: 9px 14px; border-radius: 10px; border: none; background: var(--accent); color: #fff; font-size: 12px; font-weight: 700; }
+  .btn-secundario { padding: 9px 14px; border-radius: 10px; border: 1px solid var(--border); background: var(--surface); color: var(--text); font-size: 12px; font-weight: 600; }
+  .badge-papel { padding: 4px 10px; border-radius: 999px; background: var(--ok-bg); border: 1px solid var(--ok-border); color: var(--ok-text); font-size: 11px; font-weight: 700; margin-right: 8px; white-space: nowrap; }
+
+  .tabela { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .tabela th { text-align: left; color: var(--text-2); font-weight: 600; font-size: 11px; padding: 8px 10px; border-bottom: 1px solid var(--border); }
+  .tabela td { padding: 9px 10px; border-bottom: 1px solid var(--border-2); }
+  .tabela tr:last-child td { border-bottom: none; }
+  .fluxo-topo { display: flex; justify-content: space-between; align-items: flex-end; flex-wrap: wrap; gap: 10px; margin-bottom: 16px; }
+  .mes-seletor { display: flex; align-items: center; gap: 10px; font-size: 13px; font-weight: 600; }
+  .mes-label { min-width: 130px; text-align: center; }
+
+  .ponto-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 14px; }
+  .ponto-card { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 16px; display: flex; flex-direction: column; align-items: center; gap: 8px; text-align: center; }
+  .btn-ponto { padding: 9px 14px; border-radius: 10px; border: none; font-size: 12px; font-weight: 700; color: #fff; }
+  .btn-ponto.entrada { background: var(--teal); }
+  .btn-ponto.saida { background: var(--accent); }
+
+  .barra-linha { display: flex; align-items: center; gap: 10px; padding: 8px 0; }
+  .barra-label { width: 120px; font-size: 12px; font-weight: 600; flex-shrink: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .barra-trilho { flex-grow: 1; height: 10px; border-radius: 6px; background: var(--border-2); overflow: hidden; }
+  .barra-fill { height: 100%; background: var(--accent); border-radius: 6px; }
+  .barra-valor { width: 72px; text-align: right; font-size: 12px; font-weight: 700; flex-shrink: 0; }
+  .vazio { font-size: 13px; color: var(--text-2); text-align: center; padding: 20px 0; }
 
   /* ---------- Venda rápida ---------- */
   #view-venda { flex-direction: row; }
   .col-produtos { flex-grow: 1; padding: 20px 24px; overflow-y: auto; }
   .col-produtos h1 { font-size: 22px; margin: 0; }
-  .col-produtos p.sub { font-size: 13px; color: var(--text-2); margin: 2px 0 16px; }
   .produtos-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 14px; }
   .produto-card { display: flex; flex-direction: column; gap: 8px; text-align: left; background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 14px; }
   .produto-thumb { width: 100%; height: 78px; border-radius: 10px; display: flex; align-items: center; justify-content: center; }
@@ -79,24 +154,24 @@
   .carrinho-nome { font-size: 13px; font-weight: 600; }
   .carrinho-detalhe { font-size: 11px; color: var(--text-2); }
   .carrinho-qtd { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
-  .carrinho-qtd button { width: 22px; height: 22px; border-radius: 6px; border: 1px solid var(--border); background: #fff; font-size: 13px; line-height: 1; }
+  .carrinho-qtd button { width: 22px; height: 22px; border-radius: 6px; border: 1px solid var(--border); background: var(--surface); color: var(--text); font-size: 13px; line-height: 1; }
   .carrinho-total { width: 58px; text-align: right; font-size: 13px; font-weight: 600; flex-shrink: 0; }
   .totais { margin-top: auto; padding-top: 12px; border-top: 1px solid var(--border); display: flex; flex-direction: column; gap: 8px; }
   .linha-total { display: flex; justify-content: space-between; font-size: 13px; color: var(--text-2); }
   .linha-total.grande { font-family: 'Baloo 2', sans-serif; font-weight: 700; font-size: 18px; color: var(--text); }
   .formas { display: flex; gap: 6px; flex-wrap: wrap; margin: 4px 0; }
-  .forma { padding: 7px 12px; border-radius: 999px; border: 1px solid var(--border); background: #fff; font-size: 12px; font-weight: 600; }
+  .forma { padding: 7px 12px; border-radius: 999px; border: 1px solid var(--border); background: var(--surface); color: var(--text); font-size: 12px; font-weight: 600; }
   .forma.ativo { background: var(--accent); border-color: var(--accent); color: #fff; }
   #confirmar { margin-top: 4px; padding: 13px; border-radius: 12px; border: none; background: #D9D2C4; color: #fff; font-family: 'Baloo 2', sans-serif; font-weight: 700; font-size: 14px; cursor: not-allowed; }
   #confirmar.ativo { background: var(--accent); cursor: pointer; }
 
   /* modal */
-  #modal { display: none; position: fixed; inset: 0; background: rgba(43,43,46,0.45); align-items: center; justify-content: center; z-index: 20; padding: 16px; }
-  .modal-card { width: 100%; max-width: 560px; max-height: 90vh; overflow-y: auto; background: #fff; border-radius: 18px; padding: 24px; display: flex; flex-direction: column; gap: 14px; box-shadow: 0 20px 60px rgba(0,0,0,.25); }
+  #modal { display: none; position: fixed; inset: 0; background: rgba(20,18,16,0.5); align-items: center; justify-content: center; z-index: 20; padding: 16px; }
+  .modal-card { width: 100%; max-width: 560px; max-height: 90vh; overflow-y: auto; background: var(--surface); border-radius: 18px; padding: 24px; display: flex; flex-direction: column; gap: 14px; box-shadow: 0 20px 60px var(--shadow); }
   .modal-head { display: flex; justify-content: space-between; align-items: flex-start; }
   .modal-titulo { font-family: 'Baloo 2', sans-serif; font-weight: 700; font-size: 19px; }
   .modal-sub { font-size: 12px; color: var(--text-2); margin-top: 2px; }
-  .btn-fechar { width: 30px; height: 30px; border-radius: 8px; border: 1px solid var(--border); background: #fff; font-size: 15px; }
+  .btn-fechar { width: 30px; height: 30px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface); color: var(--text); font-size: 15px; }
   .modal-dica { font-size: 12px; color: var(--text-2); }
 
   .grade { display: flex; flex-direction: column; gap: 8px; }
@@ -118,39 +193,37 @@
   .lista-topo { padding: 16px 16px 10px; border-bottom: 1px solid var(--border-2); display: flex; flex-direction: column; gap: 10px; }
   .lista-topo-head { display: flex; justify-content: space-between; align-items: center; }
   .lista-topo h2 { font-size: 18px; margin: 0; }
-  .btn-primario { padding: 7px 12px; border-radius: 9px; border: none; background: var(--accent); color: #fff; font-size: 12px; font-weight: 700; }
   #busca { padding: 8px 10px; border-radius: 9px; border: 1px solid var(--border); font-size: 13px; width: 100%; }
   .chips { display: flex; gap: 6px; flex-wrap: wrap; }
-  .chip { padding: 5px 11px; border-radius: 999px; border: 1px solid var(--border); background: #fff; font-size: 11px; font-weight: 600; }
+  .chip { padding: 5px 11px; border-radius: 999px; border: 1px solid var(--border); background: var(--surface); color: var(--text); font-size: 11px; font-weight: 600; }
   .chip.ativo { background: var(--accent); border-color: var(--accent); color: #fff; }
   .lista-scroll { flex-grow: 1; overflow-y: auto; padding: 8px; }
-  .produto-row { width: 100%; display: flex; align-items: center; gap: 10px; text-align: left; background: #fff; border: 1px solid var(--border); border-radius: 11px; padding: 9px 10px; margin-bottom: 6px; }
-  .produto-row.ativo { border-color: var(--accent); background: #FFF4EF; }
+  .produto-row { width: 100%; display: flex; align-items: center; gap: 10px; text-align: left; background: var(--surface); border: 1px solid var(--border); border-radius: 11px; padding: 9px 10px; margin-bottom: 6px; }
+  .produto-row.ativo { border-color: var(--accent); background: var(--baixo-bg); }
   .produto-row-avatar { width: 36px; height: 36px; border-radius: 9px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; color: #fff; font-family: 'Baloo 2', sans-serif; font-weight: 700; font-size: 14px; }
   .produto-row-info { flex-grow: 1; min-width: 0; }
   .produto-row-nome { font-size: 13px; font-weight: 600; }
   .produto-row-meta { font-size: 11px; color: var(--text-2); }
   .produto-row-estoque { text-align: right; flex-shrink: 0; font-size: 13px; }
-  .baixo-tag { font-size: 9px; color: #C94A3B; font-weight: 600; }
+  .baixo-tag { font-size: 9px; color: var(--zero-text); font-weight: 600; }
 
   .col-detalhe { flex-grow: 1; padding: 24px 30px; overflow-y: auto; }
   .detalhe-head { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 18px; }
   .detalhe-categoria { font-size: 11px; color: var(--text-2); font-weight: 600; }
   .detalhe-nome { font-family: 'Baloo 2', sans-serif; font-weight: 700; font-size: 24px; }
   .detalhe-acoes { display: flex; gap: 8px; }
-  .btn-secundario { padding: 9px 14px; border-radius: 9px; border: 1px solid var(--border); background: #fff; font-size: 12px; font-weight: 600; }
-  .stats-row { display: flex; gap: 14px; margin-bottom: 20px; flex-wrap: wrap; }
-  .stat-card { flex: 1; min-width: 130px; background: #fff; border: 1px solid var(--border); border-radius: 12px; padding: 14px; }
-  .stat-label { font-size: 11px; color: var(--text-2); }
-  .stat-valor { font-family: 'Baloo 2', sans-serif; font-weight: 700; font-size: 20px; margin-top: 4px; }
-  .grade-painel { background: #fff; border: 1px solid var(--border); border-radius: 14px; padding: 18px; overflow-x: auto; }
+  .grade-painel { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 18px; overflow-x: auto; }
   .grade-titulo { font-family: 'Baloo 2', sans-serif; font-weight: 700; font-size: 15px; }
   .grade-sub { font-size: 11px; color: var(--text-2); margin-bottom: 14px; }
 
   @media (max-width: 860px) {
+    .btn-menu-mobile { display: flex; }
+    .sidebar { position: fixed; top: 0; left: 0; height: 100vh; width: 240px; transform: translateX(-100%); transition: transform .2s ease; z-index: 40; box-shadow: 2px 0 24px var(--shadow); }
+    .sidebar.mobile-open { transform: translateX(0); }
+    .page { padding: 60px 16px 24px; }
     .col-carrinho { width: 100%; position: fixed; bottom: 0; left: 0; right: 0; height: 45vh; border-left: none; border-top: 1px solid var(--border); }
     #view-venda { flex-direction: column; overflow-y: auto; }
-    .col-produtos { padding-bottom: 46vh; }
+    .col-produtos { padding: 60px 16px 46vh; }
     .col-lista { width: 100%; height: 40vh; border-right: none; border-bottom: 1px solid var(--border); }
     #view-estoque { flex-direction: column; overflow-y: auto; }
   }
@@ -160,23 +233,47 @@
 
 <div id="login-screen" class="login-screen"></div>
 
-<div id="app-shell" style="display:none; flex-direction: column; height: 100vh;">
-  <header>
-    <div class="header-left">
-      <div class="logo titulo">Loja Gutto</div>
-      <div class="nav">
-        <button class="tab active" id="tab-venda">Venda rápida</button>
-        <button class="tab" id="tab-estoque">Estoque</button>
+<button id="btn-menu-mobile" class="btn-menu-mobile" aria-label="Abrir menu"></button>
+
+<div id="app-shell" class="shell-row" style="display:none;">
+  <aside id="sidebar" class="sidebar">
+    <div class="sidebar-top">
+      <button id="btn-collapse" class="icon-btn" aria-label="Recolher menu"></button>
+      <div class="brand">
+        <div class="brand-mark">G</div>
+        <div class="brand-nome titulo">Loja Gutto</div>
       </div>
     </div>
-    <div class="user-badge">
-      <div class="avatar" id="user-avatar"></div>
-      <span id="user-badge-nome"></span>
-      <button id="btn-sair">Sair</button>
+    <nav class="sidebar-nav" id="sidebar-nav"></nav>
+    <div class="sidebar-bottom">
+      <button id="btn-tema" class="icon-btn" aria-label="Alternar tema"></button>
+      <div class="sidebar-user">
+        <div class="avatar" id="user-avatar" style="width:32px;height:32px;font-size:13px;"></div>
+        <div class="sidebar-user-info">
+          <div class="sidebar-user-nome" id="user-badge-nome"></div>
+          <button id="btn-sair" class="sidebar-sair">Sair</button>
+        </div>
+      </div>
     </div>
-  </header>
+  </aside>
 
-  <main>
+  <main id="conteudo">
+    <div class="view page" id="view-inicio">
+      <h1 class="titulo">Início</h1>
+      <p class="sub">Resumo de hoje</p>
+      <div class="stats-row" id="inicio-stats"></div>
+      <div class="paineis-duas-colunas">
+        <div class="painel">
+          <div class="painel-titulo">Estoque baixo</div>
+          <div id="inicio-estoque-baixo"></div>
+        </div>
+        <div class="painel">
+          <div class="painel-titulo">Ponto hoje</div>
+          <div id="inicio-ponto"></div>
+        </div>
+      </div>
+    </div>
+
     <div class="view" id="view-venda">
       <div class="col-produtos">
         <h1 class="titulo">Venda rápida</h1>
@@ -210,18 +307,113 @@
       </div>
       <div class="col-detalhe" id="produto-detalhe"></div>
     </div>
+
+    <div class="view page" id="view-fluxo">
+      <div class="fluxo-topo">
+        <div>
+          <h1 class="titulo" style="margin:0">Fluxo de caixa</h1>
+          <p class="sub" style="margin:2px 0 0">Contas e saldo do mês</p>
+        </div>
+        <div class="mes-seletor">
+          <button id="mes-anterior" class="icon-btn" aria-label="Mês anterior">‹</button>
+          <span id="mes-atual" class="mes-label">Setembro 2026</span>
+          <button id="mes-proximo" class="icon-btn" aria-label="Próximo mês">›</button>
+        </div>
+      </div>
+      <div class="stats-row" id="fluxo-stats"></div>
+      <div class="painel" style="margin-top:16px">
+        <div class="painel-titulo-linha">
+          <div class="painel-titulo">Lançamentos</div>
+          <button class="btn-primario">+ Nova despesa</button>
+        </div>
+        <table class="tabela" id="fluxo-tabela"></table>
+      </div>
+    </div>
+
+    <div class="view page" id="view-equipe">
+      <div class="painel-titulo-linha" style="margin-bottom:16px">
+        <div>
+          <h1 class="titulo" style="margin:0">Equipe</h1>
+          <p class="sub" style="margin:2px 0 0">Quem acessa o sistema</p>
+        </div>
+        <button class="btn-primario">+ Novo usuário</button>
+      </div>
+      <div class="painel"><div id="equipe-lista"></div></div>
+    </div>
+
+    <div class="view page" id="view-ponto">
+      <h1 class="titulo">Bater ponto</h1>
+      <p class="sub">Registro de entrada e saída da equipe</p>
+      <div class="ponto-grid" id="ponto-grid"></div>
+      <div class="painel" style="margin-top:20px">
+        <div class="painel-titulo">Registros de hoje</div>
+        <div id="ponto-historico"></div>
+      </div>
+    </div>
+
+    <div class="view page" id="view-relatorios">
+      <h1 class="titulo">Relatórios</h1>
+      <p class="sub">Baseado nas vendas confirmadas na Venda rápida (protótipo)</p>
+      <div class="chips" id="periodo-chips" style="margin-bottom:18px"></div>
+      <div class="paineis-duas-colunas">
+        <div class="painel">
+          <div class="painel-titulo">Produtos mais vendidos</div>
+          <div id="relatorio-produtos"></div>
+        </div>
+        <div class="painel">
+          <div class="painel-titulo">Formas de pagamento</div>
+          <div id="relatorio-formas"></div>
+        </div>
+      </div>
+    </div>
   </main>
 </div>
 
 <div id="modal"></div>
 
 <script>
+  // ---------- Ícones (SVG inline, sem libs) ----------
+  const ICONS = {
+    home: '<path d="M4 11.5 12 4l8 7.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M6 10.5V20h5v-5.5h2V20h5v-9.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>',
+    cart: '<circle cx="9" cy="20" r="1.3" fill="currentColor" stroke="none"/><circle cx="17" cy="20" r="1.3" fill="currentColor" stroke="none"/><path d="M3 4h2l2.2 11a2 2 0 0 0 2 1.6h7.6a2 2 0 0 0 2-1.6L20.5 8H6.2" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>',
+    box: '<path d="M4 7.5 12 4l8 3.5v9L12 20l-8-3.5z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M4 7.5 12 11l8-3.5M12 11v9" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>',
+    cash: '<rect x="3" y="7" width="18" height="11" rx="2.2" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="12" cy="12.5" r="2.4" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M6.5 7V6a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v1" fill="none" stroke="currentColor" stroke-width="1.8"/>',
+    users: '<circle cx="9" cy="9" r="3" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M3.3 19c0-3 2.6-5.2 5.7-5.2s5.7 2.2 5.7 5.2" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><circle cx="17.3" cy="9.8" r="2.3" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M15.6 13.8c2.3.4 3.9 2.2 3.9 4.6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>',
+    clock: '<circle cx="12" cy="12" r="8.5" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M12 7.3V12l3 2" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>',
+    chart: '<path d="M4 20V10M10 20V4M16 20v-7M3 20h18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>',
+    menu: '<path d="M4 6h16M4 12h16M4 18h16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>',
+    sun: '<circle cx="12" cy="12" r="4.2" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M12 2.5v2.6M12 18.9v2.6M4.2 4.2l1.9 1.9M17.9 17.9l1.9 1.9M2.5 12h2.6M18.9 12h2.6M4.2 19.8l1.9-1.9M17.9 6.1l1.9-1.9" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>',
+    moon: '<path d="M20 14.5A8.5 8.5 0 1 1 9.5 4a7 7 0 0 0 10.5 10.5z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>',
+  };
+  function svgIcon(name, size) { size = size || 20; return '<svg width="' + size + '" height="' + size + '" viewBox="0 0 24 24">' + ICONS[name] + '</svg>'; }
+
+  const NAV = [
+    { id: 'inicio', label: 'Início', icon: 'home' },
+    { id: 'venda', label: 'Venda rápida', icon: 'cart' },
+    { id: 'estoque', label: 'Estoque', icon: 'box' },
+    { id: 'fluxo', label: 'Fluxo de caixa', icon: 'cash' },
+    { id: 'equipe', label: 'Equipe', icon: 'users' },
+    { id: 'ponto', label: 'Bater ponto', icon: 'clock' },
+    { id: 'relatorios', label: 'Relatórios', icon: 'chart' },
+  ];
+  const VIEW_IDS = NAV.map(n => n.id);
+  const VIEWS_FLEX = ['venda', 'estoque'];
+
   // Equipe (login por PIN) — cargo → pessoa → teclado, mesmo padrão do PDV Jabá.
   const USUARIOS = [
     { id: 'pedro', nome: 'Pedro', papel: 'Administrador', pin: '1103' },
     { id: 'lorena', nome: 'Lorena', papel: 'Administrador', pin: '1007' },
   ];
   const CARGOS = [...new Set(USUARIOS.map(u => u.papel))];
+  const MESES = ['Agosto 2026', 'Setembro 2026', 'Outubro 2026'];
+  const DESPESAS = [
+    { data: '05/09', descricao: 'Aluguel', categoria: 'Fixo', forma: 'Boleto', valor: 1800 },
+    { data: '08/09', descricao: 'Compra de mercadoria — fornecedor ABC', categoria: 'Estoque', forma: 'Pix', valor: 3200 },
+    { data: '12/09', descricao: 'Energia elétrica', categoria: 'Fixo', forma: 'Débito', valor: 340 },
+    { data: '15/09', descricao: 'Embalagens', categoria: 'Material', forma: 'Dinheiro', valor: 180 },
+    { data: '20/09', descricao: 'Internet', categoria: 'Fixo', forma: 'Débito', valor: 120 },
+    { data: '24/09', descricao: 'Manutenção do ar-condicionado', categoria: 'Manutenção', forma: 'Pix', valor: 250 },
+  ];
 
   const PRODUTOS_DEF = [
     { id: 'p1', nome: 'Camiseta Foguete', categoria: 'Camisetas', precoBase: 39.90, tamanhos: ['2','4','6','8','10','12'], cores: [{ nome: 'Azul', hex: '#3E6FA8' }, { nome: 'Amarelo', hex: '#E8B23D' }], swatch: '#3E6FA8' },
@@ -250,11 +442,23 @@
   }
   const PRODUTOS = buildProdutos();
 
+  let temaInicial = 'light';
+  try { temaInicial = localStorage.getItem('gutto-tema') || 'light'; } catch (e) {}
+  document.documentElement.setAttribute('data-theme', temaInicial);
+
+  const vendasSeed = [
+    { id: 'v1', hora: '09:14', itens: [{ produtoNome: 'Camiseta Foguete', tamanho: '6', cor: 'Azul', precoUnit: 39.90, qtd: 2 }], total: 79.80, formaPagamento: 'Pix' },
+    { id: 'v2', hora: '10:02', itens: [{ produtoNome: 'Body Bebê', tamanho: 'P', cor: 'Branco', precoUnit: 29.90, qtd: 1 }, { produtoNome: 'Shorts Praia', tamanho: '4', cor: 'Coral', precoUnit: 34.90, qtd: 1 }], total: 64.80, formaPagamento: 'Dinheiro' },
+    { id: 'v3', hora: '11:47', itens: [{ produtoNome: 'Vestido Florido', tamanho: 'M', cor: 'Rosa', precoUnit: 59.90, qtd: 1 }], total: 59.90, formaPagamento: 'Crédito' },
+  ];
+
   const state = {
     logado: null,
     loginStep: 'cargo', loginCargo: null, loginPessoaId: null, loginPin: '', loginErro: false,
-    view: 'venda', cart: [], modalProdutoId: null, formaPagamento: null,
+    view: 'inicio', cart: [], modalProdutoId: null, formaPagamento: null,
     estoqueSelecionadoId: PRODUTOS[0].id, busca: '', filtroCategoria: null,
+    tema: temaInicial, sidebarCollapsed: false,
+    vendasHoje: vendasSeed, pontosHoje: [], mesIndex: 1, periodoRelatorio: 'Hoje',
   };
 
   function fmt(v) { return 'R$ ' + v.toFixed(2).replace('.', ','); }
@@ -264,21 +468,58 @@
   function render() {
     document.getElementById('login-screen').style.display = state.logado ? 'none' : 'flex';
     document.getElementById('app-shell').style.display = state.logado ? 'flex' : 'none';
+    document.getElementById('btn-menu-mobile').style.display = state.logado ? '' : 'none';
     if (!state.logado) { renderLogin(); return; }
 
     document.getElementById('user-badge-nome').textContent = state.logado.nome + ' · ' + state.logado.papel;
     document.getElementById('user-avatar').textContent = state.logado.nome.charAt(0);
+    document.getElementById('btn-tema').innerHTML = svgIcon(state.tema === 'dark' ? 'sun' : 'moon');
 
-    document.getElementById('tab-venda').classList.toggle('active', state.view === 'venda');
-    document.getElementById('tab-estoque').classList.toggle('active', state.view === 'estoque');
-    document.getElementById('view-venda').style.display = state.view === 'venda' ? 'flex' : 'none';
-    document.getElementById('view-estoque').style.display = state.view === 'estoque' ? 'flex' : 'none';
-    if (state.view === 'venda') renderVenda(); else renderEstoque();
+    document.querySelectorAll('.nav-item').forEach(b => b.classList.toggle('active', b.dataset.view === state.view));
+    showView(state.view);
+
+    if (state.view === 'inicio') renderInicio();
+    else if (state.view === 'venda') renderVenda();
+    else if (state.view === 'estoque') renderEstoque();
+    else if (state.view === 'fluxo') renderFluxo();
+    else if (state.view === 'equipe') renderEquipe();
+    else if (state.view === 'ponto') renderPonto();
+    else if (state.view === 'relatorios') renderRelatorios();
   }
 
+  function showView(view) {
+    VIEW_IDS.forEach(v => {
+      const el = document.getElementById('view-' + v);
+      if (!el) return;
+      if (v === view) {
+        el.style.display = VIEWS_FLEX.indexOf(v) >= 0 ? 'flex' : 'block';
+        el.style.height = VIEWS_FLEX.indexOf(v) >= 0 ? '100%' : 'auto';
+      } else {
+        el.style.display = 'none';
+      }
+    });
+  }
+
+  function alternarTema() {
+    const novo = state.tema === 'dark' ? 'light' : 'dark';
+    document.documentElement.setAttribute('data-theme', novo);
+    try { localStorage.setItem('gutto-tema', novo); } catch (e) {}
+    setState({ tema: novo });
+  }
+
+  function alternarSidebar() {
+    const sidebar = document.getElementById('sidebar');
+    if (window.matchMedia('(max-width: 860px)').matches) {
+      sidebar.classList.toggle('mobile-open');
+    } else {
+      state.sidebarCollapsed = !state.sidebarCollapsed;
+      sidebar.classList.toggle('collapsed', state.sidebarCollapsed);
+    }
+  }
+
+  /* ---------- Login ---------- */
   function renderLogin() {
     const el = document.getElementById('login-screen');
-
     if (state.loginStep === 'cargo') {
       el.innerHTML = `
         <div class="login-card">
@@ -292,7 +533,6 @@
       el.querySelectorAll('[data-cargo]').forEach(b => b.addEventListener('click', () => setState({ loginStep: 'pessoa', loginCargo: b.dataset.cargo })));
       return;
     }
-
     if (state.loginStep === 'pessoa') {
       const pessoas = USUARIOS.filter(u => u.papel === state.loginCargo);
       el.innerHTML = `
@@ -309,8 +549,6 @@
       document.getElementById('login-voltar').addEventListener('click', () => setState({ loginStep: 'cargo', loginCargo: null }));
       return;
     }
-
-    // loginStep === 'pin'
     const pessoa = USUARIOS.find(u => u.id === state.loginPessoaId);
     const dots = Array.from({ length: 4 }).map((_, i) => `<div class="pin-dot ${i < state.loginPin.length ? 'preenchido' : ''}"></div>`).join('');
     el.innerHTML = `
@@ -335,14 +573,57 @@
     const pin = state.loginPin + tecla;
     if (pin.length < 4) { setState({ loginPin: pin, loginErro: false }); return; }
     if (pin === pessoa.pin) {
-      setState({ logado: pessoa, loginPin: '', loginStep: 'cargo', loginCargo: null, loginPessoaId: null });
+      setState({ logado: pessoa, loginPin: '', loginStep: 'cargo', loginCargo: null, loginPessoaId: null, view: 'inicio' });
     } else {
       state.loginPin = pin; state.loginErro = true; render();
       setTimeout(() => setState({ loginPin: '', loginErro: false }), 600);
     }
   }
 
-  function gradeHtml(produto, { grande }) {
+  /* ---------- Início ---------- */
+  function renderInicio() {
+    const vendas = state.vendasHoje;
+    const faturamento = vendas.reduce((s, v) => s + v.total, 0);
+    const ticket = vendas.length ? faturamento / vendas.length : 0;
+    const todasVariacoes = PRODUTOS.flatMap(p => p.variacoes.map(v => Object.assign({}, v, { produtoNome: p.nome })));
+    const baixo = todasVariacoes.filter(v => v.estoque > 0 && v.estoque <= 4);
+    const zero = todasVariacoes.filter(v => v.estoque <= 0);
+
+    document.getElementById('inicio-stats').innerHTML = `
+      <div class="stat-card"><div class="stat-label">Vendas hoje</div><div class="stat-valor">${vendas.length}</div></div>
+      <div class="stat-card"><div class="stat-label">Faturamento hoje</div><div class="stat-valor" style="color:var(--accent)">${fmt(faturamento)}</div></div>
+      <div class="stat-card"><div class="stat-label">Ticket médio</div><div class="stat-valor">${fmt(ticket)}</div></div>
+      <div class="stat-card"><div class="stat-label">Itens com estoque baixo/zerado</div><div class="stat-valor" style="color:var(--baixo-text)">${baixo.length + zero.length}</div></div>
+    `;
+
+    const listaBaixo = [...zero.map(v => Object.assign({}, v, { estado: 'esgotado' })), ...baixo.map(v => Object.assign({}, v, { estado: 'baixo' }))].slice(0, 6);
+    document.getElementById('inicio-estoque-baixo').innerHTML = listaBaixo.length ? listaBaixo.map(v => `
+      <div class="linha-simples">
+        <span class="dot" style="background:${v.corHex}"></span>
+        <div style="flex-grow:1;min-width:0">
+          <div style="font-size:13px;font-weight:600">${esc(v.produtoNome)}</div>
+          <div style="font-size:11px;color:var(--text-2)">Tam ${esc(v.tamanho)} · ${esc(v.cor)}</div>
+        </div>
+        <div style="font-size:13px;font-weight:700;color:${v.estado === 'esgotado' ? 'var(--zero-text)' : 'var(--baixo-text)'}">${v.estoque} un.</div>
+      </div>
+    `).join('') : '<div class="vazio">Nenhum item com estoque baixo agora.</div>';
+
+    const pontos = state.pontosHoje.slice().reverse().slice(0, 6);
+    document.getElementById('inicio-ponto').innerHTML = pontos.length ? pontos.map(p => `
+      <div class="linha-simples">
+        <div class="avatar" style="width:28px;height:28px;font-size:11px">${esc(p.nome.charAt(0))}</div>
+        <div style="flex-grow:1;min-width:0">
+          <div style="font-size:13px;font-weight:600">${esc(p.nome)}</div>
+          <div style="font-size:11px;color:var(--text-2)">${p.tipo === 'entrada' ? 'Entrada' : 'Saída'}</div>
+        </div>
+        <div style="font-size:13px;font-weight:700">${esc(p.hora)}</div>
+      </div>
+    `).join('') : '<div class="vazio">Ninguém bateu ponto ainda hoje.</div>';
+  }
+
+  /* ---------- Venda rápida ---------- */
+  function gradeHtml(produto, opts) {
+    const grande = opts.grande;
     const coresHeader = produto.cores.map(c => `<div class="grade-cor-label"><span class="dot" style="background:${c.hex}"></span>${esc(c.nome)}</div>`).join('');
     const rows = produto.tamanhos.map(tamanho => {
       const cels = produto.cores.map(cor => {
@@ -454,10 +735,18 @@
 
   document.getElementById('confirmar').addEventListener('click', () => {
     if (state.cart.length === 0 || !state.formaPagamento) return;
-    setState({ cart: [], formaPagamento: null });
-    alert('Venda confirmada (simulação) — carrinho zerado.');
+    const total = state.cart.reduce((s, l) => s + l.precoUnit * l.qtd, 0);
+    const hora = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+    const venda = {
+      id: 'v' + Date.now(), hora,
+      itens: state.cart.map(l => ({ produtoNome: l.produtoNome, tamanho: l.tamanho, cor: l.cor, precoUnit: l.precoUnit, qtd: l.qtd })),
+      total, formaPagamento: state.formaPagamento,
+    };
+    setState({ cart: [], formaPagamento: null, vendasHoje: [...state.vendasHoje, venda] });
+    alert('Venda confirmada — ' + fmt(total) + ' via ' + venda.formaPagamento);
   });
 
+  /* ---------- Estoque ---------- */
   function categoriasUnicas() { return [...new Set(PRODUTOS.map(p => p.categoria))]; }
   function produtosFiltrados() {
     return PRODUTOS.filter(p => {
@@ -515,7 +804,7 @@
         <div class="stat-card"><div class="stat-label">Custo unitário</div><div class="stat-valor">${fmt(produto.custoUnitario)}</div></div>
         <div class="stat-card"><div class="stat-label">Margem</div><div class="stat-valor" style="color:var(--teal)">${margem}%</div></div>
       </div>
-      <div class="grade-painel">
+      <div class="grade-painel" style="margin-top:16px">
         <div class="grade-titulo">Grade de estoque</div>
         <div class="grade-sub">Tamanho × cor</div>
         ${gradeHtml(produto, { grande: true })}
@@ -523,10 +812,125 @@
     `;
   }
 
-  document.getElementById('tab-venda').addEventListener('click', () => setState({ view: 'venda' }));
-  document.getElementById('tab-estoque').addEventListener('click', () => setState({ view: 'estoque' }));
-  document.getElementById('busca').addEventListener('input', (e) => setState({ busca: e.target.value }));
+  /* ---------- Fluxo de caixa ---------- */
+  function renderFluxo() {
+    document.getElementById('mes-atual').textContent = MESES[state.mesIndex];
+    const totalDespesas = DESPESAS.reduce((s, d) => s + d.valor, 0);
+    const receitaMes = 12500 + state.vendasHoje.reduce((s, v) => s + v.total, 0);
+    const saldo = receitaMes - totalDespesas;
+    document.getElementById('fluxo-stats').innerHTML = `
+      <div class="stat-card"><div class="stat-label">Receita do mês</div><div class="stat-valor" style="color:var(--ok-text)">${fmt(receitaMes)}</div></div>
+      <div class="stat-card"><div class="stat-label">Despesas do mês</div><div class="stat-valor" style="color:var(--zero-text)">${fmt(totalDespesas)}</div></div>
+      <div class="stat-card"><div class="stat-label">Saldo</div><div class="stat-valor" style="color:${saldo >= 0 ? 'var(--ok-text)' : 'var(--zero-text)'}">${fmt(saldo)}</div></div>
+    `;
+    document.getElementById('fluxo-tabela').innerHTML = `
+      <tr><th>Data</th><th>Descrição</th><th>Categoria</th><th>Forma</th><th style="text-align:right">Valor</th></tr>
+      ${DESPESAS.map(d => `<tr><td>${esc(d.data)}</td><td>${esc(d.descricao)}</td><td>${esc(d.categoria)}</td><td>${esc(d.forma)}</td><td style="text-align:right;font-weight:600">${fmt(d.valor)}</td></tr>`).join('')}
+    `;
+  }
+
+  /* ---------- Equipe ---------- */
+  function renderEquipe() {
+    document.getElementById('equipe-lista').innerHTML = USUARIOS.map(u => `
+      <div class="linha-simples" style="padding:12px 0">
+        <div class="avatar" style="width:36px;height:36px;font-size:14px;background:var(--accent)">${esc(u.nome.charAt(0))}</div>
+        <div style="flex-grow:1;min-width:0">
+          <div style="font-size:14px;font-weight:600">${esc(u.nome)}</div>
+          <div style="font-size:11px;color:var(--text-2)">PIN ····</div>
+        </div>
+        <div class="badge-papel">${esc(u.papel)}</div>
+        <button class="btn-secundario">Editar</button>
+      </div>
+    `).join('');
+  }
+
+  /* ---------- Bater ponto ---------- */
+  function statusPessoa(usuarioId) {
+    const regs = state.pontosHoje.filter(p => p.usuarioId === usuarioId);
+    if (!regs.length) return 'fora';
+    return regs[regs.length - 1].tipo === 'entrada' ? 'dentro' : 'fora';
+  }
+  function baterPonto(usuario) {
+    const status = statusPessoa(usuario.id);
+    const tipo = status === 'dentro' ? 'saida' : 'entrada';
+    const hora = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+    setState({ pontosHoje: [...state.pontosHoje, { usuarioId: usuario.id, nome: usuario.nome, tipo, hora }] });
+  }
+  function renderPonto() {
+    document.getElementById('ponto-grid').innerHTML = USUARIOS.map(u => {
+      const status = statusPessoa(u.id);
+      return `<div class="ponto-card">
+        <div class="avatar" style="width:44px;height:44px;font-size:16px;background:var(--teal)">${esc(u.nome.charAt(0))}</div>
+        <div style="font-weight:600;font-size:14px">${esc(u.nome)}</div>
+        <div style="font-size:11px;color:${status === 'dentro' ? 'var(--ok-text)' : 'var(--text-2)'}">${status === 'dentro' ? 'Dentro' : 'Fora'}</div>
+        <button class="btn-ponto ${status === 'dentro' ? 'saida' : 'entrada'}" data-usuario="${u.id}">${status === 'dentro' ? 'Bater saída' : 'Bater entrada'}</button>
+      </div>`;
+    }).join('');
+    document.querySelectorAll('#ponto-grid [data-usuario]').forEach(b => b.addEventListener('click', () => baterPonto(USUARIOS.find(u => u.id === b.dataset.usuario))));
+
+    document.getElementById('ponto-historico').innerHTML = state.pontosHoje.length ? state.pontosHoje.slice().reverse().map(p => `
+      <div class="linha-simples">
+        <div class="avatar" style="width:28px;height:28px;font-size:11px">${esc(p.nome.charAt(0))}</div>
+        <div style="flex-grow:1">${esc(p.nome)} — ${p.tipo === 'entrada' ? 'Entrada' : 'Saída'}</div>
+        <div style="font-weight:700">${esc(p.hora)}</div>
+      </div>
+    `).join('') : '<div class="vazio">Nenhum registro ainda hoje.</div>';
+  }
+
+  /* ---------- Relatórios ---------- */
+  function renderRelatorios() {
+    const chipsEl = document.getElementById('periodo-chips');
+    const periodos = ['Hoje', '7 dias', 'Mês'];
+    chipsEl.innerHTML = periodos.map(p => `<button class="chip ${state.periodoRelatorio === p ? 'ativo' : ''}" data-periodo="${p}">${p}</button>`).join('');
+    chipsEl.querySelectorAll('[data-periodo]').forEach(b => b.addEventListener('click', () => setState({ periodoRelatorio: b.dataset.periodo })));
+
+    const itensPorProduto = {};
+    state.vendasHoje.forEach(v => v.itens.forEach(it => {
+      const key = it.produtoNome;
+      if (!itensPorProduto[key]) itensPorProduto[key] = { nome: it.produtoNome, qtd: 0, total: 0 };
+      itensPorProduto[key].qtd += it.qtd;
+      itensPorProduto[key].total += it.qtd * it.precoUnit;
+    }));
+    const top = Object.values(itensPorProduto).sort((a, b) => b.qtd - a.qtd).slice(0, 6);
+    const maxQtd = Math.max(1, ...top.map(t => t.qtd));
+    document.getElementById('relatorio-produtos').innerHTML = top.length ? top.map(t => `
+      <div class="barra-linha">
+        <div class="barra-label">${esc(t.nome)}</div>
+        <div class="barra-trilho"><div class="barra-fill" style="width:${(t.qtd / maxQtd * 100).toFixed(0)}%"></div></div>
+        <div class="barra-valor">${t.qtd} un.</div>
+      </div>
+    `).join('') : '<div class="vazio">Nenhuma venda registrada ainda.</div>';
+
+    const porForma = {};
+    state.vendasHoje.forEach(v => { porForma[v.formaPagamento] = (porForma[v.formaPagamento] || 0) + v.total; });
+    const totalGeral = Object.values(porForma).reduce((s, v) => s + v, 0) || 1;
+    document.getElementById('relatorio-formas').innerHTML = Object.keys(porForma).length ? Object.entries(porForma).map(([forma, valor]) => `
+      <div class="barra-linha">
+        <div class="barra-label">${esc(forma)}</div>
+        <div class="barra-trilho"><div class="barra-fill" style="width:${(valor / totalGeral * 100).toFixed(0)}%;background:var(--teal)"></div></div>
+        <div class="barra-valor">${fmt(valor)}</div>
+      </div>
+    `).join('') : '<div class="vazio">Nenhuma venda registrada ainda.</div>';
+  }
+
+  /* ---------- Wiring estático (uma vez) ---------- */
+  document.getElementById('sidebar-nav').innerHTML = NAV.map(n => `
+    <button class="nav-item" data-view="${n.id}" title="${esc(n.label)}">${svgIcon(n.icon)}<span class="nav-label">${esc(n.label)}</span></button>
+  `).join('');
+  document.querySelectorAll('.nav-item').forEach(b => b.addEventListener('click', () => {
+    setState({ view: b.dataset.view });
+    if (window.matchMedia('(max-width: 860px)').matches) document.getElementById('sidebar').classList.remove('mobile-open');
+  }));
+
+  document.getElementById('btn-collapse').innerHTML = svgIcon('menu');
+  document.getElementById('btn-collapse').addEventListener('click', alternarSidebar);
+  document.getElementById('btn-menu-mobile').innerHTML = svgIcon('menu');
+  document.getElementById('btn-menu-mobile').addEventListener('click', alternarSidebar);
+  document.getElementById('btn-tema').addEventListener('click', alternarTema);
   document.getElementById('btn-sair').addEventListener('click', () => setState({ logado: null, loginStep: 'cargo', loginCargo: null, loginPessoaId: null, loginPin: '' }));
+  document.getElementById('busca').addEventListener('input', (e) => setState({ busca: e.target.value }));
+  document.getElementById('mes-anterior').addEventListener('click', () => setState({ mesIndex: Math.max(0, state.mesIndex - 1) }));
+  document.getElementById('mes-proximo').addEventListener('click', () => setState({ mesIndex: Math.min(MESES.length - 1, state.mesIndex + 1) }));
 
   render();
 </script>
