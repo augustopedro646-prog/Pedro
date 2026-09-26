@@ -6,6 +6,7 @@
 <title>Loja Gutto — Protótipo</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700&family=Work+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
 <style>
   :root {
     --bg: #FFF8F0;
@@ -126,6 +127,16 @@
   .btn-ponto { padding: 9px 14px; border-radius: 10px; border: none; font-size: 12px; font-weight: 700; color: #fff; }
   .btn-ponto.entrada { background: var(--teal); }
   .btn-ponto.saida { background: var(--accent); }
+  .rosto-tag { font-size: 10px; color: var(--text-2); font-weight: 600; }
+  .rosto-tag.ok { color: var(--ok-text); }
+
+  .facial-area { display: flex; gap: 18px; align-items: center; flex-wrap: wrap; }
+  .facial-video-wrap { position: relative; width: 240px; height: 180px; border-radius: 14px; overflow: hidden; background: #000; flex-shrink: 0; }
+  .facial-video-wrap video { width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); display: block; }
+  .facial-oval { position: absolute; inset: 14px 60px; border: 3px solid rgba(255,255,255,.6); border-radius: 50%; pointer-events: none; }
+  .facial-status { flex-grow: 1; font-size: 13px; color: var(--text-2); min-width: 200px; }
+  .facial-status.ok { color: var(--ok-text); font-weight: 600; }
+  .facial-status.erro { color: var(--zero-text); font-weight: 600; }
 
   .barra-linha { display: flex; align-items: center; gap: 10px; padding: 8px 0; }
   .barra-label { width: 120px; font-size: 12px; font-weight: 600; flex-shrink: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -343,8 +354,23 @@
 
     <div class="view page" id="view-ponto">
       <h1 class="titulo">Bater ponto</h1>
-      <p class="sub">Registro de entrada e saída da equipe</p>
-      <div class="ponto-grid" id="ponto-grid"></div>
+      <p class="sub">Reconhecimento facial (protótipo) — com opção manual sempre disponível</p>
+
+      <div class="painel">
+        <div class="painel-titulo-linha">
+          <div class="painel-titulo">Reconhecimento facial</div>
+          <button id="btn-camera-toggle" class="btn-primario">Ligar câmera</button>
+        </div>
+        <div class="facial-area">
+          <div class="facial-video-wrap">
+            <video id="video-ponto" autoplay muted playsinline></video>
+            <div class="facial-oval"></div>
+          </div>
+          <div class="facial-status" id="facial-status">Câmera desligada. Clique em "Ligar câmera" pra reconhecer automaticamente quem está batendo ponto.</div>
+        </div>
+      </div>
+
+      <div class="ponto-grid" id="ponto-grid" style="margin-top:20px"></div>
       <div class="painel" style="margin-top:20px">
         <div class="painel-titulo">Registros de hoje</div>
         <div id="ponto-historico"></div>
@@ -442,6 +468,40 @@
   }
   const PRODUTOS = buildProdutos();
 
+  // ---------- Reconhecimento facial (face-api.js, roda 100% no navegador) ----------
+  // Guarda só o "molde" numérico do rosto (128 números), nunca a foto — e só no
+  // localStorage deste navegador, nunca em servidor nenhum. Ainda assim é dado
+  // biométrico (LGPD trata como sensível): antes de usar com a equipe de
+  // verdade, vale confirmar consentimento/política de dados.
+  const MODEL_URL = 'https://cdn.jsdelivr.net/gh/justadudewhohacks/face-api.js@master/weights';
+  const LIMIAR_RECONHECIMENTO = 0.5;
+  let modelsPromise = null;
+  let modelosProntos = false;
+  let cameraStream = null;
+  let cadastroStream = null;
+  let reconhecendoAtivo = false;
+  let viewAnterior = null;
+  const ultimoReconhecimentoPorUsuario = {};
+
+  function carregarModelos() {
+    if (modelsPromise) return modelsPromise;
+    modelsPromise = Promise.all([
+      faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL),
+      faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
+      faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL),
+    ]).then(() => { modelosProntos = true; }).catch((e) => { console.error('Falha ao carregar modelo de reconhecimento facial', e); modelosProntos = false; });
+    return modelsPromise;
+  }
+  function carregarRostos() { try { return JSON.parse(localStorage.getItem('gutto-rostos') || '{}'); } catch (e) { return {}; } }
+  function salvarRostos(rostos) { try { localStorage.setItem('gutto-rostos', JSON.stringify(rostos)); } catch (e) {} }
+  async function ligarCamera(videoEl) {
+    const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' }, audio: false });
+    videoEl.srcObject = stream;
+    await videoEl.play();
+    return stream;
+  }
+  function pararStream(stream) { if (stream) stream.getTracks().forEach(t => t.stop()); }
+
   let temaInicial = 'light';
   try { temaInicial = localStorage.getItem('gutto-tema') || 'light'; } catch (e) {}
   document.documentElement.setAttribute('data-theme', temaInicial);
@@ -459,6 +519,7 @@
     estoqueSelecionadoId: PRODUTOS[0].id, busca: '', filtroCategoria: null,
     tema: temaInicial, sidebarCollapsed: false,
     vendasHoje: vendasSeed, pontosHoje: [], mesIndex: 1, periodoRelatorio: 'Hoje',
+    rostos: carregarRostos(),
   };
 
   function fmt(v) { return 'R$ ' + v.toFixed(2).replace('.', ','); }
@@ -477,6 +538,9 @@
 
     document.querySelectorAll('.nav-item').forEach(b => b.classList.toggle('active', b.dataset.view === state.view));
     showView(state.view);
+
+    if (viewAnterior === 'ponto' && state.view !== 'ponto') desligarCameraPonto();
+    viewAnterior = state.view;
 
     if (state.view === 'inicio') renderInicio();
     else if (state.view === 'venda') renderVenda();
@@ -859,14 +923,20 @@
   function renderPonto() {
     document.getElementById('ponto-grid').innerHTML = USUARIOS.map(u => {
       const status = statusPessoa(u.id);
+      const temRosto = !!state.rostos[u.id];
       return `<div class="ponto-card">
         <div class="avatar" style="width:44px;height:44px;font-size:16px;background:var(--teal)">${esc(u.nome.charAt(0))}</div>
         <div style="font-weight:600;font-size:14px">${esc(u.nome)}</div>
+        <div class="rosto-tag ${temRosto ? 'ok' : ''}">${temRosto ? '✓ Rosto cadastrado' : 'Rosto não cadastrado'}</div>
         <div style="font-size:11px;color:${status === 'dentro' ? 'var(--ok-text)' : 'var(--text-2)'}">${status === 'dentro' ? 'Dentro' : 'Fora'}</div>
-        <button class="btn-ponto ${status === 'dentro' ? 'saida' : 'entrada'}" data-usuario="${u.id}">${status === 'dentro' ? 'Bater saída' : 'Bater entrada'}</button>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:center">
+          <button class="btn-secundario" data-cadastrar="${u.id}">${temRosto ? 'Recadastrar rosto' : 'Cadastrar rosto'}</button>
+          <button class="btn-ponto ${status === 'dentro' ? 'saida' : 'entrada'}" data-usuario="${u.id}">${status === 'dentro' ? 'Bater saída' : 'Bater entrada'}</button>
+        </div>
       </div>`;
     }).join('');
     document.querySelectorAll('#ponto-grid [data-usuario]').forEach(b => b.addEventListener('click', () => baterPonto(USUARIOS.find(u => u.id === b.dataset.usuario))));
+    document.querySelectorAll('#ponto-grid [data-cadastrar]').forEach(b => b.addEventListener('click', () => abrirCadastroRosto(USUARIOS.find(u => u.id === b.dataset.cadastrar))));
 
     document.getElementById('ponto-historico').innerHTML = state.pontosHoje.length ? state.pontosHoje.slice().reverse().map(p => `
       <div class="linha-simples">
@@ -875,6 +945,153 @@
         <div style="font-weight:700">${esc(p.hora)}</div>
       </div>
     `).join('') : '<div class="vazio">Nenhum registro ainda hoje.</div>';
+
+    document.getElementById('btn-camera-toggle').onclick = toggleCameraPonto;
+  }
+
+  /* ---------- Reconhecimento facial: câmera ao vivo em "Bater ponto" ---------- */
+  async function toggleCameraPonto() {
+    const video = document.getElementById('video-ponto');
+    const statusEl = document.getElementById('facial-status');
+    const btn = document.getElementById('btn-camera-toggle');
+    if (cameraStream) { desligarCameraPonto(); return; }
+
+    statusEl.className = 'facial-status';
+    statusEl.textContent = 'Solicitando câmera...';
+    try {
+      cameraStream = await ligarCamera(video);
+    } catch (e) {
+      statusEl.className = 'facial-status erro';
+      statusEl.textContent = 'Não foi possível acessar a câmera (permissão negada ou indisponível). Use o botão manual nos cartões abaixo.';
+      return;
+    }
+    btn.textContent = 'Desligar câmera';
+    statusEl.textContent = 'Carregando modelo de reconhecimento...';
+    await carregarModelos();
+    if (!modelosProntos) {
+      statusEl.className = 'facial-status erro';
+      statusEl.textContent = 'Não foi possível carregar o modelo (sem internet?). Use o botão manual nos cartões abaixo.';
+      return;
+    }
+    statusEl.textContent = 'Procurando rosto...';
+    reconhecendoAtivo = true;
+    loopReconhecimento(video, statusEl);
+  }
+
+  function desligarCameraPonto() {
+    reconhecendoAtivo = false;
+    pararStream(cameraStream);
+    cameraStream = null;
+    const btn = document.getElementById('btn-camera-toggle');
+    const statusEl = document.getElementById('facial-status');
+    if (btn) btn.textContent = 'Ligar câmera';
+    if (statusEl) { statusEl.className = 'facial-status'; statusEl.textContent = 'Câmera desligada.'; }
+  }
+
+  async function loopReconhecimento(video, statusEl) {
+    if (!reconhecendoAtivo) return;
+    try {
+      const deteccao = await faceapi.detectSingleFace(video, new faceapi.TinyFaceDetectorOptions()).withFaceLandmarks().withFaceDescriptor();
+      if (deteccao) {
+        let melhorId = null, melhorDist = 999;
+        Object.keys(state.rostos).forEach((usuarioId) => {
+          const dist = faceapi.euclideanDistance(deteccao.descriptor, state.rostos[usuarioId]);
+          if (dist < melhorDist) { melhorDist = dist; melhorId = usuarioId; }
+        });
+        if (melhorId && melhorDist < LIMIAR_RECONHECIMENTO) {
+          const usuario = USUARIOS.find(u => u.id === melhorId);
+          const agora = Date.now();
+          if (agora - (ultimoReconhecimentoPorUsuario[melhorId] || 0) > 8000) {
+            ultimoReconhecimentoPorUsuario[melhorId] = agora;
+            const eraEntrada = statusPessoa(melhorId) !== 'dentro';
+            baterPonto(usuario);
+            statusEl.className = 'facial-status ok';
+            statusEl.textContent = '✓ ' + usuario.nome + ' reconhecido — ' + (eraEntrada ? 'entrada' : 'saída') + ' registrada.';
+          } else {
+            statusEl.className = 'facial-status ok';
+            statusEl.textContent = '✓ ' + usuario.nome + ' reconhecido (aguardando pra registrar de novo).';
+          }
+        } else {
+          statusEl.className = 'facial-status';
+          statusEl.textContent = 'Rosto não reconhecido — cadastre em "Cadastrar rosto" no cartão da pessoa, ou use o botão manual.';
+        }
+      } else {
+        statusEl.className = 'facial-status';
+        statusEl.textContent = 'Procurando rosto...';
+      }
+    } catch (e) {}
+    if (reconhecendoAtivo) setTimeout(() => loopReconhecimento(video, statusEl), 1200);
+  }
+
+  /* ---------- Cadastro de rosto (modal com câmera) ---------- */
+  function abrirCadastroRosto(usuario) {
+    const modal = document.getElementById('modal');
+    modal.style.display = 'flex';
+    modal.innerHTML = `
+      <div class="modal-card" style="align-items:center;text-align:center">
+        <div class="modal-head" style="width:100%">
+          <div>
+            <div class="modal-titulo">Cadastrar rosto — ${esc(usuario.nome)}</div>
+            <div class="modal-sub">Posicione o rosto dentro da oval, com boa luz</div>
+          </div>
+          <button class="btn-fechar" id="fechar-cadastro-rosto" aria-label="Fechar">×</button>
+        </div>
+        <div class="facial-video-wrap" style="width:280px;height:210px">
+          <video id="video-cadastro" autoplay muted playsinline></video>
+          <div class="facial-oval"></div>
+        </div>
+        <div class="facial-status" id="cadastro-status">Ligando câmera...</div>
+        <button class="btn-primario" id="btn-capturar-rosto" style="margin-top:8px" disabled>Capturar e salvar</button>
+      </div>
+    `;
+    document.getElementById('fechar-cadastro-rosto').addEventListener('click', fecharCadastroRosto);
+    modal.addEventListener('click', (e) => { if (e.target === modal) fecharCadastroRosto(); });
+    iniciarCadastroRosto(usuario);
+  }
+
+  async function iniciarCadastroRosto(usuario) {
+    const video = document.getElementById('video-cadastro');
+    const statusEl = document.getElementById('cadastro-status');
+    const btnCapturar = document.getElementById('btn-capturar-rosto');
+    try {
+      cadastroStream = await ligarCamera(video);
+    } catch (e) {
+      statusEl.className = 'facial-status erro';
+      statusEl.textContent = 'Não foi possível acessar a câmera.';
+      return;
+    }
+    statusEl.textContent = 'Carregando modelo...';
+    await carregarModelos();
+    if (!modelosProntos) {
+      statusEl.className = 'facial-status erro';
+      statusEl.textContent = 'Modelo de reconhecimento indisponível (sem internet?).';
+      return;
+    }
+    statusEl.textContent = 'Pronto — clique em "Capturar e salvar".';
+    btnCapturar.disabled = false;
+    btnCapturar.onclick = async () => {
+      statusEl.textContent = 'Capturando...';
+      const deteccao = await faceapi.detectSingleFace(video, new faceapi.TinyFaceDetectorOptions()).withFaceLandmarks().withFaceDescriptor();
+      if (!deteccao) {
+        statusEl.className = 'facial-status erro';
+        statusEl.textContent = 'Nenhum rosto detectado — tente de novo com mais luz.';
+        return;
+      }
+      const rostos = Object.assign({}, state.rostos, { [usuario.id]: Array.from(deteccao.descriptor) });
+      salvarRostos(rostos);
+      state.rostos = rostos;
+      statusEl.className = 'facial-status ok';
+      statusEl.textContent = '✓ Rosto salvo pra ' + usuario.nome + '.';
+      setTimeout(fecharCadastroRosto, 900);
+    };
+  }
+
+  function fecharCadastroRosto() {
+    pararStream(cadastroStream);
+    cadastroStream = null;
+    document.getElementById('modal').style.display = 'none';
+    document.getElementById('modal').innerHTML = '';
+    render();
   }
 
   /* ---------- Relatórios ---------- */
@@ -927,7 +1144,11 @@
   document.getElementById('btn-menu-mobile').innerHTML = svgIcon('menu');
   document.getElementById('btn-menu-mobile').addEventListener('click', alternarSidebar);
   document.getElementById('btn-tema').addEventListener('click', alternarTema);
-  document.getElementById('btn-sair').addEventListener('click', () => setState({ logado: null, loginStep: 'cargo', loginCargo: null, loginPessoaId: null, loginPin: '' }));
+  document.getElementById('btn-sair').addEventListener('click', () => {
+    desligarCameraPonto();
+    pararStream(cadastroStream); cadastroStream = null;
+    setState({ logado: null, loginStep: 'cargo', loginCargo: null, loginPessoaId: null, loginPin: '' });
+  });
   document.getElementById('busca').addEventListener('input', (e) => setState({ busca: e.target.value }));
   document.getElementById('mes-anterior').addEventListener('click', () => setState({ mesIndex: Math.max(0, state.mesIndex - 1) }));
   document.getElementById('mes-proximo').addEventListener('click', () => setState({ mesIndex: Math.min(MESES.length - 1, state.mesIndex + 1) }));
