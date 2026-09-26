@@ -1,0 +1,415 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Volt Verde Bike</title>
+<meta name="description" content="Avaliação no Google, WhatsApp, Instagram e site da Volt Verde Bike.">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@700;800;900&family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600&display=swap">
+<style>
+:root{
+  --bg:#0A1512;
+  --bg-2:#0F1F19;
+  --card:#132821;
+  --card-2:#173428;
+  --line:rgba(207,255,61,.16);
+  --line-soft:rgba(234,247,238,.10);
+  --text:#EAF7EE;
+  --text-soft:#8FA89B;
+  --verde:#18C46B;
+  --verde-deep:#0E8F4F;
+  --volt:#D6FF4D;
+  --volt-deep:#A7CC2E;
+  --shadow:0 20px 50px -20px rgba(0,0,0,.6);
+  color-scheme:dark;
+  --serif:"Big Shoulders Display","Arial Narrow",sans-serif;
+  --sans:"Manrope","Segoe UI",system-ui,-apple-system,Arial,sans-serif;
+  --mono:"JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{
+  background:radial-gradient(120% 100% at 50% -10%, #12261D 0%, var(--bg) 46%, #060B09 100%);
+  color:var(--text);
+  font-family:var(--sans);
+  font-size:16px;
+  line-height:1.5;
+  -webkit-font-smoothing:antialiased;
+  min-height:100vh;
+}
+@media (prefers-reduced-motion:reduce){
+  .brilho::before{animation:none!important}
+}
+
+.pagina{
+  max-width:460px;
+  margin:0 auto;
+  padding:28px 20px 40px;
+  display:flex;
+  flex-direction:column;
+  gap:22px;
+}
+
+/* -------- topo / marca -------- */
+.marca{
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  text-align:center;
+  padding-top:6px;
+}
+.raio-envolto{
+  position:relative;
+  width:74px;
+  height:74px;
+  display:grid;
+  place-items:center;
+  margin-bottom:16px;
+}
+.brilho::before{
+  content:"";
+  position:absolute;
+  inset:-14px;
+  border-radius:50%;
+  background:radial-gradient(circle, rgba(214,255,77,.35), transparent 68%);
+  animation:pulso 2.6s ease-in-out infinite;
+}
+@keyframes pulso{
+  0%,100%{opacity:.55;transform:scale(.92)}
+  50%{opacity:1;transform:scale(1.06)}
+}
+.raio{
+  position:relative;
+  width:74px;
+  height:74px;
+  border-radius:22px;
+  background:linear-gradient(155deg, var(--verde), var(--verde-deep));
+  display:grid;
+  place-items:center;
+  box-shadow:0 14px 30px -10px rgba(24,196,107,.55), inset 0 0 0 1px rgba(255,255,255,.08);
+}
+.raio svg{width:34px;height:34px;color:var(--volt)}
+.nome-loja{
+  font-family:var(--serif);
+  font-weight:900;
+  text-transform:uppercase;
+  font-size:clamp(2.3rem,10vw,2.9rem);
+  letter-spacing:.01em;
+  line-height:.95;
+  text-wrap:balance;
+  background:linear-gradient(180deg,#FFFFFF, #C9E9D6 70%);
+  -webkit-background-clip:text;
+  background-clip:text;
+  color:transparent;
+}
+.nome-loja em{
+  display:block;
+  font-style:normal;
+  color:var(--volt);
+  background:none;
+  -webkit-text-fill-color:var(--volt);
+}
+.tagline{
+  margin-top:10px;
+  color:var(--text-soft);
+  font-size:.94rem;
+  max-width:26rem;
+}
+/* -------- avaliação -------- */
+.bloco-avaliar{
+  background:linear-gradient(165deg, var(--card-2), var(--card));
+  border:1px solid var(--line);
+  border-radius:24px;
+  padding:24px 20px 22px;
+  box-shadow:var(--shadow);
+  text-align:center;
+  position:relative;
+  overflow:hidden;
+}
+.bloco-avaliar::after{
+  content:"";
+  position:absolute;
+  top:-60%;
+  right:-30%;
+  width:70%;
+  height:160%;
+  background:radial-gradient(circle, rgba(214,255,77,.10), transparent 65%);
+  pointer-events:none;
+}
+.bloco-avaliar h2{
+  font-family:var(--serif);
+  font-weight:800;
+  text-transform:uppercase;
+  font-size:1.5rem;
+  letter-spacing:.01em;
+  margin:0 0 6px;
+}
+.bloco-avaliar p{
+  color:var(--text-soft);
+  font-size:.9rem;
+  margin:0 0 18px;
+  max-width:22rem;
+  margin-inline:auto;
+}
+.estrelas{
+  display:flex;
+  justify-content:center;
+  gap:8px;
+  margin-bottom:6px;
+}
+.estrelas svg{
+  width:34px;
+  height:34px;
+  color:var(--volt);
+  filter:drop-shadow(0 0 10px rgba(214,255,77,.55));
+}
+.estrelas-legenda{
+  font:600 .72rem/1 var(--mono);
+  letter-spacing:.14em;
+  text-transform:uppercase;
+  color:var(--volt-deep);
+  margin-bottom:18px;
+}
+.btn{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  gap:10px;
+  width:100%;
+  padding:15px 20px;
+  border-radius:14px;
+  font:700 .98rem/1 var(--sans);
+  text-decoration:none;
+  border:1px solid transparent;
+  transition:transform .12s ease, filter .12s ease;
+}
+.btn:active{transform:scale(.98)}
+.btn svg{width:20px;height:20px;flex:none}
+.btn-volt{
+  background:var(--volt);
+  color:#122016;
+  box-shadow:0 14px 26px -12px rgba(214,255,77,.5);
+}
+.btn-volt:hover{filter:brightness(1.06)}
+
+/* -------- lista de ações -------- */
+.acoes{
+  display:flex;
+  flex-direction:column;
+  gap:12px;
+}
+.rotulo-secao{
+  font:600 .72rem/1 var(--mono);
+  letter-spacing:.18em;
+  text-transform:uppercase;
+  color:var(--text-soft);
+  padding:0 4px;
+}
+.linha-acao{
+  display:flex;
+  align-items:center;
+  gap:14px;
+  background:var(--card);
+  border:1px solid var(--line-soft);
+  border-radius:16px;
+  padding:14px 16px;
+  text-decoration:none;
+  color:var(--text);
+  position:relative;
+}
+.linha-acao::before{
+  content:"";
+  position:absolute;
+  left:0;top:12px;bottom:12px;
+  width:3px;
+  border-radius:3px;
+  background:var(--verde);
+}
+.linha-acao.ig::before{background:#E1306C}
+.linha-acao.wa::before{background:#25D366}
+.linha-acao.site::before{background:var(--volt)}
+.icone-acao{
+  width:42px;height:42px;flex:none;
+  border-radius:12px;
+  display:grid;place-items:center;
+  background:var(--bg-2);
+}
+.icone-acao svg{width:22px;height:22px}
+.linha-acao.ig .icone-acao svg{color:#E1306C}
+.linha-acao.wa .icone-acao svg{color:#25D366}
+.linha-acao.site .icone-acao svg{color:var(--volt)}
+.texto-acao{flex:1;min-width:0}
+.texto-acao b{display:block;font-size:.98rem;font-weight:700}
+.texto-acao span{display:block;font-size:.8rem;color:var(--text-soft);margin-top:1px}
+.seta{width:18px;height:18px;color:var(--text-soft);flex:none}
+
+/* -------- rodapé -------- */
+.rodape{
+  border-top:1px dashed var(--line-soft);
+  padding-top:18px;
+  display:flex;
+  flex-direction:column;
+  gap:10px;
+}
+.endereco{
+  display:flex;
+  gap:10px;
+  align-items:flex-start;
+  font-size:.84rem;
+  color:var(--text-soft);
+}
+.endereco svg{width:17px;height:17px;flex:none;margin-top:2px;color:var(--verde)}
+.linha-fone{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+  background:var(--bg-2);
+  border:1px solid var(--line-soft);
+  border-radius:12px;
+  padding:10px 12px;
+}
+.linha-fone span{font:600 .92rem/1 var(--mono);letter-spacing:.02em}
+.btn-copiar{
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  background:transparent;
+  border:1px solid var(--line-soft);
+  color:var(--text-soft);
+  font:600 .72rem/1 var(--sans);
+  letter-spacing:.06em;
+  text-transform:uppercase;
+  padding:7px 10px;
+  border-radius:8px;
+  cursor:pointer;
+}
+.btn-copiar svg{width:13px;height:13px}
+.btn-copiar[data-ok="1"]{color:var(--verde);border-color:var(--verde)}
+.creditos{
+  text-align:center;
+  font-size:.72rem;
+  color:var(--text-soft);
+  opacity:.7;
+  margin-top:2px;
+}
+</style>
+</head>
+<body>
+
+<div class="pagina">
+
+  <div class="marca">
+    <div class="raio-envolto brilho">
+      <div class="raio">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M13 2 3 14h6l-1 8 10-12h-6z"/></svg>
+      </div>
+    </div>
+    <h1 class="nome-loja">Volt Verde<em>Bike</em></h1>
+    <p class="tagline">Bikes e motos elétricas em Parnamirim/RN — venda, locação e test-ride.</p>
+  </div>
+
+  <div class="bloco-avaliar">
+    <h2>Como foi sua visita?</h2>
+    <p>Toque nas estrelas e deixe sua avaliação no Google. Já adiantamos as 5 pra você.</p>
+    <div class="estrelas" aria-hidden="true">
+      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l2.9 6.6 7.1.6-5.4 4.7L18.2 21 12 17.3 5.8 21l1.6-7.1L2 9.2l7.1-.6z"/></svg>
+      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l2.9 6.6 7.1.6-5.4 4.7L18.2 21 12 17.3 5.8 21l1.6-7.1L2 9.2l7.1-.6z"/></svg>
+      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l2.9 6.6 7.1.6-5.4 4.7L18.2 21 12 17.3 5.8 21l1.6-7.1L2 9.2l7.1-.6z"/></svg>
+      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l2.9 6.6 7.1.6-5.4 4.7L18.2 21 12 17.3 5.8 21l1.6-7.1L2 9.2l7.1-.6z"/></svg>
+      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l2.9 6.6 7.1.6-5.4 4.7L18.2 21 12 17.3 5.8 21l1.6-7.1L2 9.2l7.1-.6z"/></svg>
+    </div>
+    <div class="estrelas-legenda">5 de 5 estrelas selecionadas</div>
+    <a class="btn btn-volt" href="https://www.google.com/search?q=avalia%C3%A7%C3%B5es+sobre+volt+verde+bike" target="_blank" rel="noopener">
+      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l2.9 6.6 7.1.6-5.4 4.7L18.2 21 12 17.3 5.8 21l1.6-7.1L2 9.2l7.1-.6z"/></svg>
+      Avaliar no Google
+    </a>
+  </div>
+
+  <div class="acoes">
+    <div class="rotulo-secao">Fale com a gente</div>
+
+    <a class="linha-acao wa" href="https://wa.me/5584991444478?text=Ol%C3%A1!%20Vim%20pelo%20cart%C3%A3o%20da%20Volt%20Verde%20Bike%20e%20queria%20saber%20mais." target="_blank" rel="noopener">
+      <div class="icone-acao">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5.1-1.3A10 10 0 1 0 12 2zm0 18.2a8.2 8.2 0 0 1-4.2-1.1l-.3-.2-3 .8.8-2.9-.2-.3A8.2 8.2 0 1 1 12 20.2zm4.5-6.1c-.2-.1-1.5-.7-1.7-.8-.2-.1-.4-.1-.6.1-.2.2-.6.8-.8 1-.1.2-.3.2-.5.1-1.3-.6-2.2-1.1-3.1-2.6-.2-.3 0-.5.1-.6.2-.2.4-.4.5-.6.1-.2.1-.4 0-.5-.1-.2-.6-1.5-.8-2-.2-.5-.4-.4-.6-.4h-.5c-.2 0-.5.2-.7.5-.2.3-.9 1-.9 2.3s.9 2.6 1.1 2.8c.1.2 1.9 3 4.7 4.1 2.3.9 2.8.7 3.3.6.5-.1 1.5-.6 1.7-1.2.2-.6.2-1.1.2-1.2-.1-.1-.2-.2-.4-.3z"/></svg>
+      </div>
+      <div class="texto-acao">
+        <b>WhatsApp</b>
+        <span>(84) 99144-4478 — atendimento direto</span>
+      </div>
+      <svg class="seta" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 6l6 6-6 6"/></svg>
+    </a>
+
+    <a class="linha-acao ig" href="https://www.instagram.com/volt.verdebike?stkn=MWxtNWt3eHB1c3lneQ==" target="_blank" rel="noopener">
+      <div class="icone-acao">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.2" cy="6.8" r="1" fill="currentColor" stroke="none"/></svg>
+      </div>
+      <div class="texto-acao">
+        <b>Instagram</b>
+        <span>@volt.verdebike — novidades e bikes em estoque</span>
+      </div>
+      <svg class="seta" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 6l6 6-6 6"/></svg>
+    </a>
+
+    <a class="linha-acao site" href="https://share.google/NkvnIBdcWF3zcZcPD" target="_blank" rel="noopener">
+      <div class="icone-acao">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a13 13 0 0 1 0 18M12 3a13 13 0 0 0 0 18"/></svg>
+      </div>
+      <div class="texto-acao">
+        <b>Site oficial</b>
+        <span>Modelos, preços e locação de bikes elétricas</span>
+      </div>
+      <svg class="seta" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 6l6 6-6 6"/></svg>
+    </a>
+  </div>
+
+  <div class="rodape">
+    <div class="endereco">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 21s7-6.5 7-11.5A7 7 0 0 0 5 9.5C5 14.5 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.4"/></svg>
+      <span>Av. Dep. Gastão Mariz de Faria, 928 — Nova Parnamirim, Parnamirim/RN</span>
+    </div>
+    <div class="linha-fone">
+      <span id="fone-texto">(84) 99144-4478</span>
+      <button class="btn-copiar" id="btn-copiar" type="button">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>
+        <span id="copiar-rotulo">Copiar</span>
+      </button>
+    </div>
+    <div class="creditos">Página de teste do cartão NFC · Volt Verde Bike</div>
+  </div>
+
+</div>
+
+<script>
+(function(){
+  var btn = document.getElementById('btn-copiar');
+  var rotulo = document.getElementById('copiar-rotulo');
+  if(!btn) return;
+  btn.addEventListener('click', async function(){
+    var texto = '5584991444478';
+    try{
+      await navigator.clipboard.writeText(texto);
+      marcarCopiado();
+    }catch(e){
+      try{
+        var faixa = document.getElementById('fone-texto');
+        var range = document.createRange();
+        range.selectNode(faixa);
+        window.getSelection().removeAllRanges();
+        window.getSelection().addRange(range);
+        marcarCopiado();
+      }catch(e2){}
+    }
+  });
+  function marcarCopiado(){
+    btn.setAttribute('data-ok','1');
+    rotulo.textContent = 'Copiado!';
+    setTimeout(function(){
+      btn.removeAttribute('data-ok');
+      rotulo.textContent = 'Copiar';
+    }, 1800);
+  }
+})();
+</script>
+</body>
+</html>
