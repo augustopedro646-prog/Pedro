@@ -39,17 +39,28 @@
   * { box-sizing: border-box; }
   body { margin: 0; background: var(--bg); color: var(--text); font-family: 'Work Sans', sans-serif; transition: background-color .2s, color .2s; }
   button { font-family: 'Work Sans', sans-serif; cursor: pointer; }
-  input, select, textarea { background: var(--surface); color: var(--text); }
+  button:disabled { opacity: .55; cursor: not-allowed; }
+  input, select, textarea { background: var(--surface); color: var(--text); font-family: 'Work Sans', sans-serif; }
   .titulo { font-family: 'Baloo 2', sans-serif; font-weight: 700; }
   .sub { font-size: 13px; color: var(--text-2); margin: 2px 0 16px; }
   .dot { width: 12px; height: 12px; border-radius: 50%; display: inline-block; border: 1px solid var(--border); vertical-align: middle; margin-right: 4px; flex-shrink: 0; }
   svg { display: block; }
   .campo { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--text-2); }
-  .campo input, .campo select { padding: 9px 10px; border-radius: 9px; border: 1px solid var(--border); font-size: 13px; }
+  .campo input, .campo select, .campo textarea { padding: 9px 10px; border-radius: 9px; border: 1px solid var(--border); font-size: 13px; }
+  .linha-campos { display: flex; gap: 10px; flex-wrap: wrap; }
+  .linha-campos > .campo { flex: 1; min-width: 120px; }
   .badge-prototipo { font-size: 9px; background: var(--baixo-bg); color: var(--baixo-text); border: 1px solid var(--baixo-border); padding: 2px 7px; border-radius: 999px; margin-left: 8px; vertical-align: middle; font-weight: 700; }
+  .tag { font-size: 10px; padding: 2px 8px; border-radius: 999px; font-weight: 700; white-space: nowrap; }
+  .tag.ok { background: var(--ok-bg); color: var(--ok-text); border: 1px solid var(--ok-border); }
+  .tag.aviso { background: var(--baixo-bg); color: var(--baixo-text); border: 1px solid var(--baixo-border); }
+  .tag.cinza { background: var(--border-2); color: var(--text-2); border: 1px solid var(--border); }
   .erro-modal { color: var(--zero-text); font-size: 12px; font-weight: 600; display: none; }
+  .mono { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 12px; }
+  .valor-ok { color: var(--ok-text); }
+  .valor-neg { color: var(--zero-text); }
+  .link-btn { border: none; background: none; color: var(--accent); font-size: 12px; font-weight: 600; padding: 0; text-decoration: underline; }
 
-  /* ---------- Login (cargo → pessoa → PIN) ---------- */
+  /* ---------- Login ---------- */
   .login-screen { height: 100vh; display: flex; align-items: center; justify-content: center; padding: 16px; }
   .login-card { width: 100%; max-width: 360px; background: var(--surface); border: 1px solid var(--border); border-radius: 20px; padding: 28px; text-align: center; box-shadow: 0 12px 40px var(--shadow); display: flex; flex-direction: column; align-items: center; gap: 6px; }
   .login-logo { font-size: 22px; color: var(--accent); margin-bottom: 6px; }
@@ -60,11 +71,11 @@
   .login-opcao { width: 100%; display: flex; align-items: center; padding: 12px 14px; border-radius: 12px; border: 1px solid var(--border); background: var(--surface); color: var(--text); font-size: 14px; font-weight: 600; text-align: left; }
   .login-opcao .avatar { width: 26px; height: 26px; border-radius: 50%; background: var(--accent); color: #fff; display: inline-flex; align-items: center; justify-content: center; font-family: 'Baloo 2', sans-serif; font-weight: 700; font-size: 12px; flex-shrink: 0; }
   .login-voltar { margin-top: 14px; border: none; background: none; color: var(--text-2); font-size: 12px; text-decoration: underline; }
-  .pin-dots { display: flex; gap: 10px; margin: 8px 0; }
+  .pin-dots { display: flex; gap: 10px; margin: 8px 0; justify-content: center; }
   .pin-dot { width: 14px; height: 14px; border-radius: 50%; border: 2px solid var(--border); }
   .pin-dot.preenchido { background: var(--accent); border-color: var(--accent); }
-  .pin-erro { color: var(--zero-text); font-size: 12px; font-weight: 600; margin-bottom: 4px; }
-  .teclado { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; width: 220px; margin-top: 6px; }
+  .pin-erro { color: var(--zero-text); font-size: 12px; font-weight: 600; margin-bottom: 4px; min-height: 15px; }
+  .teclado { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; width: 220px; margin: 6px auto 0; }
   .tecla { height: 52px; border-radius: 12px; border: 1px solid var(--border); background: var(--surface); color: var(--text); font-size: 18px; font-weight: 600; }
   .tecla:active { background: var(--border-2); }
 
@@ -73,7 +84,6 @@
   .avatar { width: 26px; height: 26px; border-radius: 50%; background: var(--teal); color: #fff; display: flex; align-items: center; justify-content: center; font-family: 'Baloo 2', sans-serif; font-weight: 700; font-size: 12px; flex-shrink: 0; }
   .icon-btn { width: 34px; height: 34px; border-radius: 9px; border: 1px solid var(--border); background: var(--surface); color: var(--text-2); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
   .icon-btn:hover { background: var(--border-2); }
-
   .sidebar { width: 220px; flex-shrink: 0; background: var(--surface); border-right: 1px solid var(--border); display: flex; flex-direction: column; transition: width .15s ease; }
   .sidebar-top { display: flex; align-items: center; gap: 10px; padding: 16px 14px; border-bottom: 1px solid var(--border-2); }
   .brand { display: flex; align-items: center; gap: 8px; overflow: hidden; }
@@ -95,35 +105,42 @@
     .sidebar.collapsed .nav-item { justify-content: center; padding: 10px; }
     .sidebar.collapsed .sidebar-top { justify-content: center; }
   }
-
   .btn-menu-mobile { display: none; position: fixed; top: 14px; left: 14px; z-index: 45; width: 38px; height: 38px; border-radius: 10px; border: 1px solid var(--border); background: var(--surface); color: var(--text); align-items: center; justify-content: center; box-shadow: 0 2px 10px var(--shadow); }
 
   #conteudo { flex-grow: 1; height: 100vh; overflow-y: auto; }
   .view { display: none; }
   .page { padding: 28px 32px; max-width: 1100px; }
+  .page-topo { display: flex; justify-content: space-between; align-items: flex-end; flex-wrap: wrap; gap: 10px; margin-bottom: 16px; }
+  .page-topo h1 { margin: 0; }
+  .page-topo .sub { margin: 2px 0 0; }
 
   .stats-row { display: flex; gap: 14px; margin-bottom: 8px; flex-wrap: wrap; }
   .stat-card { flex: 1; min-width: 150px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 14px; }
   .stat-label { font-size: 11px; color: var(--text-2); }
   .stat-valor { font-family: 'Baloo 2', sans-serif; font-weight: 700; font-size: 20px; margin-top: 4px; }
-
   .paineis-duas-colunas { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 20px; }
   .painel { flex: 1; min-width: 280px; background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 18px; }
+  .painel + .painel { margin-top: 0; }
   .painel-titulo { font-family: 'Baloo 2', sans-serif; font-weight: 700; font-size: 15px; margin-bottom: 12px; }
-  .painel-titulo-linha { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+  .painel-titulo-linha { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; gap: 8px; flex-wrap: wrap; }
+  .painel-titulo-linha .painel-titulo { margin-bottom: 0; }
   .linha-simples { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--border-2); }
   .linha-simples:last-child { border-bottom: none; }
+  .linha-clicavel { width: 100%; text-align: left; background: none; border: none; border-bottom: 1px solid var(--border-2); color: var(--text); padding: 10px 4px; display: flex; align-items: center; gap: 10px; font-size: 13px; }
+  .linha-clicavel:hover { background: var(--border-2); }
 
   .btn-primario { padding: 9px 14px; border-radius: 10px; border: none; background: var(--accent); color: #fff; font-size: 12px; font-weight: 700; }
-  .btn-primario:disabled { opacity: .6; cursor: not-allowed; }
   .btn-secundario { padding: 9px 14px; border-radius: 10px; border: 1px solid var(--border); background: var(--surface); color: var(--text); font-size: 12px; font-weight: 600; }
-  .badge-papel { padding: 4px 10px; border-radius: 999px; background: var(--ok-bg); border: 1px solid var(--ok-border); color: var(--ok-text); font-size: 11px; font-weight: 700; margin-right: 8px; white-space: nowrap; }
+  .btn-perigo { padding: 9px 14px; border-radius: 10px; border: 1px solid var(--zero-text); background: var(--surface); color: var(--zero-text); font-size: 12px; font-weight: 600; }
+  .btn-grande { padding: 13px 18px; font-size: 14px; border-radius: 12px; }
+  .badge-papel { padding: 4px 10px; border-radius: 999px; background: var(--ok-bg); border: 1px solid var(--ok-border); color: var(--ok-text); font-size: 11px; font-weight: 700; white-space: nowrap; }
 
   .tabela { width: 100%; border-collapse: collapse; font-size: 13px; }
   .tabela th { text-align: left; color: var(--text-2); font-weight: 600; font-size: 11px; padding: 8px 10px; border-bottom: 1px solid var(--border); }
-  .tabela td { padding: 9px 10px; border-bottom: 1px solid var(--border-2); }
+  .tabela td { padding: 8px 10px; border-bottom: 1px solid var(--border-2); vertical-align: middle; }
   .tabela tr:last-child td { border-bottom: none; }
-  .fluxo-topo { display: flex; justify-content: space-between; align-items: flex-end; flex-wrap: wrap; gap: 10px; margin-bottom: 16px; }
+  .tabela input { width: 100%; min-width: 60px; padding: 6px 8px; border-radius: 7px; border: 1px solid var(--border); font-size: 12px; }
+  .tabela-scroll { overflow-x: auto; }
   .mes-seletor { display: flex; align-items: center; gap: 10px; font-size: 13px; font-weight: 600; }
   .mes-label { min-width: 130px; text-align: center; }
 
@@ -134,7 +151,6 @@
   .btn-ponto.saida { background: var(--accent); }
   .rosto-tag { font-size: 10px; color: var(--text-2); font-weight: 600; }
   .rosto-tag.ok { color: var(--ok-text); }
-
   .facial-area { display: flex; gap: 18px; align-items: center; flex-wrap: wrap; }
   .facial-video-wrap { position: relative; width: 240px; height: 180px; border-radius: 14px; overflow: hidden; background: #000; flex-shrink: 0; }
   .facial-video-wrap video { width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); display: block; }
@@ -147,48 +163,69 @@
   .barra-label { width: 120px; font-size: 12px; font-weight: 600; flex-shrink: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .barra-trilho { flex-grow: 1; height: 10px; border-radius: 6px; background: var(--border-2); overflow: hidden; }
   .barra-fill { height: 100%; background: var(--accent); border-radius: 6px; }
-  .barra-valor { width: 72px; text-align: right; font-size: 12px; font-weight: 700; flex-shrink: 0; }
+  .barra-valor { width: 90px; text-align: right; font-size: 12px; font-weight: 700; flex-shrink: 0; }
   .vazio { font-size: 13px; color: var(--text-2); text-align: center; padding: 20px 0; }
+  .carregando { font-size: 13px; color: var(--text-2); padding: 20px 0; text-align: center; }
 
   /* ---------- Venda rápida ---------- */
   #view-venda { flex-direction: row; }
   .col-produtos { flex-grow: 1; padding: 20px 24px; overflow-y: auto; }
   .col-produtos h1 { font-size: 22px; margin: 0; }
+  .venda-topo { display: flex; gap: 10px; align-items: center; margin: 4px 0 14px; flex-wrap: wrap; }
+  #venda-busca { flex-grow: 1; min-width: 200px; padding: 11px 14px; border-radius: 11px; border: 2px solid var(--border); font-size: 14px; }
+  #venda-busca:focus { outline: none; border-color: var(--accent); }
+  .aviso-caixa { background: var(--baixo-bg); border: 1px solid var(--baixo-border); color: var(--baixo-text); border-radius: 12px; padding: 12px 14px; font-size: 13px; font-weight: 600; display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 14px; flex-wrap: wrap; }
   .produtos-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 14px; }
-  .produto-card { display: flex; flex-direction: column; gap: 8px; text-align: left; background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 14px; }
+  .produto-card { display: flex; flex-direction: column; gap: 8px; text-align: left; background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 14px; color: var(--text); }
   .produto-thumb { width: 100%; height: 78px; border-radius: 10px; display: flex; align-items: center; justify-content: center; }
   .produto-avatar { width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: #fff; font-family: 'Baloo 2', sans-serif; font-weight: 700; font-size: 16px; }
   .produto-nome { font-family: 'Baloo 2', sans-serif; font-weight: 600; font-size: 14px; }
   .produto-meta { font-size: 11px; color: var(--text-2); }
   .produto-preco { font-family: 'Baloo 2', sans-serif; font-weight: 700; font-size: 14px; color: var(--accent); }
 
-  .col-carrinho { width: 320px; flex-shrink: 0; background: var(--surface); border-left: 1px solid var(--border); display: flex; flex-direction: column; padding: 20px; overflow-y: auto; }
-  .col-carrinho h2 { font-size: 18px; margin: 0 0 12px; }
-  .carrinho-vazio { font-size: 13px; color: var(--text-2); text-align: center; padding: 24px 0; }
-  .carrinho-linha { display: flex; align-items: center; gap: 8px; border-bottom: 1px solid var(--border-2); padding: 8px 0; }
+  .col-carrinho { width: 360px; flex-shrink: 0; background: var(--surface); border-left: 1px solid var(--border); display: flex; flex-direction: column; padding: 18px; overflow-y: auto; }
+  .col-carrinho h2 { font-size: 18px; margin: 0; }
+  .carrinho-vazio { font-size: 13px; color: var(--text-2); text-align: center; padding: 20px 0; }
+  .carrinho-linha { border-bottom: 1px solid var(--border-2); padding: 8px 0; display: flex; flex-direction: column; gap: 6px; }
+  .carrinho-linha-topo { display: flex; align-items: center; gap: 8px; }
   .carrinho-info { flex-grow: 1; min-width: 0; }
   .carrinho-nome { font-size: 13px; font-weight: 600; }
   .carrinho-detalhe { font-size: 11px; color: var(--text-2); }
   .carrinho-qtd { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
-  .carrinho-qtd button { width: 22px; height: 22px; border-radius: 6px; border: 1px solid var(--border); background: var(--surface); color: var(--text); font-size: 13px; line-height: 1; }
-  .carrinho-total { width: 58px; text-align: right; font-size: 13px; font-weight: 600; flex-shrink: 0; }
-  .totais { margin-top: auto; padding-top: 12px; border-top: 1px solid var(--border); display: flex; flex-direction: column; gap: 8px; }
+  .carrinho-qtd button { width: 24px; height: 24px; border-radius: 6px; border: 1px solid var(--border); background: var(--surface); color: var(--text); font-size: 13px; line-height: 1; }
+  .carrinho-total { width: 72px; text-align: right; font-size: 13px; font-weight: 600; flex-shrink: 0; }
+  .carrinho-desc { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--text-2); padding-left: 20px; }
+  .carrinho-desc input { width: 52px; padding: 4px 6px; border-radius: 6px; border: 1px solid var(--border); font-size: 12px; text-align: right; }
+  .bloco-carrinho { border-top: 1px solid var(--border); padding-top: 10px; margin-top: 10px; display: flex; flex-direction: column; gap: 8px; }
+  .cliente-box { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 12px; }
   .linha-total { display: flex; justify-content: space-between; font-size: 13px; color: var(--text-2); }
-  .linha-total.grande { font-family: 'Baloo 2', sans-serif; font-weight: 700; font-size: 18px; color: var(--text); }
-  .formas { display: flex; gap: 6px; flex-wrap: wrap; margin: 4px 0; }
-  .forma { padding: 7px 12px; border-radius: 999px; border: 1px solid var(--border); background: var(--surface); color: var(--text); font-size: 12px; font-weight: 600; }
-  .forma.ativo { background: var(--accent); border-color: var(--accent); color: #fff; }
-  #confirmar { margin-top: 4px; padding: 13px; border-radius: 12px; border: none; background: #D9D2C4; color: #fff; font-family: 'Baloo 2', sans-serif; font-weight: 700; font-size: 14px; cursor: not-allowed; }
-  #confirmar.ativo { background: var(--accent); cursor: pointer; }
+  .linha-total.grande { font-family: 'Baloo 2', sans-serif; font-weight: 700; font-size: 20px; color: var(--text); }
+  .formas { display: flex; gap: 6px; flex-wrap: wrap; }
+  .forma { padding: 7px 11px; border-radius: 999px; border: 1px solid var(--border); background: var(--surface); color: var(--text); font-size: 12px; font-weight: 600; }
+  .forma.credito { border-color: var(--teal); color: var(--teal); }
+  .pag-linha { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+  .pag-linha span { flex-grow: 1; font-weight: 600; }
+  .pag-linha input { width: 90px; padding: 6px 8px; border-radius: 7px; border: 1px solid var(--border); font-size: 13px; text-align: right; }
+  .pag-linha button { border: none; background: none; color: var(--text-2); font-size: 16px; }
+  #confirmar { padding: 14px; border-radius: 12px; border: none; background: #D9D2C4; color: #fff; font-family: 'Baloo 2', sans-serif; font-weight: 700; font-size: 15px; }
+  #confirmar.ativo { background: var(--accent); }
 
-  /* modal */
-  #modal { display: none; position: fixed; inset: 0; background: rgba(20,18,16,0.5); align-items: center; justify-content: center; z-index: 20; padding: 16px; }
-  .modal-card { width: 100%; max-width: 560px; max-height: 90vh; overflow-y: auto; background: var(--surface); border-radius: 18px; padding: 24px; display: flex; flex-direction: column; gap: 14px; box-shadow: 0 20px 60px var(--shadow); }
-  .modal-head { display: flex; justify-content: space-between; align-items: flex-start; }
+  /* ---------- Modais ---------- */
+  .camada { display: none; position: fixed; inset: 0; background: rgba(20,18,16,0.5); align-items: center; justify-content: center; z-index: 20; padding: 16px; }
+  #modal-topo { z-index: 30; }
+  .modal-card { width: 100%; max-width: 560px; max-height: 92vh; overflow-y: auto; background: var(--surface); border-radius: 18px; padding: 24px; display: flex; flex-direction: column; gap: 14px; box-shadow: 0 20px 60px var(--shadow); }
+  .modal-card.largo { max-width: 900px; }
+  .modal-card.estreito { max-width: 380px; }
+  .modal-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
   .modal-titulo { font-family: 'Baloo 2', sans-serif; font-weight: 700; font-size: 19px; }
   .modal-sub { font-size: 12px; color: var(--text-2); margin-top: 2px; }
-  .btn-fechar { width: 30px; height: 30px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface); color: var(--text); font-size: 15px; }
+  .btn-fechar { width: 30px; height: 30px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface); color: var(--text); font-size: 15px; flex-shrink: 0; }
   .modal-dica { font-size: 12px; color: var(--text-2); }
+  .modal-acoes { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; }
+
+  #toasts { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); z-index: 60; display: flex; flex-direction: column; gap: 8px; align-items: center; pointer-events: none; }
+  .toast { background: var(--text); color: var(--bg); padding: 10px 16px; border-radius: 10px; font-size: 13px; font-weight: 600; box-shadow: 0 6px 20px var(--shadow); max-width: 90vw; }
+  .toast.erro { background: var(--zero-text); color: #fff; }
 
   .grade { display: flex; flex-direction: column; gap: 8px; }
   .grade-row { display: flex; gap: 8px; align-items: center; }
@@ -202,6 +239,8 @@
   .cel.esgotado { background: var(--zero-bg); border-color: var(--zero-border); color: var(--zero-text); cursor: not-allowed; }
   .cel-num { font-size: 15px; font-weight: 700; }
   .cel-legenda { font-size: 9px; }
+  .cel-input { width: 82px; display: flex; flex-direction: column; align-items: center; gap: 2px; }
+  .cel-input input { width: 70px; padding: 7px 6px; border-radius: 8px; border: 1px solid var(--border); font-size: 13px; text-align: center; }
 
   /* ---------- Estoque ---------- */
   #view-estoque { flex-direction: row; }
@@ -209,12 +248,12 @@
   .lista-topo { padding: 16px 16px 10px; border-bottom: 1px solid var(--border-2); display: flex; flex-direction: column; gap: 10px; }
   .lista-topo-head { display: flex; justify-content: space-between; align-items: center; }
   .lista-topo h2 { font-size: 18px; margin: 0; }
-  #busca { padding: 8px 10px; border-radius: 9px; border: 1px solid var(--border); font-size: 13px; width: 100%; }
+  .input-busca { padding: 8px 10px; border-radius: 9px; border: 1px solid var(--border); font-size: 13px; width: 100%; }
   .chips { display: flex; gap: 6px; flex-wrap: wrap; }
   .chip { padding: 5px 11px; border-radius: 999px; border: 1px solid var(--border); background: var(--surface); color: var(--text); font-size: 11px; font-weight: 600; }
   .chip.ativo { background: var(--accent); border-color: var(--accent); color: #fff; }
   .lista-scroll { flex-grow: 1; overflow-y: auto; padding: 8px; }
-  .produto-row { width: 100%; display: flex; align-items: center; gap: 10px; text-align: left; background: var(--surface); border: 1px solid var(--border); border-radius: 11px; padding: 9px 10px; margin-bottom: 6px; }
+  .produto-row { width: 100%; display: flex; align-items: center; gap: 10px; text-align: left; background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: 11px; padding: 9px 10px; margin-bottom: 6px; }
   .produto-row.ativo { border-color: var(--accent); background: var(--baixo-bg); }
   .produto-row-avatar { width: 36px; height: 36px; border-radius: 9px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; color: #fff; font-family: 'Baloo 2', sans-serif; font-weight: 700; font-size: 14px; }
   .produto-row-info { flex-grow: 1; min-width: 0; }
@@ -222,12 +261,11 @@
   .produto-row-meta { font-size: 11px; color: var(--text-2); }
   .produto-row-estoque { text-align: right; flex-shrink: 0; font-size: 13px; }
   .baixo-tag { font-size: 9px; color: var(--zero-text); font-weight: 600; }
-
   .col-detalhe { flex-grow: 1; padding: 24px 30px; overflow-y: auto; }
-  .detalhe-head { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 18px; }
+  .detalhe-head { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 18px; gap: 10px; flex-wrap: wrap; }
   .detalhe-categoria { font-size: 11px; color: var(--text-2); font-weight: 600; }
   .detalhe-nome { font-family: 'Baloo 2', sans-serif; font-weight: 700; font-size: 24px; }
-  .detalhe-acoes { display: flex; gap: 8px; }
+  .detalhe-acoes { display: flex; gap: 8px; flex-wrap: wrap; }
   .grade-painel { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 18px; overflow-x: auto; }
   .grade-titulo { font-family: 'Baloo 2', sans-serif; font-weight: 700; font-size: 15px; }
   .grade-sub { font-size: 11px; color: var(--text-2); margin-bottom: 14px; }
@@ -237,9 +275,9 @@
     .sidebar { position: fixed; top: 0; left: 0; height: 100vh; width: 240px; transform: translateX(-100%); transition: transform .2s ease; z-index: 40; box-shadow: 2px 0 24px var(--shadow); }
     .sidebar.mobile-open { transform: translateX(0); }
     .page { padding: 60px 16px 24px; }
-    .col-carrinho { width: 100%; position: fixed; bottom: 0; left: 0; right: 0; height: 45vh; border-left: none; border-top: 1px solid var(--border); }
     #view-venda { flex-direction: column; overflow-y: auto; }
-    .col-produtos { padding: 60px 16px 46vh; }
+    .col-produtos { padding: 60px 16px 16px; overflow: visible; }
+    .col-carrinho { width: 100%; border-left: none; border-top: 1px solid var(--border); overflow: visible; }
     .col-lista { width: 100%; height: 40vh; border-right: none; border-bottom: 1px solid var(--border); }
     #view-estoque { flex-direction: column; overflow-y: auto; }
   }
@@ -248,7 +286,6 @@
 <body>
 
 <div id="login-screen" class="login-screen"></div>
-
 <button id="btn-menu-mobile" class="btn-menu-mobile" aria-label="Abrir menu"></button>
 
 <div id="app-shell" class="shell-row" style="display:none;">
@@ -279,34 +316,47 @@
       <p class="sub">Resumo de hoje</p>
       <div class="stats-row" id="inicio-stats"></div>
       <div class="paineis-duas-colunas">
-        <div class="painel">
-          <div class="painel-titulo">Estoque baixo</div>
-          <div id="inicio-estoque-baixo"></div>
-        </div>
-        <div class="painel">
-          <div class="painel-titulo">Ponto hoje<span class="badge-prototipo">protótipo</span></div>
-          <div id="inicio-ponto"></div>
-        </div>
+        <div class="painel"><div class="painel-titulo">Caixa</div><div id="inicio-caixa"></div></div>
+        <div class="painel"><div class="painel-titulo">Estoque baixo</div><div id="inicio-estoque-baixo"></div></div>
+        <div class="painel"><div class="painel-titulo">Ponto hoje</div><div id="inicio-ponto"></div></div>
       </div>
     </div>
 
     <div class="view" id="view-venda">
       <div class="col-produtos">
         <h1 class="titulo">Venda rápida</h1>
-        <p class="sub">Toque num produto pra escolher tamanho e cor</p>
+        <div class="venda-topo">
+          <input id="venda-busca" type="text" autocomplete="off" placeholder="Leia o código de barras ou digite o nome da peça">
+          <button class="btn-secundario" id="btn-troca">Troca / devolução</button>
+        </div>
+        <div id="venda-aviso-caixa"></div>
         <div class="produtos-grid" id="produtos-grid"></div>
       </div>
       <div class="col-carrinho">
-        <h2 class="titulo">Carrinho</h2>
-        <div id="carrinho-lista"></div>
-        <div class="totais">
-          <div class="linha-total"><span>Subtotal</span><span id="subtotal">R$ 0,00</span></div>
-          <div class="linha-total grande"><span>Total</span><span id="total">R$ 0,00</span></div>
-          <div style="font-size:11px;color:var(--text-2);margin-top:4px">Forma de pagamento</div>
-          <div class="formas" id="formas"></div>
-          <button id="confirmar">Confirmar venda</button>
+        <div class="painel-titulo-linha">
+          <h2 class="titulo">Carrinho</h2>
+          <button class="link-btn" id="btn-limpar-carrinho">Limpar</button>
         </div>
+        <div id="carrinho-lista"></div>
+        <div class="bloco-carrinho" id="carrinho-cliente"></div>
+        <div class="bloco-carrinho" id="carrinho-totais"></div>
+        <div class="bloco-carrinho" id="carrinho-pagamentos"></div>
+        <button id="confirmar" style="margin-top:12px">Confirmar venda</button>
       </div>
+    </div>
+
+    <div class="view page" id="view-caixa">
+      <div class="page-topo"><div><h1 class="titulo">Caixa</h1><p class="sub">Abertura, suprimento, sangria e fechamento do turno</p></div></div>
+      <div id="caixa-conteudo"></div>
+    </div>
+
+    <div class="view page" id="view-clientes">
+      <div class="page-topo">
+        <div><h1 class="titulo">Clientes</h1><p class="sub">Cadastro, cashback e vale-troca</p></div>
+        <button class="btn-primario" id="btn-novo-cliente">+ Novo cliente</button>
+      </div>
+      <input id="clientes-busca" class="input-busca" type="text" placeholder="Buscar por nome, telefone ou CPF" style="max-width:420px;margin-bottom:14px">
+      <div class="painel"><div id="clientes-lista"></div></div>
     </div>
 
     <div class="view" id="view-estoque">
@@ -316,7 +366,7 @@
             <h2 class="titulo">Produtos</h2>
             <button class="btn-primario" id="btn-novo-produto">+ Novo produto</button>
           </div>
-          <input id="busca" type="text" placeholder="Buscar produto...">
+          <input id="busca" class="input-busca" type="text" placeholder="Buscar produto ou código de barras...">
           <div class="chips" id="categorias-chips"></div>
         </div>
         <div class="lista-scroll" id="produtos-lista"></div>
@@ -324,43 +374,38 @@
       <div class="col-detalhe" id="produto-detalhe"></div>
     </div>
 
+    <div class="view page" id="view-compras">
+      <div class="page-topo">
+        <div><h1 class="titulo">Compras</h1><p class="sub">Entrada de nota do fornecedor — atualiza estoque e custo médio</p></div>
+        <button class="btn-primario" id="btn-nova-compra">+ Entrada de nota</button>
+      </div>
+      <div class="painel"><div id="compras-lista"></div></div>
+    </div>
+
     <div class="view page" id="view-fluxo">
-      <div class="fluxo-topo">
-        <div>
-          <h1 class="titulo" style="margin:0">Fluxo de caixa<span class="badge-prototipo">protótipo</span></h1>
-          <p class="sub" style="margin:2px 0 0">Contas e saldo do mês</p>
-        </div>
+      <div class="page-topo">
+        <div><h1 class="titulo">Fluxo de caixa</h1><p class="sub">Receita das vendas e despesas do mês</p></div>
         <div class="mes-seletor">
           <button id="mes-anterior" class="icon-btn" aria-label="Mês anterior">‹</button>
-          <span id="mes-atual" class="mes-label">Setembro 2026</span>
+          <span id="mes-atual" class="mes-label"></span>
           <button id="mes-proximo" class="icon-btn" aria-label="Próximo mês">›</button>
         </div>
       </div>
-      <div class="stats-row" id="fluxo-stats"></div>
-      <div class="painel" style="margin-top:16px">
-        <div class="painel-titulo-linha">
-          <div class="painel-titulo">Lançamentos</div>
-          <button class="btn-primario">+ Nova despesa</button>
-        </div>
-        <table class="tabela" id="fluxo-tabela"></table>
-      </div>
+      <div id="fluxo-conteudo"></div>
     </div>
 
     <div class="view page" id="view-equipe">
-      <div class="painel-titulo-linha" style="margin-bottom:16px">
-        <div>
-          <h1 class="titulo" style="margin:0">Equipe</h1>
-          <p class="sub" style="margin:2px 0 0">Quem acessa o sistema — cadastro de novo usuário chega numa próxima fase</p>
-        </div>
-        <button class="btn-primario" disabled title="Ainda não disponível">+ Novo usuário</button>
+      <div class="page-topo">
+        <div><h1 class="titulo">Equipe</h1><p class="sub">Quem acessa o sistema e configurações da loja</p></div>
+        <button class="btn-primario" id="btn-novo-usuario">+ Novo usuário</button>
       </div>
       <div class="painel"><div id="equipe-lista"></div></div>
+      <div class="painel" style="margin-top:16px"><div class="painel-titulo">Configurações da loja</div><div id="config-loja"></div></div>
     </div>
 
     <div class="view page" id="view-ponto">
-      <h1 class="titulo">Bater ponto<span class="badge-prototipo">protótipo</span></h1>
-      <p class="sub">Reconhecimento facial roda de verdade no navegador; o registro em si ainda não é salvo no banco</p>
-
+      <h1 class="titulo">Bater ponto</h1>
+      <p class="sub">Pela câmera (reconhecimento facial) ou pelo botão com o PIN da própria pessoa</p>
       <div class="painel">
         <div class="painel-titulo-linha">
           <div class="painel-titulo">Reconhecimento facial</div>
@@ -374,7 +419,6 @@
           <div class="facial-status" id="facial-status">Câmera desligada. Clique em "Ligar câmera" pra reconhecer automaticamente quem está batendo ponto.</div>
         </div>
       </div>
-
       <div class="ponto-grid" id="ponto-grid" style="margin-top:20px"></div>
       <div class="painel" style="margin-top:20px">
         <div class="painel-titulo">Registros de hoje</div>
@@ -385,29 +429,27 @@
     <div class="view page" id="view-relatorios">
       <h1 class="titulo">Relatórios<span class="badge-prototipo">protótipo</span></h1>
       <p class="sub">Dados de exemplo — relatórios ligados às vendas reais chegam na Fase 4</p>
-      <div class="chips" id="periodo-chips" style="margin-bottom:18px"></div>
       <div class="paineis-duas-colunas">
-        <div class="painel">
-          <div class="painel-titulo">Produtos mais vendidos</div>
-          <div id="relatorio-produtos"></div>
-        </div>
-        <div class="painel">
-          <div class="painel-titulo">Formas de pagamento</div>
-          <div id="relatorio-formas"></div>
-        </div>
+        <div class="painel"><div class="painel-titulo">Produtos mais vendidos</div><div id="relatorio-produtos"></div></div>
+        <div class="painel"><div class="painel-titulo">Formas de pagamento</div><div id="relatorio-formas"></div></div>
       </div>
     </div>
   </main>
 </div>
 
-<div id="modal"></div>
+<div id="modal" class="camada"></div>
+<div id="modal-topo" class="camada"></div>
+<div id="toasts"></div>
 
 <script>
-  // ---------- Ícones (SVG inline, sem libs) ----------
+  /* ================= Constantes ================= */
   const ICONS = {
     home: '<path d="M4 11.5 12 4l8 7.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M6 10.5V20h5v-5.5h2V20h5v-9.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>',
     cart: '<circle cx="9" cy="20" r="1.3" fill="currentColor" stroke="none"/><circle cx="17" cy="20" r="1.3" fill="currentColor" stroke="none"/><path d="M3 4h2l2.2 11a2 2 0 0 0 2 1.6h7.6a2 2 0 0 0 2-1.6L20.5 8H6.2" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>',
+    register: '<rect x="3" y="10" width="18" height="10" rx="2" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M7 10V5h10v5M7 14h2M11 14h2M15 14h2M7 17h10" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>',
+    person: '<circle cx="12" cy="8" r="3.6" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M4.5 20c0-4 3.4-6.5 7.5-6.5s7.5 2.5 7.5 6.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>',
     box: '<path d="M4 7.5 12 4l8 3.5v9L12 20l-8-3.5z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M4 7.5 12 11l8-3.5M12 11v9" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>',
+    truck: '<path d="M3 6h11v10H3zM14 9h4l3 3v4h-7" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><circle cx="7" cy="17.5" r="1.8" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="17.5" cy="17.5" r="1.8" fill="none" stroke="currentColor" stroke-width="1.8"/>',
     cash: '<rect x="3" y="7" width="18" height="11" rx="2.2" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="12" cy="12.5" r="2.4" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M6.5 7V6a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v1" fill="none" stroke="currentColor" stroke-width="1.8"/>',
     users: '<circle cx="9" cy="9" r="3" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M3.3 19c0-3 2.6-5.2 5.7-5.2s5.7 2.2 5.7 5.2" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><circle cx="17.3" cy="9.8" r="2.3" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M15.6 13.8c2.3.4 3.9 2.2 3.9 4.6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>',
     clock: '<circle cx="12" cy="12" r="8.5" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M12 7.3V12l3 2" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>',
@@ -418,20 +460,27 @@
   };
   function svgIcon(name, size) { size = size || 20; return '<svg width="' + size + '" height="' + size + '" viewBox="0 0 24 24">' + ICONS[name] + '</svg>'; }
 
+  // papeis: quem vê a aba. Caixa vende, cuida do caixa, clientes, consulta estoque e bate ponto.
   const NAV = [
-    { id: 'inicio', label: 'Início', icon: 'home' },
-    { id: 'venda', label: 'Venda rápida', icon: 'cart' },
-    { id: 'estoque', label: 'Estoque', icon: 'box' },
-    { id: 'fluxo', label: 'Fluxo de caixa', icon: 'cash' },
-    { id: 'equipe', label: 'Equipe', icon: 'users' },
-    { id: 'ponto', label: 'Bater ponto', icon: 'clock' },
-    { id: 'relatorios', label: 'Relatórios', icon: 'chart' },
+    { id: 'inicio', label: 'Início', icon: 'home', papeis: ['administrador', 'caixa'] },
+    { id: 'venda', label: 'Venda rápida', icon: 'cart', papeis: ['administrador', 'caixa'] },
+    { id: 'caixa', label: 'Caixa', icon: 'register', papeis: ['administrador', 'caixa'] },
+    { id: 'clientes', label: 'Clientes', icon: 'person', papeis: ['administrador', 'caixa'] },
+    { id: 'estoque', label: 'Estoque', icon: 'box', papeis: ['administrador', 'caixa'] },
+    { id: 'compras', label: 'Compras', icon: 'truck', papeis: ['administrador'] },
+    { id: 'fluxo', label: 'Fluxo de caixa', icon: 'cash', papeis: ['administrador'] },
+    { id: 'equipe', label: 'Equipe', icon: 'users', papeis: ['administrador'] },
+    { id: 'ponto', label: 'Bater ponto', icon: 'clock', papeis: ['administrador', 'caixa'] },
+    { id: 'relatorios', label: 'Relatórios', icon: 'chart', papeis: ['administrador'] },
   ];
-  const VIEW_IDS = NAV.map(n => n.id);
   const VIEWS_FLEX = ['venda', 'estoque'];
   const PAPEL_LABEL = { administrador: 'Administrador', caixa: 'Caixa' };
   const PAPEL_ORDEM = ['administrador', 'caixa'];
-  function ordenarPapeis(papeis) { return papeis.slice().sort((a, b) => PAPEL_ORDEM.indexOf(a) - PAPEL_ORDEM.indexOf(b)); }
+  const FORMAS_DINHEIRO = ['Dinheiro', 'Pix', 'Débito', 'Crédito'];
+  const TIPO_CREDITO = { 'Cashback': 'saldo_cashback', 'Vale-troca': 'saldo_vale_troca' };
+  const ORIGEM_LABEL = { venda: 'Cashback da compra', uso_em_venda: 'Usado em compra', devolucao: 'Troca/devolução', ajuste: 'Ajuste' };
+  const MESES_NOME = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
+  const TZ = 'America/Fortaleza';
 
   const LOJA_ID = 1;
   const API_BASE = '/api/lojas/' + LOJA_ID;
@@ -443,97 +492,112 @@
     return PALETA_CORES[h % PALETA_CORES.length];
   }
 
-  const MESES = ['Agosto 2026', 'Setembro 2026', 'Outubro 2026'];
-  const DESPESAS = [
-    { data: '05/09', descricao: 'Aluguel', categoria: 'Fixo', forma: 'Boleto', valor: 1800 },
-    { data: '08/09', descricao: 'Compra de mercadoria — fornecedor ABC', categoria: 'Estoque', forma: 'Pix', valor: 3200 },
-    { data: '12/09', descricao: 'Energia elétrica', categoria: 'Fixo', forma: 'Débito', valor: 340 },
-    { data: '15/09', descricao: 'Embalagens', categoria: 'Material', forma: 'Dinheiro', valor: 180 },
-    { data: '20/09', descricao: 'Internet', categoria: 'Fixo', forma: 'Débito', valor: 120 },
-    { data: '24/09', descricao: 'Manutenção do ar-condicionado', categoria: 'Manutenção', forma: 'Pix', valor: 250 },
-  ];
-  const vendasRelatorioSeed = [
-    { hora: '09:14', itens: [{ produtoNome: 'Exemplo — Camiseta', tamanho: '6', cor: 'Azul', precoUnit: 39.90, qtd: 2 }], total: 79.80, formaPagamento: 'Pix' },
-    { hora: '11:47', itens: [{ produtoNome: 'Exemplo — Vestido', tamanho: 'M', cor: 'Rosa', precoUnit: 59.90, qtd: 1 }], total: 59.90, formaPagamento: 'Crédito' },
-  ];
-
-  // ---------- Reconhecimento facial (face-api.js, roda 100% no navegador) ----------
-  // Guarda só o "molde" numérico do rosto (128 números), nunca a foto — e só no
-  // localStorage deste navegador. Ainda é dado biométrico (LGPD trata como
-  // sensível): confirmar consentimento antes de usar com a equipe de verdade.
-  const MODEL_URL = 'https://cdn.jsdelivr.net/gh/justadudewhohacks/face-api.js@master/weights';
-  const LIMIAR_RECONHECIMENTO = 0.5;
-  let modelsPromise = null;
-  let modelosProntos = false;
-  let cameraStream = null;
-  let cadastroStream = null;
-  let reconhecendoAtivo = false;
-  let viewAnterior = null;
-  const ultimoReconhecimentoPorUsuario = {};
-
-  function carregarModelos() {
-    if (modelsPromise) return modelsPromise;
-    modelsPromise = Promise.all([
-      faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL),
-      faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
-      faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL),
-    ]).then(() => { modelosProntos = true; }).catch((e) => { console.error('Falha ao carregar modelo de reconhecimento facial', e); modelosProntos = false; });
-    return modelsPromise;
+  /* ================= Utilitários ================= */
+  function fmt(v) { return 'R$ ' + Number(v || 0).toFixed(2).replace('.', ','); }
+  function fmtNum(v) { return Number(v || 0).toFixed(2).replace('.', ','); }
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
+  function round2(n) { return Math.round((n + Number.EPSILON) * 100) / 100; }
+  // Aceita "39,90", "1.234,56", "R$ 10" e "39.90". Vazio ou inválido → NaN.
+  function parseNumBR(s) {
+    if (typeof s === 'number') return s;
+    let t = String(s || '').replace(/R\$|\s/g, '');
+    if (!t) return NaN;
+    if (t.includes(',')) t = t.replace(/\./g, '').replace(',', '.');
+    return Number(t);
   }
-  function carregarRostos() { try { return JSON.parse(localStorage.getItem('gutto-rostos') || '{}'); } catch (e) { return {}; } }
-  function salvarRostos(rostos) { try { localStorage.setItem('gutto-rostos', JSON.stringify(rostos)); } catch (e) {} }
-  async function ligarCamera(videoEl) {
-    const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' }, audio: false });
-    videoEl.srcObject = stream;
-    await videoEl.play();
-    return stream;
+  function hojeLocal() { return new Intl.DateTimeFormat('en-CA', { timeZone: TZ }).format(new Date()); }
+  function hora(iso) { return new Date(iso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: TZ }); }
+  function dataHora(iso) { return new Date(iso).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit', timeZone: TZ }); }
+  function dataBR(d) { const s = String(d).slice(0, 10).split('-'); return s[2] + '/' + s[1] + '/' + s[0]; }
+  function telefoneBR(t) {
+    if (!t) return '';
+    const d = String(t);
+    if (d.length === 11) return '(' + d.slice(0, 2) + ') ' + d.slice(2, 7) + '-' + d.slice(7);
+    if (d.length === 10) return '(' + d.slice(0, 2) + ') ' + d.slice(2, 6) + '-' + d.slice(6);
+    return d;
   }
-  function pararStream(stream) { if (stream) stream.getTracks().forEach(t => t.stop()); }
+  function ehAdmin() { return state.logado && state.logado.papel === 'administrador'; }
 
+  function toast(msg, tipo) {
+    const el = document.createElement('div');
+    el.className = 'toast' + (tipo === 'erro' ? ' erro' : '');
+    el.textContent = msg;
+    document.getElementById('toasts').appendChild(el);
+    setTimeout(() => el.remove(), tipo === 'erro' ? 5000 : 3000);
+  }
+
+  function abrirCamada(id, html, aoFechar) {
+    const camada = document.getElementById(id);
+    camada.innerHTML = html;
+    camada.style.display = 'flex';
+    camada.onclick = (e) => { if (e.target === camada) { fecharCamada(id); if (aoFechar) aoFechar(); } };
+    const fechar = camada.querySelector('[data-fechar]');
+    if (fechar) fechar.onclick = () => { fecharCamada(id); if (aoFechar) aoFechar(); };
+    return camada;
+  }
+  function fecharCamada(id) { const c = document.getElementById(id); c.style.display = 'none'; c.innerHTML = ''; c.onclick = null; }
+  const abrirModal = (html, aoFechar) => abrirCamada('modal', html, aoFechar);
+  const fecharModal = () => fecharCamada('modal');
+  function cabecalhoModal(titulo, sub) {
+    return `<div class="modal-head"><div><div class="modal-titulo">${esc(titulo)}</div>${sub ? `<div class="modal-sub">${esc(sub)}</div>` : ''}</div>
+      <button class="btn-fechar" data-fechar aria-label="Fechar">×</button></div>`;
+  }
+  function mostrarErro(el, msg) { el.textContent = msg; el.style.display = 'block'; }
+
+  // Botão que chama a API: trava enquanto espera e mostra o erro no lugar certo.
+  async function comBotao(botao, textoEspera, fn, erroEl) {
+    const original = botao.textContent;
+    botao.disabled = true; botao.textContent = textoEspera;
+    try { return await fn(); }
+    catch (e) { if (erroEl) mostrarErro(erroEl, e.message); else toast(e.message, 'erro'); return undefined; }
+    finally { if (document.body.contains(botao)) { botao.disabled = false; botao.textContent = original; } }
+  }
+
+  /* ================= Estado ================= */
   let temaInicial = 'light';
   try { temaInicial = localStorage.getItem('gutto-tema') || 'light'; } catch (e) {}
   document.documentElement.setAttribute('data-theme', temaInicial);
 
   const state = {
-    logado: null, token: null, usuarios: [], produtos: [], grades: [], vendasHojeReal: [],
+    logado: null, token: null, usuarios: [], config: { cashbackPct: 5, descontoLivrePct: 10 },
+    produtos: [], grades: [], caixa: null,
     loginStep: 'cargo', loginCargo: null, loginPessoaId: null, loginPin: '', loginErro: false,
-    view: 'inicio', cart: [], modalProdutoId: null, formaPagamento: null,
+    view: 'inicio',
+    cart: [], cliente: null, pagamentos: [], modalProdutoId: null, vendaBusca: '',
     estoqueSelecionadoId: null, busca: '', filtroCategoria: null,
+    vendasHoje: null, pontos: null, clientes: null, clientesBusca: '', compras: null,
+    fluxo: null, mesFluxo: hojeLocal().slice(0, 7), equipe: null, caixaSessoes: null,
     tema: temaInicial, sidebarCollapsed: false,
-    pontosHoje: [], mesIndex: 1, periodoRelatorio: 'Hoje',
     rostos: carregarRostos(),
   };
-
-  function fmt(v) { return 'R$ ' + Number(v || 0).toFixed(2).replace('.', ','); }
-  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
   function setState(patch) { Object.assign(state, patch); render(); }
 
-  /* ---------- Sessão + chamadas à API ---------- */
+  /* ================= API ================= */
   function salvarSessao(token, usuario) { try { localStorage.setItem('gutto-sessao', JSON.stringify({ token, usuario })); } catch (e) {} }
   function carregarSessao() { try { return JSON.parse(localStorage.getItem('gutto-sessao') || 'null'); } catch (e) { return null; } }
   function limparSessao() { try { localStorage.removeItem('gutto-sessao'); } catch (e) {} }
 
   async function api(caminho, opcoes) {
     opcoes = opcoes || {};
-    const headers = Object.assign({ 'Content-Type': 'application/json' }, opcoes.headers || {});
+    const headers = { 'Content-Type': 'application/json' };
     if (state.token) headers.Authorization = 'Bearer ' + state.token;
     let res;
     try {
-      res = await fetch(API_BASE + caminho, Object.assign({}, opcoes, { headers }));
+      res = await fetch(API_BASE + caminho, { method: opcoes.method || 'GET', headers, body: opcoes.body ? JSON.stringify(opcoes.body) : undefined });
     } catch (e) {
-      const err = new Error('Não consegui falar com o servidor.');
+      const err = new Error('Sem conexão com o servidor — confira se ele está ligado.');
       err.network = true;
       throw err;
     }
     let dados = null;
     try { dados = await res.json(); } catch (e) {}
-    if (res.status === 401 && state.logado) {
-      limparSessao();
-      state.logado = null; state.token = null;
+    if (res.status === 401 && state.logado && caminho !== '/pontos') {
+      sair();
+      toast('Sua sessão expirou — faça login de novo.', 'erro');
     }
     if (!res.ok) {
       const err = new Error((dados && dados.erro) || ('Erro ' + res.status));
-      err.status = res.status; err.data = dados;
+      err.status = res.status; err.data = dados || {};
       throw err;
     }
     return dados;
@@ -542,58 +606,113 @@
   function shapeProduto(p) {
     const grade = p.grade;
     const variacoesBrutas = p.variacoes || [];
-    const tamanhos = grade ? grade.tamanhos : Array.from(new Set(variacoesBrutas.map(v => v.tamanho)));
-    const coresNomes = Array.from(new Set(variacoesBrutas.map(v => v.cor)));
-    const cores = coresNomes.map(nome => ({ nome, hex: hashColor(nome) }));
+    const tamanhosUsados = Array.from(new Set(variacoesBrutas.map(v => v.tamanho)));
+    const tamanhos = grade ? grade.tamanhos.filter(t => tamanhosUsados.includes(t)).concat(tamanhosUsados.filter(t => !grade.tamanhos.includes(t))) : tamanhosUsados;
+    const cores = Array.from(new Set(variacoesBrutas.map(v => v.cor))).map(nome => ({ nome, hex: hashColor(nome) }));
     const variacoes = variacoesBrutas.map(v => ({
-      id: v.id, tamanho: v.tamanho, cor: v.cor, corHex: hashColor(v.cor),
-      estoque: Number(v.estoque), estoqueMinimo: Number(v.estoque_minimo),
+      id: v.id, tamanho: v.tamanho, cor: v.cor, corHex: hashColor(v.cor), codigoBarras: v.codigo_barras || '',
+      estoque: Number(v.estoque), estoqueMinimo: Number(v.estoque_minimo), ativo: v.ativo,
       preco: Number(v.preco_venda), custoUnitario: Number(v.custo_unitario),
     }));
-    const precos = variacoes.map(v => v.preco).filter(n => Number.isFinite(n));
-    const custos = variacoes.map(v => v.custoUnitario).filter(n => Number.isFinite(n));
+    const ativas = variacoes.filter(v => v.ativo);
+    const precos = ativas.map(v => v.preco);
+    const custos = ativas.map(v => v.custoUnitario);
     return {
-      id: p.id, nome: p.nome, categoria: p.categoria || 'Sem categoria', swatch: hashColor(p.nome),
-      tamanhos, cores, variacoes,
+      id: p.id, nome: p.nome, categoria: p.categoria || 'Sem categoria', ncm: p.ncm || '', ativo: p.ativo,
+      swatch: hashColor(p.nome), grade, tamanhos, cores, variacoes,
       precoBase: precos.length ? Math.min.apply(null, precos) : 0,
+      precoMax: precos.length ? Math.max.apply(null, precos) : 0,
       custoUnitario: custos.length ? custos.reduce((s, n) => s + n, 0) / custos.length : 0,
-      estoqueTotal: variacoes.reduce((s, v) => s + v.estoque, 0),
+      estoqueTotal: ativas.reduce((s, v) => s + v.estoque, 0),
     };
   }
 
   async function carregarProdutos() { state.produtos = (await api('/produtos')).map(shapeProduto); }
   async function carregarGrades() { state.grades = await api('/grades-tamanho'); }
-  async function carregarVendasHoje() {
-    const vendas = await api('/vendas');
-    const hoje = new Date().toISOString().slice(0, 10);
-    state.vendasHojeReal = (vendas || []).filter(v => !v.cancelada && String(v.criado_em).slice(0, 10) === hoje);
+  async function carregarCaixa() { state.caixa = await api('/caixa/atual'); }
+  async function carregarConfig() { state.config = await api('/config'); }
+  async function carregarUsuarios() { state.usuarios = await api('/usuarios'); }
+  function acharVariacao(id) {
+    for (const p of state.produtos) { const v = p.variacoes.find(x => x.id === id); if (v) return { produto: p, variacao: v }; }
+    return null;
   }
 
-  /* ---------- Bootstrap ---------- */
+  // Cada aba busca o que precisa ao ser aberta; a tela aparece na hora com o que já tinha.
+  async function carregarDadosDaView(view) {
+    try {
+      if (view === 'inicio') {
+        const [vendas, pontos] = await Promise.all([api('/vendas?periodo=hoje'), api('/pontos'), carregarCaixa(), carregarProdutos()]);
+        state.vendasHoje = vendas; state.pontos = pontos;
+      } else if (view === 'venda') {
+        await Promise.all([carregarProdutos(), carregarCaixa(), carregarConfig()]);
+      } else if (view === 'caixa') {
+        await carregarCaixa();
+        if (ehAdmin()) state.caixaSessoes = await api('/caixa/sessoes');
+      } else if (view === 'clientes') {
+        state.clientes = await api('/clientes?busca=' + encodeURIComponent(state.clientesBusca));
+      } else if (view === 'estoque') {
+        await Promise.all([carregarProdutos(), carregarGrades()]);
+      } else if (view === 'compras') {
+        state.compras = await api('/compras');
+      } else if (view === 'fluxo') {
+        state.fluxo = await api('/fluxo?mes=' + state.mesFluxo);
+      } else if (view === 'equipe') {
+        const [equipe] = await Promise.all([api('/equipe'), carregarConfig()]);
+        state.equipe = equipe;
+      } else if (view === 'ponto') {
+        state.pontos = await api('/pontos');
+      }
+    } catch (e) {
+      if (!e.status || e.status !== 401) toast(e.message, 'erro');
+    }
+    if (state.view === view) render();
+  }
+
+  function irPara(view) {
+    if (!NAV.find(n => n.id === view && n.papeis.includes(state.logado.papel))) view = 'inicio';
+    setState({ view });
+    carregarDadosDaView(view);
+    if (view === 'venda') setTimeout(() => document.getElementById('venda-busca').focus(), 50);
+  }
+
+  /* ================= Bootstrap / render geral ================= */
   async function iniciar() {
     try {
-      state.usuarios = await api('/usuarios');
+      await carregarUsuarios();
     } catch (e) {
       document.getElementById('login-screen').innerHTML = `
         <div class="login-card">
           <div class="login-logo titulo">Loja Gutto</div>
           <div class="login-titulo">Não consegui conectar</div>
-          <div class="login-sub">Confira se a API está rodando (<code>npm start</code> na pasta <code>api</code>) e recarregue a página.</div>
+          <div class="login-sub">Confira se o servidor está ligado (atalho "Loja Gutto" na Área de Trabalho) e recarregue a página.</div>
         </div>`;
       return;
     }
     const sessao = carregarSessao();
     if (sessao && sessao.token && sessao.usuario) {
       state.token = sessao.token;
-      state.logado = sessao.usuario;
       try {
-        await Promise.all([carregarProdutos(), carregarGrades(), carregarVendasHoje()]);
+        await carregarConfig();
+        state.logado = sessao.usuario;
+        montarNav();
+        irPara('inicio');
+        return;
       } catch (e) {
-        limparSessao();
-        state.token = null; state.logado = null;
+        limparSessao(); state.token = null;
       }
     }
     render();
+  }
+
+  function montarNav() {
+    const itens = NAV.filter(n => n.papeis.includes(state.logado.papel));
+    document.getElementById('sidebar-nav').innerHTML = itens.map(n => `
+      <button class="nav-item" data-view="${n.id}" title="${esc(n.label)}">${svgIcon(n.icon)}<span class="nav-label">${esc(n.label)}</span></button>`).join('');
+    document.querySelectorAll('.nav-item').forEach(b => b.addEventListener('click', () => {
+      irPara(b.dataset.view);
+      if (window.matchMedia('(max-width: 860px)').matches) document.getElementById('sidebar').classList.remove('mobile-open');
+    }));
+    document.getElementById('btn-novo-produto').style.display = ehAdmin() ? '' : 'none';
   }
 
   function render() {
@@ -605,33 +724,18 @@
     document.getElementById('user-badge-nome').textContent = state.logado.nome + ' · ' + (PAPEL_LABEL[state.logado.papel] || state.logado.papel);
     document.getElementById('user-avatar').textContent = state.logado.nome.charAt(0);
     document.getElementById('btn-tema').innerHTML = svgIcon(state.tema === 'dark' ? 'sun' : 'moon');
-
     document.querySelectorAll('.nav-item').forEach(b => b.classList.toggle('active', b.dataset.view === state.view));
-    showView(state.view);
 
-    if (viewAnterior === 'ponto' && state.view !== 'ponto') desligarCameraPonto();
-    viewAnterior = state.view;
-
-    if (state.view === 'inicio') renderInicio();
-    else if (state.view === 'venda') renderVenda();
-    else if (state.view === 'estoque') renderEstoque();
-    else if (state.view === 'fluxo') renderFluxo();
-    else if (state.view === 'equipe') renderEquipe();
-    else if (state.view === 'ponto') renderPonto();
-    else if (state.view === 'relatorios') renderRelatorios();
-  }
-
-  function showView(view) {
-    VIEW_IDS.forEach(v => {
-      const el = document.getElementById('view-' + v);
-      if (!el) return;
-      if (v === view) {
-        el.style.display = VIEWS_FLEX.indexOf(v) >= 0 ? 'flex' : 'block';
-        el.style.height = VIEWS_FLEX.indexOf(v) >= 0 ? '100%' : 'auto';
-      } else {
-        el.style.display = 'none';
-      }
+    document.querySelectorAll('.view').forEach(el => {
+      const v = el.id.replace('view-', '');
+      el.style.display = v === state.view ? (VIEWS_FLEX.includes(v) ? 'flex' : 'block') : 'none';
+      el.style.height = v === state.view && VIEWS_FLEX.includes(v) ? '100%' : 'auto';
     });
+    if (state.view !== 'ponto') desligarCameraPonto();
+
+    const renders = { inicio: renderInicio, venda: renderVenda, caixa: renderCaixa, clientes: renderClientes, estoque: renderEstoque,
+      compras: renderCompras, fluxo: renderFluxo, equipe: renderEquipe, ponto: renderPonto, relatorios: renderRelatorios };
+    (renders[state.view] || renderInicio)();
   }
 
   function alternarTema() {
@@ -640,18 +744,29 @@
     try { localStorage.setItem('gutto-tema', novo); } catch (e) {}
     setState({ tema: novo });
   }
-
   function alternarSidebar() {
     const sidebar = document.getElementById('sidebar');
-    if (window.matchMedia('(max-width: 860px)').matches) {
-      sidebar.classList.toggle('mobile-open');
-    } else {
-      state.sidebarCollapsed = !state.sidebarCollapsed;
-      sidebar.classList.toggle('collapsed', state.sidebarCollapsed);
-    }
+    if (window.matchMedia('(max-width: 860px)').matches) sidebar.classList.toggle('mobile-open');
+    else { state.sidebarCollapsed = !state.sidebarCollapsed; sidebar.classList.toggle('collapsed', state.sidebarCollapsed); }
+  }
+  function sair() {
+    desligarCameraPonto();
+    pararStream(cadastroStream); cadastroStream = null;
+    limparSessao();
+    fecharModal(); fecharCamada('modal-topo');
+    Object.assign(state, { logado: null, token: null, loginStep: 'cargo', loginCargo: null, loginPessoaId: null, loginPin: '',
+      cart: [], cliente: null, pagamentos: [], view: 'inicio' });
+    render();
   }
 
-  /* ---------- Login ---------- */
+  /* ================= Login ================= */
+  function ordenarPapeis(papeis) { return papeis.slice().sort((a, b) => PAPEL_ORDEM.indexOf(a) - PAPEL_ORDEM.indexOf(b)); }
+  function tecladoHtml(pinAtual, erro) {
+    const dots = Array.from({ length: 4 }).map((_, i) => `<div class="pin-dot ${i < pinAtual.length ? 'preenchido' : ''}"></div>`).join('');
+    return `<div class="pin-dots">${dots}</div><div class="pin-erro">${erro ? esc(erro) : ''}</div>
+      <div class="teclado">${['1','2','3','4','5','6','7','8','9','','0','⌫'].map(k => k === '' ? '<div></div>' : `<button class="tecla" data-tecla="${k}">${k}</button>`).join('')}</div>`;
+  }
+
   function renderLogin() {
     const el = document.getElementById('login-screen');
     if (state.loginStep === 'cargo') {
@@ -661,9 +776,7 @@
           <div class="login-logo titulo">Loja Gutto</div>
           <div class="login-titulo">Quem vai operar?</div>
           <div class="login-sub">Selecione o cargo</div>
-          <div class="login-opcoes">
-            ${papeis.map(p => `<button class="login-opcao" data-cargo="${esc(p)}">${esc(PAPEL_LABEL[p] || p)}</button>`).join('')}
-          </div>
+          <div class="login-opcoes">${papeis.map(p => `<button class="login-opcao" data-cargo="${esc(p)}">${esc(PAPEL_LABEL[p] || p)}</button>`).join('')}</div>
         </div>`;
       el.querySelectorAll('[data-cargo]').forEach(b => b.addEventListener('click', () => setState({ loginStep: 'pessoa', loginCargo: b.dataset.cargo })));
       return;
@@ -675,9 +788,7 @@
           <div class="login-logo titulo">Loja Gutto</div>
           <div class="login-titulo">${esc(PAPEL_LABEL[state.loginCargo] || state.loginCargo)}</div>
           <div class="login-sub">Quem é você?</div>
-          <div class="login-opcoes">
-            ${pessoas.map(p => `<button class="login-opcao" data-pessoa="${p.id}"><span class="avatar" style="margin-right:8px">${esc(p.nome.charAt(0))}</span>${esc(p.nome)}</button>`).join('')}
-          </div>
+          <div class="login-opcoes">${pessoas.map(p => `<button class="login-opcao" data-pessoa="${p.id}"><span class="avatar" style="margin-right:8px">${esc(p.nome.charAt(0))}</span>${esc(p.nome)}</button>`).join('')}</div>
           <button class="login-voltar" id="login-voltar">← Voltar</button>
         </div>`;
       el.querySelectorAll('[data-pessoa]').forEach(b => b.addEventListener('click', () => setState({ loginStep: 'pin', loginPessoaId: b.dataset.pessoa, loginPin: '', loginErro: false })));
@@ -685,96 +796,186 @@
       return;
     }
     const pessoa = state.usuarios.find(u => u.id === state.loginPessoaId);
-    const dots = Array.from({ length: 4 }).map((_, i) => `<div class="pin-dot ${i < state.loginPin.length ? 'preenchido' : ''}"></div>`).join('');
     el.innerHTML = `
       <div class="login-card">
         <div class="login-avatar-grande">${esc(pessoa.nome.charAt(0))}</div>
         <div class="login-titulo">${esc(pessoa.nome)}</div>
         <div class="login-sub">Digite o PIN</div>
-        <div class="pin-dots">${dots}</div>
-        ${state.loginErro ? '<div class="pin-erro">PIN incorreto</div>' : ''}
-        <div class="teclado">
-          ${['1','2','3','4','5','6','7','8','9','','0','⌫'].map(k => k === '' ? '<div></div>' : `<button class="tecla" data-tecla="${k}">${k}</button>`).join('')}
-        </div>
+        ${tecladoHtml(state.loginPin, state.loginErro ? 'PIN incorreto' : '')}
         <button class="login-voltar" id="login-voltar">← Voltar</button>
       </div>`;
-    el.querySelectorAll('[data-tecla]').forEach(b => b.addEventListener('click', () => onTecla(b.dataset.tecla, pessoa)));
+    el.querySelectorAll('[data-tecla]').forEach(b => b.addEventListener('click', () => onTeclaLogin(b.dataset.tecla, pessoa)));
     document.getElementById('login-voltar').addEventListener('click', () => setState({ loginStep: 'pessoa', loginPin: '', loginErro: false }));
   }
 
-  async function onTecla(tecla, pessoa) {
+  async function onTeclaLogin(tecla, pessoa) {
     if (tecla === '⌫') { setState({ loginPin: state.loginPin.slice(0, -1), loginErro: false }); return; }
     if (state.loginPin.length >= 4) return;
     const pin = state.loginPin + tecla;
     if (pin.length < 4) { setState({ loginPin: pin, loginErro: false }); return; }
     state.loginPin = pin; render();
     try {
-      const resultado = await api('/login', { method: 'POST', body: JSON.stringify({ usuarioId: pessoa.id, pin }) });
-      salvarSessao(resultado.token, resultado.usuario);
-      state.token = resultado.token;
-      await Promise.all([carregarProdutos(), carregarGrades(), carregarVendasHoje()]);
-      setState({ logado: resultado.usuario, loginPin: '', loginStep: 'cargo', loginCargo: null, loginPessoaId: null, view: 'inicio' });
+      const r = await api('/login', { method: 'POST', body: { usuarioId: pessoa.id, pin } });
+      salvarSessao(r.token, r.usuario);
+      state.token = r.token;
+      await carregarConfig();
+      Object.assign(state, { logado: r.usuario, loginPin: '', loginStep: 'cargo', loginCargo: null, loginPessoaId: null });
+      montarNav();
+      irPara('inicio');
     } catch (e) {
       state.loginPin = pin; state.loginErro = true; render();
       setTimeout(() => setState({ loginPin: '', loginErro: false }), 800);
     }
   }
 
-  /* ---------- Início ---------- */
+  // Pede um PIN de 4 dígitos numa camada por cima de tudo. Resolve com o PIN ou null (cancelou).
+  function pedirPin(titulo, sub) {
+    return new Promise((resolve) => {
+      let pin = '';
+      const desenhar = () => {
+        const camada = abrirCamada('modal-topo', `
+          <div class="modal-card estreito" style="text-align:center">
+            ${cabecalhoModal(titulo, sub)}
+            ${tecladoHtml(pin, '')}
+          </div>`, () => resolve(null));
+        camada.querySelectorAll('[data-tecla]').forEach(b => b.addEventListener('click', () => {
+          const t = b.dataset.tecla;
+          if (t === '⌫') pin = pin.slice(0, -1); else if (pin.length < 4) pin += t;
+          if (pin.length === 4) { fecharCamada('modal-topo'); resolve(pin); } else desenhar();
+        }));
+      };
+      desenhar();
+    });
+  }
+
+  function escolherAdministrador(motivo) {
+    return new Promise((resolve) => {
+      const admins = state.usuarios.filter(u => u.papel === 'administrador');
+      const camada = abrirCamada('modal-topo', `
+        <div class="modal-card estreito">
+          ${cabecalhoModal('Aprovação do Administrador', motivo)}
+          <div class="login-opcoes">${admins.map(a => `<button class="login-opcao" data-admin="${a.id}"><span class="avatar" style="margin-right:8px">${esc(a.nome.charAt(0))}</span>${esc(a.nome)}</button>`).join('')}</div>
+        </div>`, () => resolve(null));
+      camada.querySelectorAll('[data-admin]').forEach(b => b.addEventListener('click', async () => {
+        const admin = admins.find(a => a.id === b.dataset.admin);
+        fecharCamada('modal-topo');
+        const pin = await pedirPin('PIN de ' + admin.nome, 'Pra aprovar o desconto');
+        resolve(pin ? { usuarioId: admin.id, pin } : null);
+      }));
+    });
+  }
+
+  // Busca/cadastra cliente numa camada por cima. Resolve com o cliente ou null.
+  function escolherCliente(titulo) {
+    return new Promise((resolve) => {
+      let resultados = [];
+      let timer = null;
+      const camada = abrirCamada('modal-topo', `
+        <div class="modal-card">
+          ${cabecalhoModal(titulo || 'Identificar cliente', 'Busque por nome, telefone ou CPF')}
+          <input id="ec-busca" class="input-busca" type="text" placeholder="Nome, telefone ou CPF" autocomplete="off">
+          <div id="ec-resultados"><div class="vazio">Digite pra buscar.</div></div>
+          <details id="ec-novo-bloco">
+            <summary style="cursor:pointer;font-size:13px;font-weight:600;color:var(--accent)">+ Cadastrar cliente novo</summary>
+            <div style="display:flex;flex-direction:column;gap:10px;margin-top:10px">
+              <div class="linha-campos">
+                <label class="campo">Nome<input id="ec-nome" type="text"></label>
+                <label class="campo">Telefone (com DDD)<input id="ec-telefone" type="tel" inputmode="numeric"></label>
+              </div>
+              <div class="erro-modal" id="ec-erro"></div>
+              <button class="btn-primario" id="ec-salvar">Cadastrar e usar</button>
+            </div>
+          </details>
+        </div>`, () => resolve(null));
+      const lista = camada.querySelector('#ec-resultados');
+      const desenharLista = () => {
+        lista.innerHTML = resultados.length ? resultados.map(c => `
+          <button class="linha-clicavel" data-cli="${c.id}">
+            <div class="avatar" style="background:var(--accent)">${esc(c.nome.charAt(0))}</div>
+            <div style="flex-grow:1;min-width:0"><div style="font-weight:600">${esc(c.nome)}</div><div style="font-size:11px;color:var(--text-2)">${esc(telefoneBR(c.telefone))}</div></div>
+            <div style="text-align:right;font-size:11px">${c.saldo_cashback ? `<div>Cashback ${fmt(c.saldo_cashback)}</div>` : ''}${c.saldo_vale_troca ? `<div>Vale ${fmt(c.saldo_vale_troca)}</div>` : ''}</div>
+          </button>`).join('') : '<div class="vazio">Nenhum cliente encontrado.</div>';
+        lista.querySelectorAll('[data-cli]').forEach(b => b.addEventListener('click', () => {
+          fecharCamada('modal-topo'); resolve(resultados.find(c => c.id === b.dataset.cli));
+        }));
+      };
+      const inputBusca = camada.querySelector('#ec-busca');
+      inputBusca.addEventListener('input', () => {
+        clearTimeout(timer);
+        timer = setTimeout(async () => {
+          const termo = inputBusca.value.trim();
+          if (!termo) { lista.innerHTML = '<div class="vazio">Digite pra buscar.</div>'; return; }
+          try { resultados = await api('/clientes?busca=' + encodeURIComponent(termo)); desenharLista(); } catch (e) { toast(e.message, 'erro'); }
+        }, 250);
+      });
+      inputBusca.focus();
+      camada.querySelector('#ec-salvar').addEventListener('click', (e) => comBotao(e.target, 'Salvando...', async () => {
+        const novo = await api('/clientes', { method: 'POST', body: { nome: camada.querySelector('#ec-nome').value, telefone: camada.querySelector('#ec-telefone').value } });
+        fecharCamada('modal-topo');
+        resolve(novo);
+      }, camada.querySelector('#ec-erro')));
+    });
+  }
+
+  /* ================= Início ================= */
   function renderInicio() {
-    const vendas = state.vendasHojeReal || [];
+    const vendas = (state.vendasHoje || []).filter(v => !v.cancelada);
     const faturamento = vendas.reduce((s, v) => s + Number(v.total), 0);
     const ticket = vendas.length ? faturamento / vendas.length : 0;
-    const todasVariacoes = state.produtos.flatMap(p => p.variacoes.map(v => Object.assign({}, v, { produtoNome: p.nome })));
-    const baixo = todasVariacoes.filter(v => v.estoque > 0 && v.estoque <= v.estoqueMinimo);
-    const zero = todasVariacoes.filter(v => v.estoque <= 0);
-
-    document.getElementById('inicio-stats').innerHTML = `
+    const pecas = vendas.reduce((s, v) => s + Number(v.qtd_itens), 0);
+    document.getElementById('inicio-stats').innerHTML = state.vendasHoje == null ? '<div class="carregando">Carregando...</div>' : `
       <div class="stat-card"><div class="stat-label">Vendas hoje</div><div class="stat-valor">${vendas.length}</div></div>
       <div class="stat-card"><div class="stat-label">Faturamento hoje</div><div class="stat-valor" style="color:var(--accent)">${fmt(faturamento)}</div></div>
       <div class="stat-card"><div class="stat-label">Ticket médio</div><div class="stat-valor">${fmt(ticket)}</div></div>
-      <div class="stat-card"><div class="stat-label">Itens com estoque baixo/zerado</div><div class="stat-valor" style="color:var(--baixo-text)">${baixo.length + zero.length}</div></div>
-    `;
+      <div class="stat-card"><div class="stat-label">Peças vendidas</div><div class="stat-valor">${pecas}</div></div>`;
 
-    const listaBaixo = [...zero.map(v => Object.assign({}, v, { estado: 'esgotado' })), ...baixo.map(v => Object.assign({}, v, { estado: 'baixo' }))].slice(0, 6);
-    document.getElementById('inicio-estoque-baixo').innerHTML = listaBaixo.length ? listaBaixo.map(v => `
+    const cx = state.caixa;
+    document.getElementById('inicio-caixa').innerHTML = !cx ? '<div class="carregando">...</div>' : cx.sessao ? `
+      <div style="font-size:13px"><span class="tag ok">Aberto</span> por ${esc(cx.sessao.aberto_por_nome)} às ${hora(cx.sessao.aberto_em)}</div>
+      <div style="font-size:13px;margin-top:8px;color:var(--text-2)">${cx.resumo.vendas} venda(s) · ${fmt(cx.resumo.totalVendas)}</div>
+      <div style="font-size:13px;margin-top:4px;color:var(--text-2)">Dinheiro na gaveta (esperado): <b style="color:var(--text)">${fmt(cx.resumo.dinheiroEsperado)}</b></div>
+      <button class="btn-secundario" style="margin-top:10px" onclick="irPara('caixa')">Ver caixa</button>` : `
+      <div style="font-size:13px"><span class="tag aviso">Fechado</span> — abra o caixa pra começar a vender.</div>
+      <button class="btn-primario" style="margin-top:10px" onclick="irPara('caixa')">Abrir caixa</button>`;
+
+    const todas = state.produtos.flatMap(p => p.variacoes.filter(v => v.ativo).map(v => Object.assign({}, v, { produtoNome: p.nome })));
+    const zero = todas.filter(v => v.estoque <= 0);
+    const baixo = todas.filter(v => v.estoque > 0 && v.estoque <= v.estoqueMinimo);
+    const lista = [...zero.map(v => Object.assign({}, v, { estado: 'esgotado' })), ...baixo.map(v => Object.assign({}, v, { estado: 'baixo' }))];
+    document.getElementById('inicio-estoque-baixo').innerHTML = lista.length ? lista.slice(0, 8).map(v => `
       <div class="linha-simples">
         <span class="dot" style="background:${v.corHex}"></span>
-        <div style="flex-grow:1;min-width:0">
-          <div style="font-size:13px;font-weight:600">${esc(v.produtoNome)}</div>
-          <div style="font-size:11px;color:var(--text-2)">Tam ${esc(v.tamanho)} · ${esc(v.cor)}</div>
-        </div>
+        <div style="flex-grow:1;min-width:0"><div style="font-size:13px;font-weight:600">${esc(v.produtoNome)}</div><div style="font-size:11px;color:var(--text-2)">Tam ${esc(v.tamanho)} · ${esc(v.cor)}</div></div>
         <div style="font-size:13px;font-weight:700;color:${v.estado === 'esgotado' ? 'var(--zero-text)' : 'var(--baixo-text)'}">${v.estoque} un.</div>
-      </div>
-    `).join('') : '<div class="vazio">Nenhum item com estoque baixo agora.</div>';
+      </div>`).join('') + (lista.length > 8 ? `<div class="modal-dica" style="margin-top:6px">+ ${lista.length - 8} outras</div>` : '')
+      : '<div class="vazio">Nenhuma peça com estoque baixo.</div>';
 
-    const pontos = state.pontosHoje.slice().reverse().slice(0, 6);
+    const pontos = (state.pontos || []).slice().reverse().slice(0, 6);
     document.getElementById('inicio-ponto').innerHTML = pontos.length ? pontos.map(p => `
       <div class="linha-simples">
         <div class="avatar" style="width:28px;height:28px;font-size:11px">${esc(p.nome.charAt(0))}</div>
-        <div style="flex-grow:1;min-width:0">
-          <div style="font-size:13px;font-weight:600">${esc(p.nome)}</div>
-          <div style="font-size:11px;color:var(--text-2)">${p.tipo === 'entrada' ? 'Entrada' : 'Saída'}</div>
-        </div>
-        <div style="font-size:13px;font-weight:700">${esc(p.hora)}</div>
-      </div>
-    `).join('') : '<div class="vazio">Ninguém bateu ponto ainda hoje.</div>';
+        <div style="flex-grow:1;min-width:0"><div style="font-size:13px;font-weight:600">${esc(p.nome)}</div><div style="font-size:11px;color:var(--text-2)">${p.tipo === 'entrada' ? 'Entrada' : 'Saída'}</div></div>
+        <div style="font-size:13px;font-weight:700">${hora(p.registrado_em)}</div>
+      </div>`).join('') : '<div class="vazio">Ninguém bateu ponto ainda hoje.</div>';
   }
 
-  /* ---------- Venda rápida ---------- */
+  /* ================= Venda rápida ================= */
   function gradeHtml(produto, opts) {
     const grande = opts.grande;
-    const coresHeader = produto.cores.map(c => `<div class="grade-cor-label"><span class="dot" style="background:${c.hex}"></span>${esc(c.nome)}</div>`).join('');
-    const rows = produto.tamanhos.map(tamanho => {
-      const cels = produto.cores.map(cor => {
-        const v = produto.variacoes.find(x => x.tamanho === tamanho && x.cor === cor.nome);
-        if (!v) return `<div class="cel" style="visibility:hidden"></div>`;
+    const variacoes = produto.variacoes.filter(v => v.ativo);
+    const cores = produto.cores.filter(c => variacoes.some(v => v.cor === c.nome));
+    const tamanhos = produto.tamanhos.filter(t => variacoes.some(v => v.tamanho === t));
+    const coresHeader = cores.map(c => `<div class="grade-cor-label"><span class="dot" style="background:${c.hex}"></span>${esc(c.nome || '—')}</div>`).join('');
+    const rows = tamanhos.map(tamanho => {
+      const cels = cores.map(cor => {
+        const v = variacoes.find(x => x.tamanho === tamanho && x.cor === cor.nome);
+        if (!v) return `<div class="cel ${grande ? 'cel-lg' : ''}" style="visibility:hidden"></div>`;
         const semEstoque = v.estoque <= 0;
         const baixo = !semEstoque && v.estoque <= v.estoqueMinimo;
         const cls = 'cel ' + (grande ? 'cel-lg ' : '') + (semEstoque ? 'esgotado' : baixo ? 'baixo' : 'normal');
-        return `<button class="${cls}" data-variacao="${v.id}" ${semEstoque && !grande ? 'disabled' : ''}>
+        return `<button class="${cls}" data-variacao="${v.id}" ${semEstoque && !grande ? 'disabled' : ''} title="${esc(v.codigoBarras)}">
           <div class="cel-num">${semEstoque && !grande ? '—' : v.estoque}</div>
-          <div class="cel-legenda">${semEstoque ? 'esgotado' : 'unid.'}</div>
+          <div class="cel-legenda">${semEstoque ? 'esgotado' : grande ? fmt(v.preco) : 'unid.'}</div>
         </button>`;
       }).join('');
       return `<div class="grade-row"><div class="grade-tamanho">${esc(tamanho)}</div>${cels}</div>`;
@@ -782,134 +983,521 @@
     return `<div class="grade"><div class="grade-row grade-header"><div class="grade-tamanho"></div>${coresHeader}</div>${rows}</div>`;
   }
 
+  function produtosVisiveisVenda() {
+    const termo = state.vendaBusca.trim().toLowerCase();
+    return state.produtos.filter(p => p.ativo && p.variacoes.some(v => v.ativo) && (!termo || p.nome.toLowerCase().includes(termo) || p.categoria.toLowerCase().includes(termo)));
+  }
+
   function renderVenda() {
+    const cx = state.caixa;
+    document.getElementById('venda-aviso-caixa').innerHTML = cx && !cx.sessao ? `
+      <div class="aviso-caixa"><span>Caixa fechado — abra o caixa pra poder confirmar vendas.</span><button class="btn-primario" onclick="irPara('caixa')">Abrir caixa</button></div>` : '';
+
     const grid = document.getElementById('produtos-grid');
+    const visiveis = produtosVisiveisVenda();
     if (!state.produtos.length) {
-      grid.innerHTML = '<div class="vazio">Nenhum produto cadastrado ainda — vá em Estoque → "+ Novo produto".</div>';
+      grid.innerHTML = '<div class="vazio">Nenhum produto cadastrado ainda — ' + (ehAdmin() ? 'vá em Estoque → "+ Novo produto".' : 'peça pro Administrador cadastrar.') + '</div>';
+    } else if (!visiveis.length) {
+      grid.innerHTML = '<div class="vazio">Nada encontrado com "' + esc(state.vendaBusca) + '".</div>';
     } else {
-      grid.innerHTML = state.produtos.map(p => `
+      grid.innerHTML = visiveis.map(p => `
         <button class="produto-card" data-id="${p.id}">
-          <div class="produto-thumb" style="background:${p.swatch}22">
-            <div class="produto-avatar" style="background:${p.swatch}">${esc(p.nome.charAt(0))}</div>
-          </div>
+          <div class="produto-thumb" style="background:${p.swatch}22"><div class="produto-avatar" style="background:${p.swatch}">${esc(p.nome.charAt(0))}</div></div>
           <div class="produto-nome">${esc(p.nome)}</div>
-          <div class="produto-meta">${esc(p.categoria)} · ${p.variacoes.length} variações</div>
-          <div class="produto-preco">a partir de ${fmt(p.precoBase)}</div>
-        </button>
-      `).join('');
-      grid.querySelectorAll('.produto-card').forEach(btn => btn.addEventListener('click', () => setState({ modalProdutoId: btn.dataset.id })));
+          <div class="produto-meta">${esc(p.categoria)} · ${p.estoqueTotal} em estoque</div>
+          <div class="produto-preco">${p.precoBase === p.precoMax ? fmt(p.precoBase) : 'a partir de ' + fmt(p.precoBase)}</div>
+        </button>`).join('');
+      grid.querySelectorAll('.produto-card').forEach(btn => btn.addEventListener('click', () => abrirGradeVenda(btn.dataset.id)));
     }
-    renderModal();
     renderCarrinho();
   }
 
-  function renderModal() {
-    const modal = document.getElementById('modal');
-    if (!state.modalProdutoId) { modal.style.display = 'none'; modal.innerHTML = ''; return; }
-    const produto = state.produtos.find(p => p.id === state.modalProdutoId);
-    if (!produto) { modal.style.display = 'none'; modal.innerHTML = ''; return; }
-    modal.style.display = 'flex';
-    modal.innerHTML = `
+  function abrirGradeVenda(produtoId) {
+    const produto = state.produtos.find(p => p.id === produtoId);
+    if (!produto) return;
+    const camada = abrirModal(`
       <div class="modal-card">
-        <div class="modal-head">
-          <div>
-            <div class="modal-titulo">${esc(produto.nome)}</div>
-            <div class="modal-sub">${esc(produto.categoria)} · ${fmt(produto.precoBase)} por unidade</div>
-          </div>
-          <button class="btn-fechar" id="fechar-modal" aria-label="Fechar">×</button>
-        </div>
-        <div class="modal-dica">Toque numa combinação com estoque pra adicionar ao carrinho</div>
-        ${gradeHtml(produto, { grande: false })}
-      </div>
-    `;
-    document.getElementById('fechar-modal').addEventListener('click', () => setState({ modalProdutoId: null }));
-    modal.addEventListener('click', (e) => { if (e.target === modal) setState({ modalProdutoId: null }); });
-    modal.querySelectorAll('button[data-variacao]').forEach(btn => btn.addEventListener('click', () => adicionarAoCarrinho(produto, btn.dataset.variacao)));
+        ${cabecalhoModal(produto.nome, produto.categoria + ' · ' + (produto.precoBase === produto.precoMax ? fmt(produto.precoBase) : fmt(produto.precoBase) + ' a ' + fmt(produto.precoMax)))}
+        <div class="modal-dica">Toque no tamanho/cor pra pôr no carrinho</div>
+        <div style="overflow-x:auto">${gradeHtml(produto, { grande: false })}</div>
+      </div>`, () => document.getElementById('venda-busca').focus());
+    camada.querySelectorAll('button[data-variacao]').forEach(btn => btn.addEventListener('click', () => {
+      adicionarAoCarrinho(btn.dataset.variacao);
+      fecharModal();
+      document.getElementById('venda-busca').focus();
+    }));
   }
 
-  function adicionarAoCarrinho(produto, variacaoId) {
-    const v = produto.variacoes.find(x => x.id === variacaoId);
-    if (!v || v.estoque <= 0) return;
+  function adicionarAoCarrinho(variacaoId) {
+    const achado = acharVariacao(variacaoId);
+    if (!achado) return;
+    const { produto, variacao: v } = achado;
+    const noCarrinho = state.cart.filter(l => l.variacaoId === v.id).reduce((s, l) => s + l.qtd, 0);
+    if (v.estoque - noCarrinho <= 0) { toast('Sem estoque: ' + produto.nome + ' ' + v.tamanho + ' ' + v.cor, 'erro'); return; }
     const cart = state.cart.slice();
     const idx = cart.findIndex(l => l.variacaoId === v.id);
     if (idx >= 0) cart[idx] = Object.assign({}, cart[idx], { qtd: cart[idx].qtd + 1 });
-    else cart.push({ variacaoId: v.id, produtoId: produto.id, produtoNome: produto.nome, tamanho: v.tamanho, cor: v.cor, corHex: v.corHex, precoUnit: v.preco, qtd: 1 });
-    setState({ cart, modalProdutoId: null });
+    else cart.push({ variacaoId: v.id, produtoNome: produto.nome, tamanho: v.tamanho, cor: v.cor, corHex: v.corHex, precoUnit: v.preco, qtd: 1, descPct: 0 });
+    setState({ cart, pagamentos: [] });
+    toast(produto.nome + ' ' + v.tamanho + (v.cor ? ' ' + v.cor : '') + ' no carrinho');
   }
 
-  function alterarQtd(variacaoId, delta) {
-    const cart = state.cart.map(l => l.variacaoId === variacaoId ? Object.assign({}, l, { qtd: l.qtd + delta }) : l).filter(l => l.qtd > 0);
-    setState({ cart });
+  // Leitor de código de barras = teclado que digita rápido e aperta Enter.
+  function onBuscaVendaEnter() {
+    const termo = state.vendaBusca.trim();
+    if (!termo) return;
+    const digitos = termo.replace(/\D/g, '');
+    if (digitos && digitos === termo) {
+      for (const p of state.produtos) {
+        const v = p.variacoes.find(x => x.ativo && x.codigoBarras === digitos);
+        if (v) { adicionarAoCarrinho(v.id); limparBuscaVenda(); return; }
+      }
+      toast('Código ' + termo + ' não encontrado', 'erro');
+      limparBuscaVenda();
+      return;
+    }
+    const visiveis = produtosVisiveisVenda();
+    if (visiveis.length === 1) abrirGradeVenda(visiveis[0].id);
+  }
+  function limparBuscaVenda() {
+    const input = document.getElementById('venda-busca');
+    input.value = ''; state.vendaBusca = ''; renderVenda(); input.focus();
+  }
+
+  function calcCarrinho() {
+    let bruto = 0, desconto = 0;
+    const linhas = state.cart.map(l => {
+      const valorBruto = round2(l.precoUnit * l.qtd);
+      const descontoItem = round2(valorBruto * (l.descPct || 0) / 100);
+      bruto = round2(bruto + valorBruto); desconto = round2(desconto + descontoItem);
+      return Object.assign({}, l, { valorBruto, descontoItem, valorFinal: round2(valorBruto - descontoItem) });
+    });
+    const total = round2(bruto - desconto);
+    return { linhas, bruto, desconto, total, pctDesconto: bruto > 0 ? desconto / bruto * 100 : 0 };
+  }
+
+  // Troco: dinheiro recebido acima do que falta vira troco; o resto das formas é aplicado como está.
+  function calcPagamentos(total) {
+    const naoDinheiro = round2(state.pagamentos.filter(p => p.forma !== 'Dinheiro').reduce((s, p) => s + p.valor, 0));
+    const dinheiroRecebido = round2(state.pagamentos.filter(p => p.forma === 'Dinheiro').reduce((s, p) => s + p.valor, 0));
+    const dinheiroAplicado = round2(Math.max(0, Math.min(dinheiroRecebido, total - naoDinheiro)));
+    const troco = round2(dinheiroRecebido - dinheiroAplicado);
+    const restante = round2(total - naoDinheiro - dinheiroAplicado);
+    const aplicados = [];
+    const porForma = {};
+    state.pagamentos.forEach(p => { porForma[p.forma] = round2((porForma[p.forma] || 0) + p.valor); });
+    Object.keys(porForma).forEach(f => {
+      const valor = f === 'Dinheiro' ? dinheiroAplicado : porForma[f];
+      if (valor > 0) aplicados.push({ forma: f, valor });
+    });
+    return { aplicados, troco, restante, excesso: naoDinheiro > total + 0.005 };
   }
 
   function renderCarrinho() {
+    const calc = calcCarrinho();
     const el = document.getElementById('carrinho-lista');
-    if (state.cart.length === 0) {
-      el.innerHTML = `<div class="carrinho-vazio">Carrinho vazio — toque num produto pra começar.</div>`;
-    } else {
-      el.innerHTML = state.cart.map(l => `
-        <div class="carrinho-linha">
+    const limite = state.config.descontoLivrePct;
+    el.innerHTML = !state.cart.length ? '<div class="carrinho-vazio">Carrinho vazio — leia um código de barras ou toque num produto.</div>' : calc.linhas.map((l, i) => `
+      <div class="carrinho-linha">
+        <div class="carrinho-linha-topo">
           <span class="dot" style="background:${l.corHex}"></span>
-          <div class="carrinho-info">
-            <div class="carrinho-nome">${esc(l.produtoNome)}</div>
-            <div class="carrinho-detalhe">Tam ${esc(l.tamanho)} · ${esc(l.cor)} · ${fmt(l.precoUnit)}</div>
-          </div>
+          <div class="carrinho-info"><div class="carrinho-nome">${esc(l.produtoNome)}</div><div class="carrinho-detalhe">Tam ${esc(l.tamanho)}${l.cor ? ' · ' + esc(l.cor) : ''} · ${fmt(l.precoUnit)}</div></div>
           <div class="carrinho-qtd">
-            <button data-menos="${l.variacaoId}" aria-label="Diminuir">−</button>
-            <span>${l.qtd}</span>
-            <button data-mais="${l.variacaoId}" aria-label="Aumentar">+</button>
+            <button data-menos="${i}" aria-label="Diminuir">−</button><span>${l.qtd}</span><button data-mais="${i}" aria-label="Aumentar">+</button>
           </div>
-          <div class="carrinho-total">${fmt(l.precoUnit * l.qtd)}</div>
+          <div class="carrinho-total">${fmt(l.valorFinal)}</div>
         </div>
-      `).join('');
-      el.querySelectorAll('[data-menos]').forEach(b => b.addEventListener('click', () => alterarQtd(b.dataset.menos, -1)));
-      el.querySelectorAll('[data-mais]').forEach(b => b.addEventListener('click', () => alterarQtd(b.dataset.mais, 1)));
-    }
-    const subtotal = state.cart.reduce((s, l) => s + l.precoUnit * l.qtd, 0);
-    document.getElementById('subtotal').textContent = fmt(subtotal);
-    document.getElementById('total').textContent = fmt(subtotal);
+        <div class="carrinho-desc">Desconto <input type="text" inputmode="decimal" data-desc="${i}" value="${l.descPct ? String(l.descPct).replace('.', ',') : ''}" placeholder="0"> %
+          ${l.descontoItem ? `<span>(− ${fmt(l.descontoItem)})</span>` : ''}</div>
+      </div>`).join('');
+    el.querySelectorAll('[data-menos]').forEach(b => b.addEventListener('click', () => alterarQtd(Number(b.dataset.menos), -1)));
+    el.querySelectorAll('[data-mais]').forEach(b => b.addEventListener('click', () => alterarQtd(Number(b.dataset.mais), 1)));
+    el.querySelectorAll('[data-desc]').forEach(inp => inp.addEventListener('change', () => {
+      let pct = parseNumBR(inp.value);
+      if (!Number.isFinite(pct) || pct < 0) pct = 0;
+      if (pct > 100) pct = 100;
+      const cart = state.cart.slice();
+      cart[Number(inp.dataset.desc)] = Object.assign({}, cart[Number(inp.dataset.desc)], { descPct: round2(pct) });
+      setState({ cart, pagamentos: [] });
+    }));
 
-    const formasEl = document.getElementById('formas');
-    formasEl.innerHTML = ['Dinheiro', 'Débito', 'Crédito', 'Pix'].map(f => `<button class="forma ${state.formaPagamento === f ? 'ativo' : ''}" data-forma="${f}">${f}</button>`).join('');
-    formasEl.querySelectorAll('[data-forma]').forEach(b => b.addEventListener('click', () => setState({ formaPagamento: b.dataset.forma })));
+    const cli = state.cliente;
+    document.getElementById('carrinho-cliente').innerHTML = cli ? `
+      <div class="cliente-box"><div><b>${esc(cli.nome)}</b><div style="color:var(--text-2)">Cashback ${fmt(cli.saldo_cashback)} · Vale-troca ${fmt(cli.saldo_vale_troca)}</div></div>
+        <button class="link-btn" id="btn-remover-cliente">remover</button></div>` : `
+      <div class="cliente-box"><span style="color:var(--text-2)">Cliente não identificado</span><button class="link-btn" id="btn-identificar-cliente">Identificar cliente</button></div>`;
+    const btnId = document.getElementById('btn-identificar-cliente');
+    if (btnId) btnId.onclick = async () => { const c = await escolherCliente(); if (c) setState({ cliente: c, pagamentos: [] }); };
+    const btnRem = document.getElementById('btn-remover-cliente');
+    if (btnRem) btnRem.onclick = () => setState({ cliente: null, pagamentos: state.pagamentos.filter(p => !TIPO_CREDITO[p.forma]) });
 
-    const podeConfirmar = state.cart.length > 0 && !!state.formaPagamento;
-    const btnConfirmar = document.getElementById('confirmar');
-    btnConfirmar.disabled = !podeConfirmar;
-    btnConfirmar.classList.toggle('ativo', podeConfirmar);
+    const acimaLimite = calc.pctDesconto > limite + 1e-9 && !ehAdmin();
+    document.getElementById('carrinho-totais').innerHTML = `
+      <div class="linha-total"><span>Subtotal</span><span>${fmt(calc.bruto)}</span></div>
+      ${calc.desconto ? `<div class="linha-total"><span>Desconto (${fmtNum(calc.pctDesconto)}%)</span><span>− ${fmt(calc.desconto)}</span></div>` : ''}
+      ${acimaLimite ? `<div class="modal-dica" style="color:var(--baixo-text)">Desconto acima de ${limite}% — vai pedir PIN de Administrador ao confirmar.</div>` : ''}
+      <div class="linha-total grande"><span>Total</span><span>${fmt(calc.total)}</span></div>
+      ${cli && state.config.cashbackPct > 0 ? `<div class="modal-dica">Cliente ganha ${state.config.cashbackPct}% de cashback no que pagar sem crédito.</div>` : ''}`;
+
+    const pag = calcPagamentos(calc.total);
+    const formasDisponiveis = FORMAS_DINHEIRO.slice();
+    if (cli && cli.saldo_cashback > 0) formasDisponiveis.push('Cashback');
+    if (cli && cli.saldo_vale_troca > 0) formasDisponiveis.push('Vale-troca');
+    document.getElementById('carrinho-pagamentos').innerHTML = !state.cart.length ? '' : `
+      <div style="font-size:11px;color:var(--text-2)">Pagamento ${state.pagamentos.length ? '' : '— toque na forma'}</div>
+      ${state.pagamentos.map((p, i) => `
+        <div class="pag-linha"><span>${esc(p.forma)}</span>
+          <input type="text" inputmode="decimal" data-pag="${i}" value="${fmtNum(p.valor)}">
+          <button data-rem-pag="${i}" aria-label="Remover">×</button></div>`).join('')}
+      <div class="formas">${formasDisponiveis.map(f => `<button class="forma ${TIPO_CREDITO[f] ? 'credito' : ''}" data-forma="${f}">+ ${f}${TIPO_CREDITO[f] ? ' (' + fmt(cli[TIPO_CREDITO[f]]) + ')' : ''}</button>`).join('')}</div>
+      ${pag.restante > 0.005 ? `<div class="linha-total"><span>Falta</span><span style="color:var(--zero-text);font-weight:700">${fmt(pag.restante)}</span></div>` : ''}
+      ${pag.troco > 0.005 ? `<div class="linha-total grande"><span>Troco</span><span style="color:var(--ok-text)">${fmt(pag.troco)}</span></div>` : ''}
+      ${pag.excesso ? `<div class="modal-dica" style="color:var(--zero-text)">Os pagamentos passam do total — ajuste os valores.</div>` : ''}`;
+    document.querySelectorAll('#carrinho-pagamentos [data-forma]').forEach(b => b.addEventListener('click', () => adicionarPagamento(b.dataset.forma, calc.total)));
+    document.querySelectorAll('#carrinho-pagamentos [data-rem-pag]').forEach(b => b.addEventListener('click', () => {
+      setState({ pagamentos: state.pagamentos.filter((_, i) => i !== Number(b.dataset.remPag)) });
+    }));
+    document.querySelectorAll('#carrinho-pagamentos [data-pag]').forEach(inp => inp.addEventListener('change', () => {
+      const i = Number(inp.dataset.pag);
+      let valor = parseNumBR(inp.value);
+      if (!Number.isFinite(valor) || valor < 0) valor = 0;
+      const p = state.pagamentos[i];
+      if (TIPO_CREDITO[p.forma]) valor = Math.min(valor, state.cliente[TIPO_CREDITO[p.forma]]);
+      const pagamentos = state.pagamentos.slice();
+      pagamentos[i] = Object.assign({}, p, { valor: round2(valor) });
+      setState({ pagamentos: pagamentos.filter(x => x.valor > 0) });
+    }));
+
+    const pode = state.cart.length > 0 && pag.restante <= 0.005 && !pag.excesso && state.caixa && state.caixa.sessao;
+    const btn = document.getElementById('confirmar');
+    btn.disabled = !pode;
+    btn.classList.toggle('ativo', !!pode);
+    btn.textContent = state.caixa && !state.caixa.sessao ? 'Caixa fechado' : 'Confirmar venda';
   }
 
-  async function confirmarVenda() {
-    if (state.cart.length === 0 || !state.formaPagamento) return;
+  function adicionarPagamento(forma, total) {
+    const pag = calcPagamentos(total);
+    let valor = pag.restante;
+    if (TIPO_CREDITO[forma]) {
+      const jaUsado = state.pagamentos.filter(p => p.forma === forma).reduce((s, p) => s + p.valor, 0);
+      valor = Math.min(valor, state.cliente[TIPO_CREDITO[forma]] - jaUsado);
+    }
+    valor = round2(valor);
+    if (valor <= 0) { if (forma !== 'Dinheiro') return; valor = 0; }
+    const pagamentos = state.pagamentos.slice();
+    const idx = pagamentos.findIndex(p => p.forma === forma);
+    if (idx >= 0) pagamentos[idx] = Object.assign({}, pagamentos[idx], { valor: round2(pagamentos[idx].valor + valor) });
+    else pagamentos.push({ forma, valor });
+    setState({ pagamentos: pagamentos.filter(p => p.valor > 0 || p.forma === 'Dinheiro') });
+    if (forma === 'Dinheiro') {
+      const inp = document.querySelector('#carrinho-pagamentos [data-pag="' + state.pagamentos.findIndex(p => p.forma === 'Dinheiro') + '"]');
+      if (inp) { inp.focus(); inp.select(); }
+    }
+  }
+
+  function alterarQtd(indice, delta) {
+    const cart = state.cart.slice();
+    const l = cart[indice];
+    const achado = acharVariacao(l.variacaoId);
+    if (delta > 0 && achado && l.qtd + 1 > achado.variacao.estoque) { toast('Só tem ' + achado.variacao.estoque + ' em estoque', 'erro'); return; }
+    cart[indice] = Object.assign({}, l, { qtd: l.qtd + delta });
+    setState({ cart: cart.filter(x => x.qtd > 0), pagamentos: [] });
+  }
+
+  async function confirmarVenda(aprovacao) {
+    const calc = calcCarrinho();
+    const pag = calcPagamentos(calc.total);
+    if (!state.cart.length || pag.restante > 0.005 || pag.excesso) return;
     const btn = document.getElementById('confirmar');
     btn.disabled = true; btn.textContent = 'Confirmando...';
-    const forma = state.formaPagamento;
+    const corpo = {
+      itens: calc.linhas.map(l => ({ variacaoId: l.variacaoId, qtd: l.qtd, descontoItem: l.descontoItem })),
+      pagamentos: pag.aplicados, clienteId: state.cliente ? state.cliente.id : undefined, aprovacao,
+    };
     try {
-      const itens = state.cart.map(l => ({ variacaoId: l.variacaoId, qtd: l.qtd }));
-      const resultado = await api('/vendas', { method: 'POST', body: JSON.stringify({ itens, formaPagamento: forma, desconto: 0 }) });
-      state.cart = []; state.formaPagamento = null;
-      await Promise.all([carregarProdutos(), carregarVendasHoje()]);
+      const r = await api('/vendas', { method: 'POST', body: corpo });
+      const troco = pag.troco;
+      Object.assign(state, { cart: [], pagamentos: [], cliente: null });
+      await Promise.all([carregarProdutos(), carregarCaixa()]);
       render();
-      alert('Venda confirmada — ' + fmt(resultado.total) + ' via ' + forma + '.');
+      mostrarRecibo(r, troco);
     } catch (e) {
-      if (e.status === 409 && e.data && e.data.erro === 'estoque insuficiente') {
-        alert('Estoque insuficiente pra um dos itens (disponível: ' + e.data.disponivel + '). Atualizando o carrinho...');
-        await carregarProdutos();
-        render();
+      const cod = e.data && e.data.codigo;
+      if (cod === 'aprovacao_necessaria' || cod === 'aprovacao_invalida') {
+        renderCarrinho();
+        if (cod === 'aprovacao_invalida') toast('PIN incorreto', 'erro');
+        const ap = await escolherAdministrador(e.message);
+        if (ap) return confirmarVenda(ap);
+      } else if (cod === 'caixa_fechado') {
+        toast(e.message, 'erro'); await carregarCaixa(); render();
+      } else if (cod === 'estoque_insuficiente') {
+        toast(e.message + ' (disponível: ' + e.data.disponivel + ')', 'erro'); await carregarProdutos(); render();
       } else {
-        alert('Não deu pra confirmar a venda: ' + e.message);
-        btn.disabled = false; btn.textContent = 'Confirmar venda';
+        toast('Não deu pra confirmar: ' + e.message, 'erro'); renderCarrinho();
       }
     }
   }
 
-  /* ---------- Estoque ---------- */
-  function categoriasUnicas() { return [...new Set(state.produtos.map(p => p.categoria))]; }
+  function mostrarRecibo(venda, troco) {
+    abrirModal(`
+      <div class="modal-card estreito" style="text-align:center">
+        ${cabecalhoModal('Venda concluída', '')}
+        <div class="stat-valor" style="font-size:30px;color:var(--accent)">${fmt(venda.total)}</div>
+        <div style="font-size:13px;color:var(--text-2)">${venda.pagamentos.map(p => esc(p.forma) + ' ' + fmt(p.valor)).join(' + ')}</div>
+        ${troco > 0.005 ? `<div class="stat-valor" style="color:var(--ok-text)">Troco: ${fmt(troco)}</div>` : ''}
+        ${venda.cashbackGerado ? `<div style="font-size:13px">Cliente ganhou <b>${fmt(venda.cashbackGerado)}</b> de cashback (saldo ${fmt(venda.saldosCliente.cashback)})</div>` : ''}
+        <button class="btn-primario btn-grande" id="btn-nova-venda">Nova venda</button>
+      </div>`, () => document.getElementById('venda-busca').focus());
+    const b = document.getElementById('btn-nova-venda');
+    b.focus();
+    b.onclick = () => { fecharModal(); document.getElementById('venda-busca').focus(); };
+  }
+
+  /* ---------- Troca / devolução ---------- */
+  async function abrirTroca() {
+    const camada = abrirModal(`<div class="modal-card largo">${cabecalhoModal('Troca / devolução', 'Escolha a venda — a peça volta pro estoque e o cliente ganha vale-troca')}
+      <div id="troca-corpo"><div class="carregando">Carregando vendas...</div></div></div>`);
+    try {
+      const vendas = (await api('/vendas')).filter(v => !v.cancelada);
+      const corpo = camada.querySelector('#troca-corpo');
+      corpo.innerHTML = vendas.length ? `<div class="tabela-scroll"><table class="tabela"><tr><th>Quando</th><th>Cliente</th><th>Peças</th><th>Pagamento</th><th style="text-align:right">Total</th><th></th></tr>
+        ${vendas.map(v => `<tr><td>${dataHora(v.criado_em)}</td><td>${esc(v.cliente_nome || '—')}</td><td>${Number(v.qtd_itens)}</td><td>${esc(v.forma_pagamento)}</td>
+          <td style="text-align:right">${fmt(v.total)}</td><td><button class="btn-secundario" data-venda="${v.id}">Escolher</button></td></tr>`).join('')}</table></div>`
+        : '<div class="vazio">Nenhuma venda registrada ainda.</div>';
+      corpo.querySelectorAll('[data-venda]').forEach(b => b.addEventListener('click', () => abrirTrocaDaVenda(b.dataset.venda)));
+    } catch (e) { toast(e.message, 'erro'); }
+  }
+
+  async function abrirTrocaDaVenda(vendaId) {
+    let venda;
+    try { venda = await api('/vendas/' + vendaId); } catch (e) { toast(e.message, 'erro'); return; }
+    let cliente = venda.cliente_id ? { id: venda.cliente_id, nome: venda.cliente_nome } : null;
+    const itens = venda.itens.map(i => Object.assign({}, i, { disponivel: Number(i.qtd) - Number(i.qtd_devolvida) }));
+    const desenhar = () => {
+      const camada = abrirModal(`<div class="modal-card largo">
+        ${cabecalhoModal('Troca / devolução', 'Venda de ' + dataHora(venda.criado_em) + ' · ' + fmt(venda.total))}
+        <div class="tabela-scroll"><table class="tabela"><tr><th>Peça</th><th>Vendidas</th><th>Já devolvidas</th><th>Valor pago/un.</th><th style="width:110px">Devolver</th></tr>
+          ${itens.map((i, k) => {
+            const unit = (Number(i.preco_unit) * Number(i.qtd) - Number(i.desconto_item)) / Number(i.qtd);
+            return `<tr><td>${esc(i.produto_nome)} · ${esc(i.tamanho)}${i.cor ? ' · ' + esc(i.cor) : ''}</td><td>${Number(i.qtd)}</td><td>${Number(i.qtd_devolvida)}</td><td>${fmt(unit)}</td>
+              <td>${i.disponivel > 0 ? `<input type="number" min="0" max="${i.disponivel}" step="1" value="0" data-dev="${k}">` : '<span class="tag cinza">nada a devolver</span>'}</td></tr>`;
+          }).join('')}</table></div>
+        <div class="cliente-box" style="font-size:13px"><div>Vale-troca fica no nome de: <b>${cliente ? esc(cliente.nome) : 'ninguém ainda'}</b></div>
+          ${venda.cliente_id ? '' : `<button class="btn-secundario" id="troca-cliente">${cliente ? 'Trocar cliente' : 'Escolher cliente'}</button>`}</div>
+        <div class="linha-total grande"><span>Vale-troca</span><span id="troca-total">${fmt(0)}</span></div>
+        <div class="erro-modal" id="troca-erro"></div>
+        <div class="modal-acoes"><button class="btn-secundario" data-fechar>Cancelar</button><button class="btn-primario btn-grande" id="troca-confirmar">Confirmar devolução</button></div>
+      </div>`);
+      const inputs = camada.querySelectorAll('[data-dev]');
+      const recalcular = () => {
+        let total = 0;
+        inputs.forEach(inp => {
+          const i = itens[Number(inp.dataset.dev)];
+          const qtd = Math.max(0, Math.min(i.disponivel, Math.floor(Number(inp.value) || 0)));
+          total += (Number(i.preco_unit) * Number(i.qtd) - Number(i.desconto_item)) / Number(i.qtd) * qtd;
+        });
+        camada.querySelector('#troca-total').textContent = fmt(round2(total));
+      };
+      inputs.forEach(inp => inp.addEventListener('input', recalcular));
+      const bCli = camada.querySelector('#troca-cliente');
+      if (bCli) bCli.onclick = async () => {
+        const valores = [...inputs].map(inp => inp.value);
+        const c = await escolherCliente('Cliente que fica com o vale-troca');
+        if (c) cliente = c;
+        desenhar();
+        document.querySelectorAll('#modal [data-dev]').forEach((inp, k) => { inp.value = valores[k]; });
+        recalcular();
+      };
+      camada.querySelector('#troca-confirmar').onclick = (ev) => comBotao(ev.target, 'Devolvendo...', async () => {
+        const pedidos = [...inputs].map(inp => ({ vendaItemId: itens[Number(inp.dataset.dev)].id, qtd: Math.floor(Number(inp.value) || 0) })).filter(p => p.qtd > 0);
+        if (!pedidos.length) throw new Error('Informe quantas peças vão voltar.');
+        if (!cliente) throw new Error('Escolha o cliente que fica com o vale-troca.');
+        const r = await api('/vendas/' + venda.id + '/devolucoes', { method: 'POST', body: { itens: pedidos, clienteId: cliente.id } });
+        fecharModal();
+        await carregarProdutos(); render();
+        abrirModal(`<div class="modal-card estreito" style="text-align:center">${cabecalhoModal('Devolução registrada', '')}
+          <div>Vale-troca gerado para <b>${esc(cliente.nome)}</b></div>
+          <div class="stat-valor" style="font-size:28px;color:var(--teal)">${fmt(r.valeTroca)}</div>
+          <div style="font-size:12px;color:var(--text-2)">Saldo de vale-troca agora: ${fmt(r.saldosCliente.vale_troca)}${r.cashbackEstornado ? ' · Cashback estornado: ' + fmt(r.cashbackEstornado) : ''}</div>
+          <button class="btn-primario" data-fechar>Ok</button></div>`);
+      }, camada.querySelector('#troca-erro'));
+    };
+    desenhar();
+  }
+
+  /* ================= Caixa ================= */
+  function renderCaixa() {
+    const el = document.getElementById('caixa-conteudo');
+    const cx = state.caixa;
+    if (!cx) { el.innerHTML = '<div class="carregando">Carregando...</div>'; return; }
+    const historico = ehAdmin() && state.caixaSessoes ? `
+      <div class="painel" style="margin-top:16px"><div class="painel-titulo">Fechamentos anteriores</div>
+        ${state.caixaSessoes.length ? `<div class="tabela-scroll"><table class="tabela"><tr><th>Aberto</th><th>Fechado</th><th>Por</th><th style="text-align:right">Vendas</th><th style="text-align:right">Esperado</th><th style="text-align:right">Contado</th><th style="text-align:right">Diferença</th></tr>
+        ${state.caixaSessoes.map(s => `<tr><td>${dataHora(s.aberto_em)}</td><td>${dataHora(s.fechado_em)}</td><td>${esc(s.fechado_por_nome || '')}</td>
+          <td style="text-align:right">${fmt(s.total_vendas)}</td><td style="text-align:right">${fmt(s.dinheiro_esperado)}</td><td style="text-align:right">${fmt(s.dinheiro_contado)}</td>
+          <td style="text-align:right;font-weight:700" class="${Number(s.diferenca) < 0 ? 'valor-neg' : Number(s.diferenca) > 0 ? 'valor-ok' : ''}">${fmt(s.diferenca)}</td></tr>`).join('')}</table></div>`
+        : '<div class="vazio">Nenhum caixa fechado ainda.</div>'}</div>` : '';
+
+    if (!cx.sessao) {
+      // A tela redesenha quando os dados chegam do servidor — não perder o que já foi digitado.
+      const digitado = document.getElementById('cx-inicial') ? document.getElementById('cx-inicial').value : '';
+      el.innerHTML = `<div class="painel" style="max-width:420px">
+        <div class="painel-titulo">Abrir caixa</div>
+        <p class="modal-dica" style="margin-top:0">Conte o dinheiro que está na gaveta pro troco.</p>
+        <label class="campo">Dinheiro inicial (troco)<input id="cx-inicial" type="text" inputmode="decimal" placeholder="0,00" value="${esc(digitado)}"></label>
+        <div class="erro-modal" id="cx-erro" style="margin-top:8px"></div>
+        <button class="btn-primario btn-grande" id="cx-abrir" style="margin-top:12px;width:100%">Abrir caixa</button>
+      </div>` + historico;
+      document.getElementById('cx-abrir').onclick = (ev) => comBotao(ev.target, 'Abrindo...', async () => {
+        const v = document.getElementById('cx-inicial').value.trim();
+        const valor = v ? parseNumBR(v) : 0;
+        if (!Number.isFinite(valor) || valor < 0) throw new Error('Valor inválido');
+        await api('/caixa/abrir', { method: 'POST', body: { dinheiroInicial: valor } });
+        await carregarCaixa(); render(); toast('Caixa aberto');
+      }, document.getElementById('cx-erro'));
+      return;
+    }
+    const s = cx.sessao, r = cx.resumo;
+    el.innerHTML = `
+      <div class="stats-row">
+        <div class="stat-card"><div class="stat-label">Aberto por</div><div class="stat-valor" style="font-size:16px">${esc(s.aberto_por_nome)} · ${hora(s.aberto_em)}</div></div>
+        <div class="stat-card"><div class="stat-label">Vendas no turno</div><div class="stat-valor">${r.vendas} · ${fmt(r.totalVendas)}</div></div>
+        <div class="stat-card"><div class="stat-label">Dinheiro esperado na gaveta</div><div class="stat-valor" style="color:var(--accent)">${fmt(r.dinheiroEsperado)}</div></div>
+      </div>
+      <div class="paineis-duas-colunas">
+        <div class="painel"><div class="painel-titulo">Recebido por forma</div>
+          ${r.porForma.length ? r.porForma.map(f => `<div class="linha-simples"><div style="flex-grow:1">${esc(f.forma)}</div><b>${fmt(f.total)}</b></div>`).join('') : '<div class="vazio">Nenhuma venda ainda.</div>'}
+          <div class="linha-simples"><div style="flex-grow:1;color:var(--text-2)">Troco inicial</div><span>${fmt(s.dinheiro_inicial)}</span></div>
+          <div class="linha-simples"><div style="flex-grow:1;color:var(--text-2)">Suprimentos</div><span>+ ${fmt(r.suprimentos)}</span></div>
+          <div class="linha-simples"><div style="flex-grow:1;color:var(--text-2)">Sangrias</div><span>− ${fmt(r.sangrias)}</span></div>
+        </div>
+        <div class="painel"><div class="painel-titulo-linha"><div class="painel-titulo">Movimentos</div>
+          <div style="display:flex;gap:6px"><button class="btn-secundario" id="cx-suprimento">+ Suprimento</button><button class="btn-secundario" id="cx-sangria">− Sangria</button></div></div>
+          ${r.movimentos.length ? r.movimentos.map(m => `<div class="linha-simples"><div style="flex-grow:1"><div style="font-weight:600">${m.tipo === 'suprimento' ? 'Suprimento' : 'Sangria'}${m.descricao ? ' — ' + esc(m.descricao) : ''}</div>
+            <div style="font-size:11px;color:var(--text-2)">${hora(m.criado_em)} · ${esc(m.criado_por_nome)}</div></div><b class="${m.tipo === 'sangria' ? 'valor-neg' : 'valor-ok'}">${m.tipo === 'sangria' ? '−' : '+'} ${fmt(m.valor)}</b></div>`).join('')
+            : '<div class="vazio">Nenhum suprimento ou sangria.</div>'}
+        </div>
+      </div>
+      <div style="margin-top:16px"><button class="btn-primario btn-grande" id="cx-fechar">Fechar caixa</button></div>` + historico;
+    document.getElementById('cx-suprimento').onclick = () => abrirMovimentoCaixa('suprimento');
+    document.getElementById('cx-sangria').onclick = () => abrirMovimentoCaixa('sangria');
+    document.getElementById('cx-fechar').onclick = abrirFechamentoCaixa;
+  }
+
+  function abrirMovimentoCaixa(tipo) {
+    const titulo = tipo === 'suprimento' ? 'Suprimento (entrada de dinheiro na gaveta)' : 'Sangria (retirada de dinheiro da gaveta)';
+    const camada = abrirModal(`<div class="modal-card estreito">${cabecalhoModal(titulo, '')}
+      <label class="campo">Valor<input id="mv-valor" type="text" inputmode="decimal" placeholder="0,00"></label>
+      <label class="campo">Motivo (opcional)<input id="mv-desc" type="text" placeholder="${tipo === 'sangria' ? 'Ex.: depósito no banco' : 'Ex.: troco'}"></label>
+      <div class="erro-modal" id="mv-erro"></div>
+      <button class="btn-primario btn-grande" id="mv-salvar">Registrar</button></div>`);
+    camada.querySelector('#mv-valor').focus();
+    camada.querySelector('#mv-salvar').onclick = (ev) => comBotao(ev.target, 'Salvando...', async () => {
+      const valor = parseNumBR(camada.querySelector('#mv-valor').value);
+      if (!Number.isFinite(valor) || valor <= 0) throw new Error('Informe um valor maior que zero');
+      await api('/caixa/movimentos', { method: 'POST', body: { tipo, valor, descricao: camada.querySelector('#mv-desc').value } });
+      fecharModal(); await carregarCaixa(); render(); toast(tipo === 'sangria' ? 'Sangria registrada' : 'Suprimento registrado');
+    }, camada.querySelector('#mv-erro'));
+  }
+
+  function abrirFechamentoCaixa() {
+    const camada = abrirModal(`<div class="modal-card estreito">${cabecalhoModal('Fechar caixa', 'Conte o dinheiro da gaveta sem olhar o valor esperado')}
+      <label class="campo">Dinheiro contado na gaveta<input id="fc-contado" type="text" inputmode="decimal" placeholder="0,00"></label>
+      <label class="campo">Observação (opcional)<input id="fc-obs" type="text"></label>
+      <div class="erro-modal" id="fc-erro"></div>
+      <button class="btn-primario btn-grande" id="fc-salvar">Fechar caixa</button></div>`);
+    camada.querySelector('#fc-contado').focus();
+    camada.querySelector('#fc-salvar').onclick = (ev) => comBotao(ev.target, 'Fechando...', async () => {
+      const contado = parseNumBR(camada.querySelector('#fc-contado').value);
+      if (!Number.isFinite(contado) || contado < 0) throw new Error('Informe o valor contado');
+      const r = await api('/caixa/fechar', { method: 'POST', body: { dinheiroContado: contado, observacao: camada.querySelector('#fc-obs').value } });
+      await carregarCaixa();
+      if (ehAdmin()) state.caixaSessoes = await api('/caixa/sessoes');
+      render();
+      const dif = r.diferenca;
+      abrirModal(`<div class="modal-card estreito" style="text-align:center">${cabecalhoModal('Caixa fechado', '')}
+        <div class="linha-total"><span>Vendas do turno</span><span>${r.resumo.vendas} · ${fmt(r.resumo.totalVendas)}</span></div>
+        <div class="linha-total"><span>Dinheiro esperado</span><span>${fmt(r.resumo.dinheiroEsperado)}</span></div>
+        <div class="linha-total"><span>Dinheiro contado</span><span>${fmt(r.dinheiroContado)}</span></div>
+        <div class="linha-total grande"><span>${dif === 0 ? 'Bateu certinho' : dif < 0 ? 'Faltou' : 'Sobrou'}</span><span class="${dif < 0 ? 'valor-neg' : 'valor-ok'}">${fmt(Math.abs(dif))}</span></div>
+        <button class="btn-primario" data-fechar>Ok</button></div>`);
+    }, camada.querySelector('#fc-erro'));
+  }
+
+  /* ================= Clientes ================= */
+  let timerBuscaClientes = null;
+  function renderClientes() {
+    const el = document.getElementById('clientes-lista');
+    const lista = state.clientes;
+    if (lista == null) { el.innerHTML = '<div class="carregando">Carregando...</div>'; return; }
+    el.innerHTML = lista.length ? `<div class="tabela-scroll"><table class="tabela"><tr><th>Nome</th><th>Telefone</th><th style="text-align:right">Cashback</th><th style="text-align:right">Vale-troca</th></tr>
+      ${lista.map(c => `<tr style="cursor:pointer" data-cli="${c.id}"><td><b>${esc(c.nome)}</b></td><td>${esc(telefoneBR(c.telefone))}</td>
+        <td style="text-align:right">${fmt(c.saldo_cashback)}</td><td style="text-align:right">${fmt(c.saldo_vale_troca)}</td></tr>`).join('')}</table></div>`
+      : '<div class="vazio">' + (state.clientesBusca ? 'Nenhum cliente encontrado.' : 'Nenhum cliente cadastrado ainda.') + '</div>';
+    el.querySelectorAll('[data-cli]').forEach(tr => tr.addEventListener('click', () => abrirCliente(tr.dataset.cli)));
+  }
+
+  function formClienteHtml(c) {
+    c = c || {};
+    return `<div class="linha-campos">
+        <label class="campo">Nome<input id="fc-nome" type="text" value="${esc(c.nome || '')}"></label>
+        <label class="campo">Telefone (com DDD)<input id="fc-telefone" type="tel" inputmode="numeric" value="${esc(c.telefone || '')}"></label>
+      </div>
+      <div class="linha-campos">
+        <label class="campo">CPF (opcional)<input id="fc-cpf" type="text" inputmode="numeric" value="${esc(c.cpf || '')}"></label>
+        <label class="campo">Aniversário (opcional)<input id="fc-nasc" type="date" value="${c.nascimento ? String(c.nascimento).slice(0, 10) : ''}"></label>
+      </div>
+      <label class="campo">Observação<input id="fc-obs-cli" type="text" value="${esc(c.observacao || '')}"></label>`;
+  }
+  function lerFormCliente(camada) {
+    return { nome: camada.querySelector('#fc-nome').value, telefone: camada.querySelector('#fc-telefone').value, cpf: camada.querySelector('#fc-cpf').value,
+      nascimento: camada.querySelector('#fc-nasc').value || null, observacao: camada.querySelector('#fc-obs-cli').value };
+  }
+
+  function abrirNovoCliente() {
+    const camada = abrirModal(`<div class="modal-card">${cabecalhoModal('Novo cliente', '')}${formClienteHtml()}
+      <div class="erro-modal" id="cl-erro"></div><button class="btn-primario btn-grande" id="cl-salvar">Cadastrar</button></div>`);
+    camada.querySelector('#fc-nome').focus();
+    camada.querySelector('#cl-salvar').onclick = (ev) => comBotao(ev.target, 'Salvando...', async () => {
+      await api('/clientes', { method: 'POST', body: lerFormCliente(camada) });
+      fecharModal(); toast('Cliente cadastrado'); carregarDadosDaView('clientes');
+    }, camada.querySelector('#cl-erro'));
+  }
+
+  async function abrirCliente(id) {
+    let c;
+    try { c = await api('/clientes/' + id); } catch (e) { toast(e.message, 'erro'); return; }
+    const camada = abrirModal(`<div class="modal-card largo">${cabecalhoModal(c.nome, 'Cliente desde ' + dataBR(c.criado_em))}
+      <div class="stats-row">
+        <div class="stat-card"><div class="stat-label">Cashback</div><div class="stat-valor" style="color:var(--accent)">${fmt(c.saldo_cashback)}</div></div>
+        <div class="stat-card"><div class="stat-label">Vale-troca</div><div class="stat-valor" style="color:var(--teal)">${fmt(c.saldo_vale_troca)}</div></div>
+        <div class="stat-card"><div class="stat-label">Compras</div><div class="stat-valor">${c.compras.length}${c.compras.length === 20 ? '+' : ''}</div></div>
+      </div>
+      <details><summary style="cursor:pointer;font-weight:600;font-size:13px">Editar dados</summary>
+        <div style="display:flex;flex-direction:column;gap:10px;margin-top:10px">${formClienteHtml(c)}
+        <div class="erro-modal" id="cl-erro"></div><button class="btn-primario" id="cl-salvar">Salvar</button></div></details>
+      <div class="paineis-duas-colunas" style="margin-top:0">
+        <div class="painel"><div class="painel-titulo">Extrato de crédito</div>
+          ${c.extrato.length ? c.extrato.map(x => `<div class="linha-simples"><div style="flex-grow:1"><div style="font-weight:600;font-size:13px">${x.tipo === 'cashback' ? 'Cashback' : 'Vale-troca'} · ${esc(ORIGEM_LABEL[x.origem] || x.origem)}</div>
+            <div style="font-size:11px;color:var(--text-2)">${dataHora(x.criado_em)}</div></div><b class="${Number(x.valor) < 0 ? 'valor-neg' : 'valor-ok'}">${Number(x.valor) < 0 ? '−' : '+'} ${fmt(Math.abs(x.valor))}</b></div>`).join('')
+            : '<div class="vazio">Sem movimento.</div>'}</div>
+        <div class="painel"><div class="painel-titulo">Últimas compras</div>
+          ${c.compras.length ? c.compras.map(v => `<div class="linha-simples"><div style="flex-grow:1"><div style="font-size:13px">${dataHora(v.criado_em)}</div><div style="font-size:11px;color:var(--text-2)">${esc(v.forma_pagamento)}</div></div><b>${fmt(v.total)}</b></div>`).join('')
+            : '<div class="vazio">Nenhuma compra ainda.</div>'}</div>
+      </div></div>`);
+    camada.querySelector('#cl-salvar').onclick = (ev) => comBotao(ev.target, 'Salvando...', async () => {
+      await api('/clientes/' + id, { method: 'PUT', body: lerFormCliente(camada) });
+      fecharModal(); toast('Dados salvos'); carregarDadosDaView('clientes');
+    }, camada.querySelector('#cl-erro'));
+  }
+
+  /* ================= Estoque ================= */
+  function categoriasUnicas() { return [...new Set(state.produtos.map(p => p.categoria))].sort(); }
   function produtosFiltrados() {
+    const termo = state.busca.trim().toLowerCase();
     return state.produtos.filter(p => {
-      const bateBusca = !state.busca || p.nome.toLowerCase().includes(state.busca.toLowerCase());
-      const bateCategoria = !state.filtroCategoria || p.categoria === state.filtroCategoria;
-      return bateBusca && bateCategoria;
+      const bateBusca = !termo || p.nome.toLowerCase().includes(termo) || p.variacoes.some(v => v.codigoBarras === termo);
+      return bateBusca && (!state.filtroCategoria || p.categoria === state.filtroCategoria);
     });
   }
 
@@ -920,453 +1508,602 @@
 
     const lista = produtosFiltrados();
     if (!lista.find(p => p.id === state.estoqueSelecionadoId)) state.estoqueSelecionadoId = lista.length ? lista[0].id : null;
-
     const listaEl = document.getElementById('produtos-lista');
     listaEl.innerHTML = lista.length ? lista.map(p => {
-      const temBaixo = p.variacoes.some(v => v.estoque > 0 && v.estoque <= v.estoqueMinimo);
-      const semEstoque = p.estoqueTotal === 0;
-      const cor = semEstoque ? 'var(--zero-text)' : temBaixo ? 'var(--baixo-text)' : 'var(--ok-text)';
+      const ativas = p.variacoes.filter(v => v.ativo);
+      const temBaixo = ativas.some(v => v.estoque > 0 && v.estoque <= v.estoqueMinimo);
+      const temZero = ativas.some(v => v.estoque <= 0);
+      const cor = p.estoqueTotal <= 0 ? 'var(--zero-text)' : temBaixo || temZero ? 'var(--baixo-text)' : 'var(--ok-text)';
       return `<button class="produto-row ${p.id === state.estoqueSelecionadoId ? 'ativo' : ''}" data-id="${p.id}">
         <div class="produto-row-avatar" style="background:${p.swatch}">${esc(p.nome.charAt(0))}</div>
-        <div class="produto-row-info">
-          <div class="produto-row-nome">${esc(p.nome)}</div>
-          <div class="produto-row-meta">${esc(p.categoria)} · ${fmt(p.precoBase)}</div>
-        </div>
-        <div class="produto-row-estoque">
-          <div style="color:${cor};font-weight:700">${p.estoqueTotal} un.</div>
-          ${temBaixo && !semEstoque ? '<div class="baixo-tag">estoque baixo</div>' : ''}
-        </div>
+        <div class="produto-row-info"><div class="produto-row-nome">${esc(p.nome)}${p.ativo ? '' : ' <span class="tag cinza">inativo</span>'}</div><div class="produto-row-meta">${esc(p.categoria)} · ${fmt(p.precoBase)}</div></div>
+        <div class="produto-row-estoque"><div style="color:${cor};font-weight:700">${p.estoqueTotal} un.</div>${temZero && p.estoqueTotal > 0 ? '<div class="baixo-tag">tem tamanho esgotado</div>' : temBaixo ? '<div class="baixo-tag">estoque baixo</div>' : ''}</div>
       </button>`;
-    }).join('') : '<div class="vazio">Nenhum produto cadastrado ainda.</div>';
+    }).join('') : '<div class="vazio">Nenhum produto encontrado.</div>';
     listaEl.querySelectorAll('[data-id]').forEach(b => b.addEventListener('click', () => setState({ estoqueSelecionadoId: b.dataset.id })));
 
     const detalheEl = document.getElementById('produto-detalhe');
     const produto = state.produtos.find(p => p.id === state.estoqueSelecionadoId);
-    if (!produto) { detalheEl.innerHTML = '<div class="vazio">Cadastre o primeiro produto pra começar.</div>'; return; }
+    if (!produto) { detalheEl.innerHTML = '<div class="vazio">' + (ehAdmin() ? 'Cadastre o primeiro produto pra começar.' : 'Nenhum produto cadastrado.') + '</div>'; return; }
     const margem = produto.precoBase > 0 ? Math.round(((produto.precoBase - produto.custoUnitario) / produto.precoBase) * 100) : 0;
     detalheEl.innerHTML = `
       <div class="detalhe-head">
-        <div>
-          <div class="detalhe-categoria">${esc(produto.categoria)}</div>
-          <div class="detalhe-nome titulo">${esc(produto.nome)}</div>
-        </div>
-        <div class="detalhe-acoes">
-          <button class="btn-secundario" disabled title="Ainda não disponível">Editar produto</button>
-          <button class="btn-secundario" disabled title="Ainda não disponível">+ Nova variação</button>
-        </div>
+        <div><div class="detalhe-categoria">${esc(produto.categoria)}${produto.ncm ? ' · NCM ' + esc(produto.ncm) : ''}</div><div class="detalhe-nome titulo">${esc(produto.nome)}</div></div>
+        ${ehAdmin() ? `<div class="detalhe-acoes"><button class="btn-secundario" id="btn-editar-produto">Editar produto e estoque</button><button class="btn-secundario" id="btn-nova-cor">+ Nova cor</button></div>` : ''}
       </div>
       <div class="stats-row">
         <div class="stat-card"><div class="stat-label">Estoque total</div><div class="stat-valor">${produto.estoqueTotal} un.</div></div>
-        <div class="stat-card"><div class="stat-label">Preço de venda</div><div class="stat-valor" style="color:var(--accent)">${fmt(produto.precoBase)}</div></div>
-        <div class="stat-card"><div class="stat-label">Custo unitário</div><div class="stat-valor">${fmt(produto.custoUnitario)}</div></div>
-        <div class="stat-card"><div class="stat-label">Margem</div><div class="stat-valor" style="color:var(--teal)">${margem}%</div></div>
+        <div class="stat-card"><div class="stat-label">Preço de venda</div><div class="stat-valor" style="color:var(--accent)">${produto.precoBase === produto.precoMax ? fmt(produto.precoBase) : fmt(produto.precoBase) + ' – ' + fmt(produto.precoMax)}</div></div>
+        ${ehAdmin() ? `<div class="stat-card"><div class="stat-label">Custo médio</div><div class="stat-valor">${fmt(produto.custoUnitario)}</div></div>
+        <div class="stat-card"><div class="stat-label">Margem</div><div class="stat-valor" style="color:var(--teal)">${margem}%</div></div>` : ''}
       </div>
       <div class="grade-painel" style="margin-top:16px">
         <div class="grade-titulo">Grade de estoque</div>
-        <div class="grade-sub">Tamanho × cor</div>
+        <div class="grade-sub">Tamanho × cor${produto.grade ? ' · grade "' + esc(produto.grade.nome) + '"' : ''}</div>
         ${gradeHtml(produto, { grande: true })}
-      </div>
-    `;
-  }
-
-  /* ---------- Novo produto (modal com câmera não, com formulário) ---------- */
-  function abrirNovoProduto() {
-    const modal = document.getElementById('modal');
-    modal.style.display = 'flex';
-    const opcoesGrade = state.grades.map(g => `<option value="${g.id}">${esc(g.nome)} (${g.tamanhos.map(t => esc(t)).join(', ')})</option>`).join('');
-    modal.innerHTML = `
-      <div class="modal-card" style="max-width:480px">
-        <div class="modal-head">
-          <div>
-            <div class="modal-titulo">Novo produto</div>
-            <div class="modal-sub">Cria o produto e todas as variações (tamanho × cor) de uma vez</div>
-          </div>
-          <button class="btn-fechar" id="np-fechar" aria-label="Fechar">×</button>
-        </div>
-        <label class="campo">Nome do produto
-          <input id="np-nome" type="text" placeholder="Ex.: Camiseta Foguete">
-        </label>
-        <label class="campo">Categoria (opcional)
-          <input id="np-categoria" type="text" placeholder="Ex.: Camisetas">
-        </label>
-        <label class="campo">Grade de tamanho
-          <select id="np-grade">
-            ${opcoesGrade}
-            <option value="__nova__" ${state.grades.length ? '' : 'selected'}>+ Criar nova grade</option>
-          </select>
-        </label>
-        <div id="np-nova-grade" style="display:${state.grades.length ? 'none' : 'flex'};flex-direction:column;gap:8px">
-          <label class="campo">Nome da nova grade
-            <input id="np-grade-nome" type="text" placeholder="Ex.: Infantil numérica">
-          </label>
-          <label class="campo">Tamanhos (separados por vírgula, na ordem certa)
-            <input id="np-grade-tamanhos" type="text" placeholder="Ex.: 2, 4, 6, 8, 10">
-          </label>
-        </div>
-        <label class="campo">Cores (separadas por vírgula)
-          <input id="np-cores" type="text" placeholder="Ex.: Azul, Amarelo">
-        </label>
-        <div style="display:flex;gap:10px">
-          <label class="campo" style="flex:1">Preço de venda
-            <input id="np-preco" type="number" step="0.01" min="0" placeholder="39.90">
-          </label>
-          <label class="campo" style="flex:1">Custo unitário
-            <input id="np-custo" type="number" step="0.01" min="0" placeholder="18.00">
-          </label>
-          <label class="campo" style="flex:1">Estoque inicial (por variação)
-            <input id="np-estoque" type="number" step="1" min="0" placeholder="0">
-          </label>
-          <label class="campo" style="flex:1">Estoque mínimo (alerta)
-            <input id="np-estoque-minimo" type="number" step="1" min="0" placeholder="4">
-          </label>
-        </div>
-        <div class="erro-modal" id="np-erro"></div>
-        <button class="btn-primario" id="np-salvar" style="margin-top:4px">Criar produto</button>
-      </div>
-    `;
-    const fechar = () => { modal.style.display = 'none'; modal.innerHTML = ''; };
-    document.getElementById('np-fechar').addEventListener('click', fechar);
-    modal.addEventListener('click', (e) => { if (e.target === modal) fechar(); });
-    document.getElementById('np-grade').addEventListener('change', (e) => {
-      document.getElementById('np-nova-grade').style.display = e.target.value === '__nova__' ? 'flex' : 'none';
-    });
-    document.getElementById('np-salvar').addEventListener('click', salvarNovoProduto);
-  }
-
-  function mostrarErroModal(el, msg) { el.textContent = msg; el.style.display = 'block'; }
-
-  async function salvarNovoProduto() {
-    const erroEl = document.getElementById('np-erro');
-    erroEl.style.display = 'none';
-    const nome = document.getElementById('np-nome').value.trim();
-    const categoria = document.getElementById('np-categoria').value.trim();
-    const gradeSel = document.getElementById('np-grade').value;
-    const cores = document.getElementById('np-cores').value.split(',').map(s => s.trim()).filter(Boolean);
-    const preco = Number(document.getElementById('np-preco').value);
-    const custo = Number(document.getElementById('np-custo').value) || 0;
-    const estoqueInicial = Number(document.getElementById('np-estoque').value) || 0;
-    const estoqueMinimo = Number(document.getElementById('np-estoque-minimo').value) || 0;
-
-    if (!nome) return mostrarErroModal(erroEl, 'Digite o nome do produto.');
-    if (!cores.length) return mostrarErroModal(erroEl, 'Digite ao menos uma cor.');
-    if (!Number.isFinite(preco) || preco <= 0) return mostrarErroModal(erroEl, 'Preço de venda inválido.');
-
-    const botao = document.getElementById('np-salvar');
-    botao.disabled = true; botao.textContent = 'Criando...';
-    try {
-      let gradeId = gradeSel;
-      let tamanhos;
-      if (gradeSel === '__nova__') {
-        const gradeNome = document.getElementById('np-grade-nome').value.trim();
-        tamanhos = document.getElementById('np-grade-tamanhos').value.split(',').map(s => s.trim()).filter(Boolean);
-        if (!gradeNome || !tamanhos.length) throw new Error('Preencha o nome e os tamanhos da nova grade.');
-        const grade = await api('/grades-tamanho', { method: 'POST', body: JSON.stringify({ nome: gradeNome, tamanhos }) });
-        gradeId = grade.id;
-        state.grades.push({ id: grade.id, nome: gradeNome, tamanhos });
-      } else {
-        const grade = state.grades.find(g => g.id === gradeSel);
-        if (!grade) throw new Error('Selecione uma grade de tamanho.');
-        tamanhos = grade.tamanhos;
-      }
-
-      const produto = await api('/produtos', { method: 'POST', body: JSON.stringify({ nome, categoria: categoria || null, gradeTamanhoId: gradeId }) });
-
-      for (const tamanho of tamanhos) {
-        for (const cor of cores) {
-          await api('/produtos/' + produto.id + '/variacoes', {
-            method: 'POST',
-            body: JSON.stringify({ tamanho, cor, precoVenda: preco, custoUnitario: custo, estoqueMinimo, estoqueInicial }),
-          });
-        }
-      }
-
-      document.getElementById('modal').style.display = 'none';
-      document.getElementById('modal').innerHTML = '';
-      await carregarProdutos();
-      setState({ estoqueSelecionadoId: produto.id });
-    } catch (e) {
-      mostrarErroModal(erroEl, e.message || 'Falha ao criar produto.');
-      botao.disabled = false; botao.textContent = 'Criar produto';
+      </div>`;
+    if (ehAdmin()) {
+      document.getElementById('btn-editar-produto').onclick = () => abrirEditarProduto(produto.id);
+      document.getElementById('btn-nova-cor').onclick = () => abrirNovaCor(produto.id);
     }
   }
 
-  /* ---------- Fluxo de caixa (ainda protótipo) ---------- */
-  function renderFluxo() {
-    document.getElementById('mes-atual').textContent = MESES[state.mesIndex];
-    const totalDespesas = DESPESAS.reduce((s, d) => s + d.valor, 0);
-    const receitaMes = 12500 + (state.vendasHojeReal || []).reduce((s, v) => s + Number(v.total), 0);
-    const saldo = receitaMes - totalDespesas;
-    document.getElementById('fluxo-stats').innerHTML = `
-      <div class="stat-card"><div class="stat-label">Receita do mês</div><div class="stat-valor" style="color:var(--ok-text)">${fmt(receitaMes)}</div></div>
-      <div class="stat-card"><div class="stat-label">Despesas do mês</div><div class="stat-valor" style="color:var(--zero-text)">${fmt(totalDespesas)}</div></div>
-      <div class="stat-card"><div class="stat-label">Saldo</div><div class="stat-valor" style="color:${saldo >= 0 ? 'var(--ok-text)' : 'var(--zero-text)'}">${fmt(saldo)}</div></div>
-    `;
-    document.getElementById('fluxo-tabela').innerHTML = `
-      <tr><th>Data</th><th>Descrição</th><th>Categoria</th><th>Forma</th><th style="text-align:right">Valor</th></tr>
-      ${DESPESAS.map(d => `<tr><td>${esc(d.data)}</td><td>${esc(d.descricao)}</td><td>${esc(d.categoria)}</td><td>${esc(d.forma)}</td><td style="text-align:right;font-weight:600">${fmt(d.valor)}</td></tr>`).join('')}
-    `;
-  }
-
-  /* ---------- Equipe (lista real, cadastro ainda não) ---------- */
-  function renderEquipe() {
-    document.getElementById('equipe-lista').innerHTML = state.usuarios.map(u => `
-      <div class="linha-simples" style="padding:12px 0">
-        <div class="avatar" style="width:36px;height:36px;font-size:14px;background:var(--accent)">${esc(u.nome.charAt(0))}</div>
-        <div style="flex-grow:1;min-width:0">
-          <div style="font-size:14px;font-weight:600">${esc(u.nome)}</div>
-          <div style="font-size:11px;color:var(--text-2)">PIN ····</div>
+  function abrirNovoProduto() {
+    const opcoesGrade = state.grades.map(g => `<option value="${g.id}">${esc(g.nome)} (${g.tamanhos.map(t => esc(t)).join(', ')})</option>`).join('');
+    const camada = abrirModal(`
+      <div class="modal-card">
+        ${cabecalhoModal('Novo produto', 'Cria o produto e todas as variações (tamanho × cor) de uma vez')}
+        <label class="campo">Nome do produto (sem tamanho/cor)<input id="np-nome" type="text" placeholder="Ex.: Vestido Pérola Linho"></label>
+        <div class="linha-campos">
+          <label class="campo">Categoria<input id="np-categoria" type="text" placeholder="Ex.: Vestidos" list="np-categorias"></label>
+          <label class="campo">NCM (opcional, pra nota fiscal)<input id="np-ncm" type="text" inputmode="numeric" placeholder="Ex.: 61044200"></label>
         </div>
-        <div class="badge-papel">${esc(PAPEL_LABEL[u.papel] || u.papel)}</div>
-        <button class="btn-secundario" disabled title="Ainda não disponível">Editar</button>
-      </div>
-    `).join('');
+        <datalist id="np-categorias">${categoriasUnicas().filter(c => c !== 'Sem categoria').map(c => `<option value="${esc(c)}">`).join('')}</datalist>
+        <label class="campo">Grade de tamanho
+          <select id="np-grade">${opcoesGrade}<option value="__nova__" ${state.grades.length ? '' : 'selected'}>+ Criar nova grade</option></select>
+        </label>
+        <div id="np-nova-grade" style="display:${state.grades.length ? 'none' : 'flex'};flex-direction:column;gap:8px">
+          <div class="linha-campos">
+            <label class="campo">Nome da nova grade<input id="np-grade-nome" type="text" placeholder="Ex.: Infantil numérica"></label>
+            <label class="campo">Tamanhos (vírgula, na ordem)<input id="np-grade-tamanhos" type="text" placeholder="Ex.: 2, 4, 6, 8, 10"></label>
+          </div>
+        </div>
+        <label class="campo">Cores (separadas por vírgula)<input id="np-cores" type="text" placeholder="Ex.: Azul, Amarelo"></label>
+        <div class="linha-campos">
+          <label class="campo">Preço de venda<input id="np-preco" type="text" inputmode="decimal" placeholder="39,90"></label>
+          <label class="campo">Custo unitário<input id="np-custo" type="text" inputmode="decimal" placeholder="18,00"></label>
+        </div>
+        <div class="linha-campos">
+          <label class="campo">Estoque inicial (cada tamanho/cor)<input id="np-estoque" type="text" inputmode="numeric" placeholder="0"></label>
+          <label class="campo">Estoque mínimo (alerta)<input id="np-estoque-minimo" type="text" inputmode="numeric" placeholder="2"></label>
+        </div>
+        <div class="modal-dica">Cada tamanho/cor ganha um código de barras próprio automaticamente.</div>
+        <div class="erro-modal" id="np-erro"></div>
+        <button class="btn-primario btn-grande" id="np-salvar">Criar produto</button>
+      </div>`);
+    camada.querySelector('#np-nome').focus();
+    camada.querySelector('#np-grade').addEventListener('change', (e) => {
+      camada.querySelector('#np-nova-grade').style.display = e.target.value === '__nova__' ? 'flex' : 'none';
+    });
+    camada.querySelector('#np-salvar').onclick = (ev) => comBotao(ev.target, 'Criando...', async () => {
+      const nome = camada.querySelector('#np-nome').value.trim();
+      const cores = camada.querySelector('#np-cores').value.split(',').map(s => s.trim()).filter(Boolean);
+      const preco = parseNumBR(camada.querySelector('#np-preco').value);
+      const custo = parseNumBR(camada.querySelector('#np-custo').value || '0');
+      const inicial = parseNumBR(camada.querySelector('#np-estoque').value || '0');
+      const minimo = parseNumBR(camada.querySelector('#np-estoque-minimo').value || '0');
+      if (!nome) throw new Error('Digite o nome do produto.');
+      if (!cores.length) throw new Error('Digite ao menos uma cor.');
+      if (!Number.isFinite(preco) || preco <= 0) throw new Error('Preço de venda inválido.');
+      if (!Number.isFinite(custo) || custo < 0) throw new Error('Custo inválido.');
+      if (!Number.isInteger(inicial) || inicial < 0 || !Number.isInteger(minimo) || minimo < 0) throw new Error('Estoque deve ser número inteiro.');
+      const gradeSel = camada.querySelector('#np-grade').value;
+      let gradeId = gradeSel, tamanhos;
+      if (gradeSel === '__nova__') {
+        const gradeNome = camada.querySelector('#np-grade-nome').value.trim();
+        tamanhos = camada.querySelector('#np-grade-tamanhos').value.split(',').map(s => s.trim()).filter(Boolean);
+        if (!gradeNome || !tamanhos.length) throw new Error('Preencha o nome e os tamanhos da nova grade.');
+        const g = await api('/grades-tamanho', { method: 'POST', body: { nome: gradeNome, tamanhos } });
+        gradeId = g.id; state.grades.push(g);
+        camada.querySelector('#np-grade').insertAdjacentHTML('afterbegin', `<option value="${g.id}">${esc(g.nome)}</option>`);
+        camada.querySelector('#np-grade').value = g.id;
+        camada.querySelector('#np-nova-grade').style.display = 'none';
+      } else {
+        const g = state.grades.find(x => x.id === gradeSel);
+        if (!g) throw new Error('Selecione uma grade de tamanho.');
+        tamanhos = g.tamanhos;
+      }
+      const produto = await api('/produtos', { method: 'POST', body: { nome, categoria: camada.querySelector('#np-categoria').value, ncm: camada.querySelector('#np-ncm').value, gradeTamanhoId: gradeId } });
+      for (const tamanho of tamanhos) {
+        for (const cor of cores) {
+          await api('/produtos/' + produto.id + '/variacoes', { method: 'POST', body: { tamanho, cor, precoVenda: preco, custoUnitario: custo, estoqueMinimo: minimo, estoqueInicial: inicial } });
+        }
+      }
+      fecharModal();
+      await carregarProdutos();
+      setState({ estoqueSelecionadoId: produto.id, busca: '', filtroCategoria: null });
+      document.getElementById('busca').value = '';
+      toast('Produto criado com ' + (tamanhos.length * cores.length) + ' variações');
+    }, camada.querySelector('#np-erro'));
   }
 
-  /* ---------- Bater ponto (reconhecimento real, registro ainda local) ---------- */
-  function statusPessoa(usuarioId) {
-    const regs = state.pontosHoje.filter(p => p.usuarioId === usuarioId);
-    if (!regs.length) return 'fora';
-    return regs[regs.length - 1].tipo === 'entrada' ? 'dentro' : 'fora';
+  function abrirEditarProduto(produtoId) {
+    const p = state.produtos.find(x => x.id === produtoId);
+    const vars = p.tamanhos.flatMap(t => p.variacoes.filter(v => v.tamanho === t));
+    const camada = abrirModal(`<div class="modal-card largo">
+      ${cabecalhoModal('Editar ' + p.nome, 'Mudar o estoque aqui registra um ajuste de contagem (fica no histórico)')}
+      <div class="linha-campos">
+        <label class="campo">Nome<input id="ep-nome" type="text" value="${esc(p.nome)}"></label>
+        <label class="campo">Categoria<input id="ep-categoria" type="text" value="${esc(p.categoria === 'Sem categoria' ? '' : p.categoria)}"></label>
+        <label class="campo">NCM<input id="ep-ncm" type="text" inputmode="numeric" value="${esc(p.ncm)}"></label>
+      </div>
+      <div class="tabela-scroll"><table class="tabela">
+        <tr><th>Tam.</th><th>Cor</th><th>Código de barras</th><th>Preço</th><th>Mínimo</th><th>Estoque</th><th>Ativa</th></tr>
+        ${vars.map((v, i) => `<tr data-linha="${i}">
+          <td><b>${esc(v.tamanho)}</b></td><td>${esc(v.cor)}</td>
+          <td><input data-campo="codigo" value="${esc(v.codigoBarras)}" class="mono" style="min-width:130px"></td>
+          <td><input data-campo="preco" inputmode="decimal" value="${fmtNum(v.preco)}"></td>
+          <td><input data-campo="minimo" inputmode="numeric" value="${v.estoqueMinimo}"></td>
+          <td><input data-campo="estoque" inputmode="numeric" value="${v.estoque}"></td>
+          <td><input data-campo="ativo" type="checkbox" ${v.ativo ? 'checked' : ''} style="width:auto;min-width:0"></td></tr>`).join('')}
+      </table></div>
+      <div class="modal-dica">Dica: pra mudar o preço de todas de uma vez, preencha aqui e clique em "aplicar a todas":
+        <input id="ep-preco-todas" type="text" inputmode="decimal" style="width:80px;padding:4px 6px;border-radius:6px;border:1px solid var(--border)"> <button class="link-btn" id="ep-aplicar">aplicar a todas</button></div>
+      <div class="erro-modal" id="ep-erro"></div>
+      <div class="modal-acoes"><button class="btn-secundario" data-fechar>Cancelar</button><button class="btn-primario btn-grande" id="ep-salvar">Salvar alterações</button></div>
+    </div>`);
+    camada.querySelector('#ep-aplicar').onclick = () => {
+      const valor = camada.querySelector('#ep-preco-todas').value;
+      camada.querySelectorAll('[data-campo="preco"]').forEach(inp => { inp.value = valor; });
+    };
+    camada.querySelector('#ep-salvar').onclick = (ev) => comBotao(ev.target, 'Salvando...', async () => {
+      const nome = camada.querySelector('#ep-nome').value.trim();
+      if (!nome) throw new Error('Nome não pode ficar vazio');
+      const mudancas = [];
+      camada.querySelectorAll('[data-linha]').forEach(tr => {
+        const v = vars[Number(tr.dataset.linha)];
+        const campo = (c) => tr.querySelector('[data-campo="' + c + '"]');
+        const preco = parseNumBR(campo('preco').value), minimo = parseNumBR(campo('minimo').value), estoque = parseNumBR(campo('estoque').value);
+        const codigo = campo('codigo').value.replace(/\D/g, ''), ativo = campo('ativo').checked;
+        if (!Number.isFinite(preco) || preco < 0) throw new Error('Preço inválido no tamanho ' + v.tamanho + ' ' + v.cor);
+        if (!Number.isInteger(minimo) || minimo < 0 || !Number.isInteger(estoque) || estoque < 0) throw new Error('Estoque/mínimo inválido no tamanho ' + v.tamanho + ' ' + v.cor);
+        mudancas.push({ v, preco, minimo, estoque, codigo, ativo });
+      });
+      await api('/produtos/' + p.id, { method: 'PUT', body: { nome, categoria: camada.querySelector('#ep-categoria').value, ncm: camada.querySelector('#ep-ncm').value } });
+      for (const m of mudancas) {
+        const corpo = {};
+        if (round2(m.preco) !== m.v.preco) corpo.precoVenda = m.preco;
+        if (m.minimo !== m.v.estoqueMinimo) corpo.estoqueMinimo = m.minimo;
+        if (m.codigo && m.codigo !== m.v.codigoBarras) corpo.codigoBarras = m.codigo;
+        if (m.ativo !== m.v.ativo) corpo.ativo = m.ativo;
+        if (Object.keys(corpo).length) await api('/variacoes/' + m.v.id, { method: 'PUT', body: corpo });
+        if (m.estoque !== m.v.estoque) await api('/variacoes/' + m.v.id + '/ajuste-estoque', { method: 'POST', body: { novoEstoque: m.estoque, observacao: 'Ajuste pela tela de edição' } });
+      }
+      fecharModal(); await carregarProdutos(); render(); toast('Produto atualizado');
+    }, camada.querySelector('#ep-erro'));
   }
-  function baterPonto(usuario) {
-    const status = statusPessoa(usuario.id);
-    const tipo = status === 'dentro' ? 'saida' : 'entrada';
-    const hora = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
-    setState({ pontosHoje: [...state.pontosHoje, { usuarioId: usuario.id, nome: usuario.nome, tipo, hora }] });
+
+  function abrirNovaCor(produtoId) {
+    const p = state.produtos.find(x => x.id === produtoId);
+    const tamanhos = p.grade ? p.grade.tamanhos : p.tamanhos;
+    const camada = abrirModal(`<div class="modal-card">
+      ${cabecalhoModal('Nova cor — ' + p.nome, 'Cria a cor em todos os tamanhos: ' + tamanhos.join(', '))}
+      <label class="campo">Cor<input id="nc-cor" type="text" placeholder="Ex.: Verde"></label>
+      <div class="linha-campos">
+        <label class="campo">Preço<input id="nc-preco" type="text" inputmode="decimal" value="${fmtNum(p.precoBase)}"></label>
+        <label class="campo">Custo<input id="nc-custo" type="text" inputmode="decimal" value="${fmtNum(p.custoUnitario)}"></label>
+      </div>
+      <div class="linha-campos">
+        <label class="campo">Estoque inicial (cada tamanho)<input id="nc-estoque" type="text" inputmode="numeric" value="0"></label>
+        <label class="campo">Estoque mínimo<input id="nc-minimo" type="text" inputmode="numeric" value="${p.variacoes[0] ? p.variacoes[0].estoqueMinimo : 0}"></label>
+      </div>
+      <div class="erro-modal" id="nc-erro"></div>
+      <button class="btn-primario btn-grande" id="nc-salvar">Criar cor</button></div>`);
+    camada.querySelector('#nc-cor').focus();
+    camada.querySelector('#nc-salvar').onclick = (ev) => comBotao(ev.target, 'Criando...', async () => {
+      const cor = camada.querySelector('#nc-cor').value.trim();
+      const preco = parseNumBR(camada.querySelector('#nc-preco').value), custo = parseNumBR(camada.querySelector('#nc-custo').value || '0');
+      const inicial = parseNumBR(camada.querySelector('#nc-estoque').value || '0'), minimo = parseNumBR(camada.querySelector('#nc-minimo').value || '0');
+      if (!cor) throw new Error('Digite a cor');
+      if (p.variacoes.some(v => v.cor.toLowerCase() === cor.toLowerCase())) throw new Error('Esse produto já tem a cor ' + cor);
+      if (!Number.isFinite(preco) || preco <= 0 || !Number.isFinite(custo) || custo < 0) throw new Error('Preço/custo inválido');
+      if (!Number.isInteger(inicial) || inicial < 0 || !Number.isInteger(minimo) || minimo < 0) throw new Error('Estoque deve ser número inteiro');
+      for (const tamanho of tamanhos) {
+        await api('/produtos/' + p.id + '/variacoes', { method: 'POST', body: { tamanho, cor, precoVenda: preco, custoUnitario: custo, estoqueInicial: inicial, estoqueMinimo: minimo } });
+      }
+      fecharModal(); await carregarProdutos(); render(); toast('Cor ' + cor + ' criada');
+    }, camada.querySelector('#nc-erro'));
+  }
+
+  /* ================= Compras ================= */
+  function renderCompras() {
+    const el = document.getElementById('compras-lista');
+    const lista = state.compras;
+    if (lista == null) { el.innerHTML = '<div class="carregando">Carregando...</div>'; return; }
+    el.innerHTML = lista.length ? `<div class="tabela-scroll"><table class="tabela"><tr><th>Data</th><th>Fornecedor</th><th>Nota</th><th>Peças</th><th style="text-align:right">Total</th><th>Fluxo</th></tr>
+      ${lista.map(c => `<tr style="cursor:pointer" data-compra="${c.id}"><td>${dataBR(c.data)}</td><td>${esc(c.fornecedor_nome || '—')}</td><td>${esc(c.numero_nota || '—')}</td>
+        <td>${Number(c.qtd_pecas)}</td><td style="text-align:right;font-weight:600">${fmt(c.total)}</td><td>${c.despesa_id ? '<span class="tag ok">lançada</span>' : '<span class="tag cinza">não</span>'}</td></tr>`).join('')}</table></div>`
+      : '<div class="vazio">Nenhuma entrada de nota ainda.</div>';
+    el.querySelectorAll('[data-compra]').forEach(tr => tr.addEventListener('click', () => verCompra(tr.dataset.compra)));
+  }
+
+  async function verCompra(id) {
+    let c;
+    try { c = await api('/compras/' + id); } catch (e) { toast(e.message, 'erro'); return; }
+    abrirModal(`<div class="modal-card largo">${cabecalhoModal('Nota ' + (c.numero_nota || 's/ número'), (c.fornecedor_nome || 'Sem fornecedor') + ' · ' + dataBR(c.data))}
+      <div class="tabela-scroll"><table class="tabela"><tr><th>Peça</th><th>Qtd</th><th style="text-align:right">Custo un.</th><th style="text-align:right">Subtotal</th></tr>
+      ${c.itens.map(i => `<tr><td>${esc(i.produto_nome)} · ${esc(i.tamanho)}${i.cor ? ' · ' + esc(i.cor) : ''}</td><td>${Number(i.qtd)}</td><td style="text-align:right">${fmt(i.custo_unitario)}</td><td style="text-align:right">${fmt(Number(i.qtd) * Number(i.custo_unitario))}</td></tr>`).join('')}
+      </table></div><div class="linha-total grande"><span>Total</span><span>${fmt(c.total)}</span></div></div>`);
+  }
+
+  async function abrirNovaCompra() {
+    let fornecedores = [];
+    try { fornecedores = await api('/fornecedores'); await carregarProdutos(); } catch (e) { toast(e.message, 'erro'); return; }
+    const itens = [];
+    const camada = abrirModal(`<div class="modal-card largo">
+      ${cabecalhoModal('Entrada de nota', 'Soma as peças no estoque e atualiza o custo médio')}
+      <div class="linha-campos">
+        <label class="campo">Fornecedor<input id="nc-fornecedor" type="text" list="nc-fornecedores" placeholder="Nome do fornecedor"></label>
+        <label class="campo">Nº da nota<input id="nc-numero" type="text"></label>
+        <label class="campo">Data<input id="nc-data" type="date" value="${hojeLocal()}"></label>
+      </div>
+      <datalist id="nc-fornecedores">${fornecedores.map(f => `<option value="${esc(f.nome)}">`).join('')}</datalist>
+      <div class="painel" style="padding:14px">
+        <div class="painel-titulo" style="font-size:14px">Adicionar peças</div>
+        <select id="nc-produto" class="input-busca"><option value="">Escolha o produto...</option>${state.produtos.map(p => `<option value="${p.id}">${esc(p.nome)}</option>`).join('')}</select>
+        <div id="nc-grade" style="margin-top:10px"></div>
+      </div>
+      <div id="nc-itens"></div>
+      <label style="display:flex;align-items:center;gap:8px;font-size:13px"><input type="checkbox" id="nc-despesa" checked> Lançar no fluxo de caixa como despesa
+        <select id="nc-forma" style="padding:6px;border-radius:7px;border:1px solid var(--border)"><option>Boleto</option><option>Pix</option><option>Dinheiro</option><option>Cartão</option><option>Transferência</option></select></label>
+      <div class="erro-modal" id="nc-erro"></div>
+      <div class="modal-acoes"><button class="btn-secundario" data-fechar>Cancelar</button><button class="btn-primario btn-grande" id="nc-salvar">Salvar entrada</button></div>
+    </div>`);
+    const desenharItens = () => {
+      const total = round2(itens.reduce((s, i) => s + i.qtd * i.custo, 0));
+      camada.querySelector('#nc-itens').innerHTML = itens.length ? `<div class="tabela-scroll"><table class="tabela"><tr><th>Peça</th><th>Qtd</th><th style="text-align:right">Custo un.</th><th style="text-align:right">Subtotal</th><th></th></tr>
+        ${itens.map((i, k) => `<tr><td>${esc(i.rotulo)}</td><td>${i.qtd}</td><td style="text-align:right">${fmt(i.custo)}</td><td style="text-align:right">${fmt(i.qtd * i.custo)}</td><td><button class="link-btn" data-rem="${k}">remover</button></td></tr>`).join('')}
+        </table></div><div class="linha-total grande"><span>Total da nota</span><span>${fmt(total)}</span></div>` : '<div class="modal-dica">Nenhuma peça adicionada ainda.</div>';
+      camada.querySelectorAll('[data-rem]').forEach(b => b.onclick = () => { itens.splice(Number(b.dataset.rem), 1); desenharItens(); });
+    };
+    desenharItens();
+    camada.querySelector('#nc-produto').onchange = (e) => {
+      const p = state.produtos.find(x => x.id === e.target.value);
+      const box = camada.querySelector('#nc-grade');
+      if (!p) { box.innerHTML = ''; return; }
+      const cores = p.cores;
+      box.innerHTML = `<div class="modal-dica">Quantidade que chegou de cada tamanho/cor:</div>
+        <div class="grade" style="margin-top:8px;overflow-x:auto"><div class="grade-row grade-header"><div class="grade-tamanho"></div>${cores.map(c => `<div class="grade-cor-label"><span class="dot" style="background:${c.hex}"></span>${esc(c.nome)}</div>`).join('')}</div>
+        ${p.tamanhos.map(t => `<div class="grade-row"><div class="grade-tamanho">${esc(t)}</div>${cores.map(c => {
+          const v = p.variacoes.find(x => x.tamanho === t && x.cor === c.nome);
+          return v ? `<div class="cel-input"><input data-var="${v.id}" inputmode="numeric" placeholder="0"></div>` : '<div class="cel-input"></div>';
+        }).join('')}</div>`).join('')}</div>
+        <div class="linha-campos" style="margin-top:10px;align-items:flex-end">
+          <label class="campo">Custo unitário (desta nota)<input id="nc-custo" inputmode="decimal" value="${fmtNum(p.custoUnitario)}"></label>
+          <button class="btn-primario" id="nc-add" style="flex:0 0 auto">Adicionar à nota</button>
+        </div>`;
+      box.querySelector('#nc-add').onclick = () => {
+        const custo = parseNumBR(box.querySelector('#nc-custo').value);
+        if (!Number.isFinite(custo) || custo < 0) { toast('Custo inválido', 'erro'); return; }
+        let adicionou = 0;
+        box.querySelectorAll('[data-var]').forEach(inp => {
+          const qtd = parseNumBR(inp.value || '0');
+          if (!Number.isInteger(qtd) || qtd <= 0) return;
+          const v = p.variacoes.find(x => x.id === inp.dataset.var);
+          itens.push({ variacaoId: v.id, qtd, custo: round2(custo), rotulo: p.nome + ' · ' + v.tamanho + (v.cor ? ' · ' + v.cor : '') });
+          adicionou++;
+        });
+        if (!adicionou) { toast('Informe a quantidade em pelo menos um tamanho/cor', 'erro'); return; }
+        camada.querySelector('#nc-produto').value = ''; box.innerHTML = ''; desenharItens();
+      };
+    };
+    camada.querySelector('#nc-salvar').onclick = (ev) => comBotao(ev.target, 'Salvando...', async () => {
+      if (!itens.length) throw new Error('Adicione pelo menos uma peça.');
+      const nomeForn = camada.querySelector('#nc-fornecedor').value.trim();
+      const existente = fornecedores.find(f => f.nome.toLowerCase() === nomeForn.toLowerCase());
+      await api('/compras', { method: 'POST', body: {
+        fornecedorId: existente ? existente.id : undefined, fornecedorNome: existente ? undefined : (nomeForn || undefined),
+        numeroNota: camada.querySelector('#nc-numero').value, data: camada.querySelector('#nc-data').value,
+        itens: itens.map(i => ({ variacaoId: i.variacaoId, qtd: i.qtd, custoUnitario: i.custo })),
+        lancarDespesa: camada.querySelector('#nc-despesa').checked, formaPagamento: camada.querySelector('#nc-forma').value,
+      } });
+      fecharModal(); toast('Entrada registrada — estoque atualizado'); carregarDadosDaView('compras');
+    }, camada.querySelector('#nc-erro'));
+  }
+
+  /* ================= Fluxo de caixa ================= */
+  function nomeMes(ym) { const [a, m] = ym.split('-').map(Number); return MESES_NOME[m - 1] + ' ' + a; }
+  function mudarMes(delta) {
+    const [a, m] = state.mesFluxo.split('-').map(Number);
+    const d = new Date(Date.UTC(a, m - 1 + delta, 1));
+    state.mesFluxo = d.getUTCFullYear() + '-' + String(d.getUTCMonth() + 1).padStart(2, '0');
+    state.fluxo = null; render(); carregarDadosDaView('fluxo');
+  }
+  function renderFluxo() {
+    document.getElementById('mes-atual').textContent = nomeMes(state.mesFluxo);
+    const el = document.getElementById('fluxo-conteudo');
+    const f = state.fluxo;
+    if (!f) { el.innerHTML = '<div class="carregando">Carregando...</div>'; return; }
+    const maxForma = Math.max(1, ...f.porForma.map(x => x.total));
+    el.innerHTML = `
+      <div class="stats-row">
+        <div class="stat-card"><div class="stat-label">Receita (vendas)</div><div class="stat-valor valor-ok">${fmt(f.receita)}</div></div>
+        <div class="stat-card"><div class="stat-label">Despesas</div><div class="stat-valor valor-neg">${fmt(f.totalDespesas)}</div></div>
+        <div class="stat-card"><div class="stat-label">Saldo do mês</div><div class="stat-valor ${f.saldo >= 0 ? 'valor-ok' : 'valor-neg'}">${fmt(f.saldo)}</div></div>
+      </div>
+      <div class="paineis-duas-colunas">
+        <div class="painel" style="flex:1"><div class="painel-titulo">Receita por forma</div>
+          ${f.porForma.length ? f.porForma.map(x => `<div class="barra-linha"><div class="barra-label">${esc(x.forma)}</div><div class="barra-trilho"><div class="barra-fill" style="width:${(x.total / maxForma * 100).toFixed(0)}%;background:${TIPO_CREDITO[x.forma] ? 'var(--border)' : 'var(--teal)'}"></div></div><div class="barra-valor">${fmt(x.total)}</div></div>`).join('')
+            : '<div class="vazio">Sem vendas no mês.</div>'}
+          ${f.creditosUsados ? `<div class="modal-dica">Cashback e vale-troca usados (${fmt(f.creditosUsados)}) não contam como receita — o dinheiro entrou na venda original.</div>` : ''}
+        </div>
+        <div class="painel" style="flex:2"><div class="painel-titulo-linha"><div class="painel-titulo">Despesas</div><button class="btn-primario" id="btn-nova-despesa">+ Nova despesa</button></div>
+          ${f.despesas.length ? `<div class="tabela-scroll"><table class="tabela"><tr><th>Data</th><th>Descrição</th><th>Categoria</th><th>Forma</th><th style="text-align:right">Valor</th><th></th></tr>
+          ${f.despesas.map(d => `<tr><td>${dataBR(d.data)}</td><td>${esc(d.descricao)}</td><td>${esc(d.categoria || '')}</td><td>${esc(d.forma_pagamento || '')}</td>
+            <td style="text-align:right;font-weight:600">${fmt(d.valor)}</td><td><button class="link-btn" data-del="${d.id}">excluir</button></td></tr>`).join('')}</table></div>`
+            : '<div class="vazio">Nenhuma despesa no mês.</div>'}
+        </div>
+      </div>`;
+    document.getElementById('btn-nova-despesa').onclick = abrirNovaDespesa;
+    el.querySelectorAll('[data-del]').forEach(b => b.onclick = async () => {
+      const d = f.despesas.find(x => x.id === b.dataset.del);
+      if (!confirm('Excluir a despesa "' + d.descricao + '" de ' + fmt(d.valor) + '?' + (d.compra_id ? '\n(A entrada de nota continua registrada; só sai do fluxo.)' : ''))) return;
+      try { await api('/despesas/' + d.id, { method: 'DELETE' }); toast('Despesa excluída'); carregarDadosDaView('fluxo'); } catch (e) { toast(e.message, 'erro'); }
+    });
+  }
+  function abrirNovaDespesa() {
+    const camada = abrirModal(`<div class="modal-card">${cabecalhoModal('Nova despesa', 'Pra boleto, use a data em que o dinheiro sai')}
+      <label class="campo">Descrição<input id="nd-desc" type="text" placeholder="Ex.: Aluguel"></label>
+      <div class="linha-campos">
+        <label class="campo">Valor<input id="nd-valor" type="text" inputmode="decimal" placeholder="0,00"></label>
+        <label class="campo">Data<input id="nd-data" type="date" value="${hojeLocal()}"></label>
+      </div>
+      <div class="linha-campos">
+        <label class="campo">Categoria<input id="nd-cat" type="text" list="nd-cats" placeholder="Ex.: Fixo"></label>
+        <label class="campo">Forma de pagamento<select id="nd-forma"><option>Pix</option><option>Boleto</option><option>Dinheiro</option><option>Débito</option><option>Crédito</option><option>Transferência</option></select></label>
+      </div>
+      <datalist id="nd-cats"><option value="Fixo"><option value="Mercadoria"><option value="Funcionários"><option value="Impostos"><option value="Manutenção"><option value="Marketing"><option value="Material"></datalist>
+      <div class="erro-modal" id="nd-erro"></div>
+      <button class="btn-primario btn-grande" id="nd-salvar">Lançar despesa</button></div>`);
+    camada.querySelector('#nd-desc').focus();
+    camada.querySelector('#nd-salvar').onclick = (ev) => comBotao(ev.target, 'Salvando...', async () => {
+      const valor = parseNumBR(camada.querySelector('#nd-valor').value);
+      if (!Number.isFinite(valor) || valor <= 0) throw new Error('Valor inválido');
+      await api('/despesas', { method: 'POST', body: { descricao: camada.querySelector('#nd-desc').value, valor, data: camada.querySelector('#nd-data').value,
+        categoria: camada.querySelector('#nd-cat').value, formaPagamento: camada.querySelector('#nd-forma').value } });
+      fecharModal(); toast('Despesa lançada'); carregarDadosDaView('fluxo');
+    }, camada.querySelector('#nd-erro'));
+  }
+
+  /* ================= Equipe ================= */
+  function renderEquipe() {
+    const el = document.getElementById('equipe-lista');
+    if (!state.equipe) { el.innerHTML = '<div class="carregando">Carregando...</div>'; return; }
+    el.innerHTML = state.equipe.map(u => `
+      <div class="linha-simples" style="padding:12px 0;${u.ativo ? '' : 'opacity:.55'}">
+        <div class="avatar" style="width:36px;height:36px;font-size:14px;background:var(--accent)">${esc(u.nome.charAt(0))}</div>
+        <div style="flex-grow:1;min-width:0"><div style="font-size:14px;font-weight:600">${esc(u.nome)}${u.id === state.logado.id ? ' <span class="tag cinza">você</span>' : ''}</div>
+          <div style="font-size:11px;color:var(--text-2)">${u.ativo ? 'Ativo' : 'Desativado'}</div></div>
+        <div class="badge-papel">${esc(PAPEL_LABEL[u.papel] || u.papel)}</div>
+        <button class="btn-secundario" data-editar="${u.id}">Editar</button>
+      </div>`).join('');
+    el.querySelectorAll('[data-editar]').forEach(b => b.onclick = () => abrirUsuario(state.equipe.find(u => u.id === b.dataset.editar)));
+    const cfg = state.config;
+    document.getElementById('config-loja').innerHTML = `
+      <div class="linha-campos" style="max-width:520px;align-items:flex-end">
+        <label class="campo">Cashback pro cliente (%)<input id="cfg-cashback" inputmode="decimal" value="${String(cfg.cashbackPct).replace('.', ',')}"></label>
+        <label class="campo">Desconto que o Caixa dá sem PIN (%)<input id="cfg-desconto" inputmode="decimal" value="${String(cfg.descontoLivrePct).replace('.', ',')}"></label>
+        <button class="btn-primario" id="cfg-salvar" style="flex:0 0 auto">Salvar</button>
+      </div><div class="erro-modal" id="cfg-erro" style="margin-top:8px"></div>`;
+    document.getElementById('cfg-salvar').onclick = (ev) => comBotao(ev.target, 'Salvando...', async () => {
+      const cashbackPct = parseNumBR(document.getElementById('cfg-cashback').value), descontoLivrePct = parseNumBR(document.getElementById('cfg-desconto').value);
+      if (!Number.isFinite(cashbackPct) || !Number.isFinite(descontoLivrePct)) throw new Error('Valores inválidos');
+      await api('/config', { method: 'PUT', body: { cashbackPct, descontoLivrePct } });
+      await carregarConfig(); toast('Configurações salvas');
+    }, document.getElementById('cfg-erro'));
+  }
+
+  function abrirUsuario(u) {
+    const novo = !u;
+    const camada = abrirModal(`<div class="modal-card estreito">${cabecalhoModal(novo ? 'Novo usuário' : 'Editar ' + u.nome, novo ? 'Caixa: vende, abre/fecha caixa, cuida de clientes. Administrador: tudo.' : '')}
+      <label class="campo">Nome<input id="us-nome" type="text" value="${novo ? '' : esc(u.nome)}"></label>
+      <label class="campo">Cargo<select id="us-papel"><option value="caixa" ${!novo && u.papel === 'caixa' ? 'selected' : ''}>Caixa</option><option value="administrador" ${!novo && u.papel === 'administrador' ? 'selected' : ''}>Administrador</option></select></label>
+      <label class="campo">${novo ? 'PIN (4 números)' : 'Novo PIN (deixe vazio pra manter)'}<input id="us-pin" type="password" inputmode="numeric" maxlength="4" autocomplete="new-password"></label>
+      ${novo ? '' : `<label style="display:flex;gap:8px;align-items:center;font-size:13px"><input type="checkbox" id="us-ativo" ${u.ativo ? 'checked' : ''}> Ativo (pode entrar no sistema)</label>`}
+      <div class="erro-modal" id="us-erro"></div>
+      <button class="btn-primario btn-grande" id="us-salvar">${novo ? 'Criar' : 'Salvar'}</button></div>`);
+    camada.querySelector('#us-nome').focus();
+    camada.querySelector('#us-salvar').onclick = (ev) => comBotao(ev.target, 'Salvando...', async () => {
+      const corpo = { nome: camada.querySelector('#us-nome').value, papel: camada.querySelector('#us-papel').value };
+      const pin = camada.querySelector('#us-pin').value;
+      if (pin || novo) {
+        if (!/^\d{4}$/.test(pin)) throw new Error('O PIN precisa ter 4 números');
+        corpo.pin = pin;
+      }
+      if (novo) await api('/equipe', { method: 'POST', body: corpo });
+      else { corpo.ativo = camada.querySelector('#us-ativo').checked; await api('/equipe/' + u.id, { method: 'PUT', body: corpo }); }
+      fecharModal(); toast(novo ? 'Usuário criado' : 'Usuário atualizado');
+      await carregarUsuarios();
+      if (!novo && u.id === state.logado.id && (!corpo.ativo || corpo.papel !== state.logado.papel)) { sair(); return; }
+      carregarDadosDaView('equipe');
+    }, camada.querySelector('#us-erro'));
+  }
+
+  /* ================= Bater ponto ================= */
+  const MODEL_URL = 'https://cdn.jsdelivr.net/gh/justadudewhohacks/face-api.js@master/weights';
+  const LIMIAR_RECONHECIMENTO = 0.5;
+  let modelsPromise = null, modelosProntos = false, cameraStream = null, cadastroStream = null, reconhecendoAtivo = false;
+  const ultimoReconhecimentoPorUsuario = {};
+  function carregarModelos() {
+    if (modelsPromise) return modelsPromise;
+    if (typeof faceapi === 'undefined') { modelsPromise = Promise.resolve(); return modelsPromise; }
+    modelsPromise = Promise.all([
+      faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL),
+      faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
+      faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL),
+    ]).then(() => { modelosProntos = true; }).catch((e) => { console.error('Falha ao carregar modelo de reconhecimento facial', e); modelsPromise = null; modelosProntos = false; });
+    return modelsPromise;
+  }
+  function carregarRostos() { try { return JSON.parse(localStorage.getItem('gutto-rostos') || '{}'); } catch (e) { return {}; } }
+  function salvarRostos(rostos) { try { localStorage.setItem('gutto-rostos', JSON.stringify(rostos)); } catch (e) {} }
+  async function ligarCamera(videoEl) {
+    const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' }, audio: false });
+    videoEl.srcObject = stream; await videoEl.play(); return stream;
+  }
+  function pararStream(stream) { if (stream) stream.getTracks().forEach(t => t.stop()); }
+
+  function statusPessoa(usuarioId) {
+    const regs = (state.pontos || []).filter(p => p.usuario_id === usuarioId);
+    return regs.length && regs[regs.length - 1].tipo === 'entrada' ? 'dentro' : 'fora';
+  }
+  async function registrarPonto(usuario, metodo, pin) {
+    const r = await api('/pontos', { method: 'POST', body: { usuarioId: usuario.id, metodo, pin } });
+    state.pontos = await api('/pontos');
+    if (state.view === 'ponto') renderPonto();
+    return r;
   }
   function renderPonto() {
+    const pontos = state.pontos;
     document.getElementById('ponto-grid').innerHTML = state.usuarios.map(u => {
       const status = statusPessoa(u.id);
       const temRosto = !!state.rostos[u.id];
       return `<div class="ponto-card">
         <div class="avatar" style="width:44px;height:44px;font-size:16px;background:var(--teal)">${esc(u.nome.charAt(0))}</div>
         <div style="font-weight:600;font-size:14px">${esc(u.nome)}</div>
-        <div class="rosto-tag ${temRosto ? 'ok' : ''}">${temRosto ? '✓ Rosto cadastrado' : 'Rosto não cadastrado'}</div>
+        <div class="rosto-tag ${temRosto ? 'ok' : ''}">${temRosto ? '✓ Rosto cadastrado neste computador' : 'Rosto não cadastrado'}</div>
         <div style="font-size:11px;color:${status === 'dentro' ? 'var(--ok-text)' : 'var(--text-2)'}">${status === 'dentro' ? 'Dentro' : 'Fora'}</div>
         <div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:center">
           <button class="btn-secundario" data-cadastrar="${u.id}">${temRosto ? 'Recadastrar rosto' : 'Cadastrar rosto'}</button>
           <button class="btn-ponto ${status === 'dentro' ? 'saida' : 'entrada'}" data-usuario="${u.id}">${status === 'dentro' ? 'Bater saída' : 'Bater entrada'}</button>
-        </div>
-      </div>`;
+        </div></div>`;
     }).join('');
-    document.querySelectorAll('#ponto-grid [data-usuario]').forEach(b => b.addEventListener('click', () => baterPonto(state.usuarios.find(u => u.id === b.dataset.usuario))));
+    document.querySelectorAll('#ponto-grid [data-usuario]').forEach(b => b.addEventListener('click', async () => {
+      const u = state.usuarios.find(x => x.id === b.dataset.usuario);
+      const pin = await pedirPin('PIN de ' + u.nome, 'Cada um bate o próprio ponto');
+      if (!pin) return;
+      try { const r = await registrarPonto(u, 'pin', pin); toast(u.nome + ': ' + (r.tipo === 'entrada' ? 'entrada' : 'saída') + ' registrada às ' + hora(r.registradoEm)); }
+      catch (e) { toast(e.message, 'erro'); }
+    }));
     document.querySelectorAll('#ponto-grid [data-cadastrar]').forEach(b => b.addEventListener('click', () => abrirCadastroRosto(state.usuarios.find(u => u.id === b.dataset.cadastrar))));
-
-    document.getElementById('ponto-historico').innerHTML = state.pontosHoje.length ? state.pontosHoje.slice().reverse().map(p => `
+    document.getElementById('ponto-historico').innerHTML = pontos == null ? '<div class="carregando">Carregando...</div>' : pontos.length ? pontos.slice().reverse().map(p => `
       <div class="linha-simples">
         <div class="avatar" style="width:28px;height:28px;font-size:11px">${esc(p.nome.charAt(0))}</div>
-        <div style="flex-grow:1">${esc(p.nome)} — ${p.tipo === 'entrada' ? 'Entrada' : 'Saída'}</div>
-        <div style="font-weight:700">${esc(p.hora)}</div>
-      </div>
-    `).join('') : '<div class="vazio">Nenhum registro ainda hoje.</div>';
-
+        <div style="flex-grow:1">${esc(p.nome)} — ${p.tipo === 'entrada' ? 'Entrada' : 'Saída'} <span class="tag cinza">${p.metodo === 'facial' ? 'facial' : 'PIN'}</span></div>
+        <div style="font-weight:700">${hora(p.registrado_em)}</div></div>`).join('') : '<div class="vazio">Nenhum registro ainda hoje.</div>';
     document.getElementById('btn-camera-toggle').onclick = toggleCameraPonto;
   }
 
   async function toggleCameraPonto() {
-    const video = document.getElementById('video-ponto');
-    const statusEl = document.getElementById('facial-status');
-    const btn = document.getElementById('btn-camera-toggle');
+    const video = document.getElementById('video-ponto'), statusEl = document.getElementById('facial-status'), btn = document.getElementById('btn-camera-toggle');
     if (cameraStream) { desligarCameraPonto(); return; }
-
-    statusEl.className = 'facial-status';
-    statusEl.textContent = 'Solicitando câmera...';
-    try {
-      cameraStream = await ligarCamera(video);
-    } catch (e) {
-      statusEl.className = 'facial-status erro';
-      statusEl.textContent = 'Não foi possível acessar a câmera (permissão negada ou indisponível). Use o botão manual nos cartões abaixo.';
-      return;
-    }
+    statusEl.className = 'facial-status'; statusEl.textContent = 'Solicitando câmera...';
+    try { cameraStream = await ligarCamera(video); }
+    catch (e) { statusEl.className = 'facial-status erro'; statusEl.textContent = 'Não foi possível acessar a câmera. Use o botão com PIN nos cartões abaixo.'; return; }
     btn.textContent = 'Desligar câmera';
     statusEl.textContent = 'Carregando modelo de reconhecimento...';
     await carregarModelos();
-    if (!modelosProntos) {
-      statusEl.className = 'facial-status erro';
-      statusEl.textContent = 'Não foi possível carregar o modelo (sem internet?). Use o botão manual nos cartões abaixo.';
-      return;
-    }
+    if (!modelosProntos) { statusEl.className = 'facial-status erro'; statusEl.textContent = 'Não foi possível carregar o reconhecimento (sem internet?). Use o botão com PIN.'; return; }
     statusEl.textContent = 'Procurando rosto...';
     reconhecendoAtivo = true;
     loopReconhecimento(video, statusEl);
   }
-
   function desligarCameraPonto() {
-    reconhecendoAtivo = false;
-    pararStream(cameraStream);
-    cameraStream = null;
-    const btn = document.getElementById('btn-camera-toggle');
-    const statusEl = document.getElementById('facial-status');
+    if (!cameraStream && !reconhecendoAtivo) return;
+    reconhecendoAtivo = false; pararStream(cameraStream); cameraStream = null;
+    const btn = document.getElementById('btn-camera-toggle'), statusEl = document.getElementById('facial-status');
     if (btn) btn.textContent = 'Ligar câmera';
     if (statusEl) { statusEl.className = 'facial-status'; statusEl.textContent = 'Câmera desligada.'; }
   }
-
   async function loopReconhecimento(video, statusEl) {
     if (!reconhecendoAtivo) return;
     try {
       const deteccao = await faceapi.detectSingleFace(video, new faceapi.TinyFaceDetectorOptions()).withFaceLandmarks().withFaceDescriptor();
       if (deteccao) {
         let melhorId = null, melhorDist = 999;
-        Object.keys(state.rostos).forEach((usuarioId) => {
-          const dist = faceapi.euclideanDistance(deteccao.descriptor, state.rostos[usuarioId]);
-          if (dist < melhorDist) { melhorDist = dist; melhorId = usuarioId; }
-        });
-        if (melhorId && melhorDist < LIMIAR_RECONHECIMENTO) {
-          const usuario = state.usuarios.find(u => u.id === melhorId);
+        Object.keys(state.rostos).forEach((id) => { const d = faceapi.euclideanDistance(deteccao.descriptor, state.rostos[id]); if (d < melhorDist) { melhorDist = d; melhorId = id; } });
+        const usuario = melhorId && melhorDist < LIMIAR_RECONHECIMENTO ? state.usuarios.find(u => u.id === melhorId) : null;
+        if (usuario) {
           const agora = Date.now();
-          if (usuario && agora - (ultimoReconhecimentoPorUsuario[melhorId] || 0) > 8000) {
-            ultimoReconhecimentoPorUsuario[melhorId] = agora;
-            const eraEntrada = statusPessoa(melhorId) !== 'dentro';
-            baterPonto(usuario);
-            statusEl.className = 'facial-status ok';
-            statusEl.textContent = '✓ ' + usuario.nome + ' reconhecido — ' + (eraEntrada ? 'entrada' : 'saída') + ' registrada.';
-          } else if (usuario) {
-            statusEl.className = 'facial-status ok';
-            statusEl.textContent = '✓ ' + usuario.nome + ' reconhecido (aguardando pra registrar de novo).';
+          if (agora - (ultimoReconhecimentoPorUsuario[usuario.id] || 0) > 15000) {
+            ultimoReconhecimentoPorUsuario[usuario.id] = agora;
+            try {
+              const r = await registrarPonto(usuario, 'facial');
+              statusEl.className = 'facial-status ok';
+              statusEl.textContent = '✓ ' + usuario.nome + ' reconhecido — ' + (r.tipo === 'entrada' ? 'entrada' : 'saída') + ' às ' + hora(r.registradoEm);
+            } catch (e) { statusEl.className = 'facial-status erro'; statusEl.textContent = e.message; }
           }
         } else {
           statusEl.className = 'facial-status';
-          statusEl.textContent = 'Rosto não reconhecido — cadastre em "Cadastrar rosto" no cartão da pessoa, ou use o botão manual.';
+          statusEl.textContent = 'Rosto não reconhecido — cadastre o rosto no cartão da pessoa, ou use o botão com PIN.';
         }
-      } else {
-        statusEl.className = 'facial-status';
-        statusEl.textContent = 'Procurando rosto...';
-      }
+      } else { statusEl.className = 'facial-status'; statusEl.textContent = 'Procurando rosto...'; }
     } catch (e) {}
     if (reconhecendoAtivo) setTimeout(() => loopReconhecimento(video, statusEl), 1200);
   }
-
   function abrirCadastroRosto(usuario) {
-    const modal = document.getElementById('modal');
-    modal.style.display = 'flex';
-    modal.innerHTML = `
-      <div class="modal-card" style="align-items:center;text-align:center">
-        <div class="modal-head" style="width:100%">
-          <div>
-            <div class="modal-titulo">Cadastrar rosto — ${esc(usuario.nome)}</div>
-            <div class="modal-sub">Posicione o rosto dentro da oval, com boa luz</div>
-          </div>
-          <button class="btn-fechar" id="fechar-cadastro-rosto" aria-label="Fechar">×</button>
-        </div>
-        <div class="facial-video-wrap" style="width:280px;height:210px">
-          <video id="video-cadastro" autoplay muted playsinline></video>
-          <div class="facial-oval"></div>
-        </div>
-        <div class="facial-status" id="cadastro-status">Ligando câmera...</div>
-        <button class="btn-primario" id="btn-capturar-rosto" style="margin-top:8px" disabled>Capturar e salvar</button>
-      </div>
-    `;
-    document.getElementById('fechar-cadastro-rosto').addEventListener('click', fecharCadastroRosto);
-    modal.addEventListener('click', (e) => { if (e.target === modal) fecharCadastroRosto(); });
-    iniciarCadastroRosto(usuario);
+    const camada = abrirModal(`<div class="modal-card" style="align-items:center;text-align:center">
+      ${cabecalhoModal('Cadastrar rosto — ' + usuario.nome, 'Posicione o rosto dentro da oval, com boa luz')}
+      <div class="facial-video-wrap" style="width:280px;height:210px"><video id="video-cadastro" autoplay muted playsinline></video><div class="facial-oval"></div></div>
+      <div class="facial-status" id="cadastro-status">Ligando câmera...</div>
+      <button class="btn-primario" id="btn-capturar-rosto" disabled>Capturar e salvar</button></div>`, () => { pararStream(cadastroStream); cadastroStream = null; });
+    iniciarCadastroRosto(usuario, camada);
   }
-
-  async function iniciarCadastroRosto(usuario) {
-    const video = document.getElementById('video-cadastro');
-    const statusEl = document.getElementById('cadastro-status');
-    const btnCapturar = document.getElementById('btn-capturar-rosto');
-    try {
-      cadastroStream = await ligarCamera(video);
-    } catch (e) {
-      statusEl.className = 'facial-status erro';
-      statusEl.textContent = 'Não foi possível acessar a câmera.';
-      return;
-    }
+  async function iniciarCadastroRosto(usuario, camada) {
+    const video = camada.querySelector('#video-cadastro'), statusEl = camada.querySelector('#cadastro-status'), btn = camada.querySelector('#btn-capturar-rosto');
+    try { cadastroStream = await ligarCamera(video); } catch (e) { statusEl.className = 'facial-status erro'; statusEl.textContent = 'Não foi possível acessar a câmera.'; return; }
     statusEl.textContent = 'Carregando modelo...';
     await carregarModelos();
-    if (!modelosProntos) {
-      statusEl.className = 'facial-status erro';
-      statusEl.textContent = 'Modelo de reconhecimento indisponível (sem internet?).';
-      return;
-    }
+    if (!modelosProntos) { statusEl.className = 'facial-status erro'; statusEl.textContent = 'Reconhecimento indisponível (sem internet?).'; return; }
     statusEl.textContent = 'Pronto — clique em "Capturar e salvar".';
-    btnCapturar.disabled = false;
-    btnCapturar.onclick = async () => {
+    btn.disabled = false;
+    btn.onclick = async () => {
       statusEl.textContent = 'Capturando...';
-      const deteccao = await faceapi.detectSingleFace(video, new faceapi.TinyFaceDetectorOptions()).withFaceLandmarks().withFaceDescriptor();
-      if (!deteccao) {
-        statusEl.className = 'facial-status erro';
-        statusEl.textContent = 'Nenhum rosto detectado — tente de novo com mais luz.';
-        return;
-      }
-      const rostos = Object.assign({}, state.rostos, { [usuario.id]: Array.from(deteccao.descriptor) });
-      salvarRostos(rostos);
-      state.rostos = rostos;
-      statusEl.className = 'facial-status ok';
-      statusEl.textContent = '✓ Rosto salvo pra ' + usuario.nome + '.';
-      setTimeout(fecharCadastroRosto, 900);
+      const d = await faceapi.detectSingleFace(video, new faceapi.TinyFaceDetectorOptions()).withFaceLandmarks().withFaceDescriptor();
+      if (!d) { statusEl.className = 'facial-status erro'; statusEl.textContent = 'Nenhum rosto detectado — tente com mais luz.'; return; }
+      state.rostos = Object.assign({}, state.rostos, { [usuario.id]: Array.from(d.descriptor) });
+      salvarRostos(state.rostos);
+      statusEl.className = 'facial-status ok'; statusEl.textContent = '✓ Rosto salvo pra ' + usuario.nome + '.';
+      setTimeout(() => { pararStream(cadastroStream); cadastroStream = null; fecharModal(); render(); }, 900);
     };
   }
 
-  function fecharCadastroRosto() {
-    pararStream(cadastroStream);
-    cadastroStream = null;
-    document.getElementById('modal').style.display = 'none';
-    document.getElementById('modal').innerHTML = '';
-    render();
-  }
-
-  /* ---------- Relatórios (ainda protótipo) ---------- */
+  /* ================= Relatórios (Fase 4) ================= */
   function renderRelatorios() {
-    const chipsEl = document.getElementById('periodo-chips');
-    const periodos = ['Hoje', '7 dias', 'Mês'];
-    chipsEl.innerHTML = periodos.map(p => `<button class="chip ${state.periodoRelatorio === p ? 'ativo' : ''}" data-periodo="${p}">${p}</button>`).join('');
-    chipsEl.querySelectorAll('[data-periodo]').forEach(b => b.addEventListener('click', () => setState({ periodoRelatorio: b.dataset.periodo })));
-
-    const itensPorProduto = {};
-    vendasRelatorioSeed.forEach(v => v.itens.forEach(it => {
-      const key = it.produtoNome;
-      if (!itensPorProduto[key]) itensPorProduto[key] = { nome: it.produtoNome, qtd: 0, total: 0 };
-      itensPorProduto[key].qtd += it.qtd;
-      itensPorProduto[key].total += it.qtd * it.precoUnit;
-    }));
-    const top = Object.values(itensPorProduto).sort((a, b) => b.qtd - a.qtd).slice(0, 6);
-    const maxQtd = Math.max(1, ...top.map(t => t.qtd));
-    document.getElementById('relatorio-produtos').innerHTML = top.length ? top.map(t => `
-      <div class="barra-linha">
-        <div class="barra-label">${esc(t.nome)}</div>
-        <div class="barra-trilho"><div class="barra-fill" style="width:${(t.qtd / maxQtd * 100).toFixed(0)}%"></div></div>
-        <div class="barra-valor">${t.qtd} un.</div>
-      </div>
-    `).join('') : '<div class="vazio">Nenhuma venda registrada ainda.</div>';
-
-    const porForma = {};
-    vendasRelatorioSeed.forEach(v => { porForma[v.formaPagamento] = (porForma[v.formaPagamento] || 0) + v.total; });
-    const totalGeral = Object.values(porForma).reduce((s, v) => s + v, 0) || 1;
-    document.getElementById('relatorio-formas').innerHTML = Object.keys(porForma).length ? Object.entries(porForma).map(([forma, valor]) => `
-      <div class="barra-linha">
-        <div class="barra-label">${esc(forma)}</div>
-        <div class="barra-trilho"><div class="barra-fill" style="width:${(valor / totalGeral * 100).toFixed(0)}%;background:var(--teal)"></div></div>
-        <div class="barra-valor">${fmt(valor)}</div>
-      </div>
-    `).join('') : '<div class="vazio">Nenhuma venda registrada ainda.</div>';
+    const top = [{ nome: 'Exemplo — Camiseta', qtd: 2 }, { nome: 'Exemplo — Vestido', qtd: 1 }];
+    document.getElementById('relatorio-produtos').innerHTML = top.map(t => `<div class="barra-linha"><div class="barra-label">${esc(t.nome)}</div><div class="barra-trilho"><div class="barra-fill" style="width:${t.qtd * 50}%"></div></div><div class="barra-valor">${t.qtd} un.</div></div>`).join('');
+    document.getElementById('relatorio-formas').innerHTML = [['Pix', 79.8], ['Crédito', 59.9]].map(([f, v]) => `<div class="barra-linha"><div class="barra-label">${f}</div><div class="barra-trilho"><div class="barra-fill" style="width:${(v / 79.8 * 100).toFixed(0)}%;background:var(--teal)"></div></div><div class="barra-valor">${fmt(v)}</div></div>`).join('');
   }
 
-  /* ---------- Wiring estático (uma vez) ---------- */
-  document.getElementById('sidebar-nav').innerHTML = NAV.map(n => `
-    <button class="nav-item" data-view="${n.id}" title="${esc(n.label)}">${svgIcon(n.icon)}<span class="nav-label">${esc(n.label)}</span></button>
-  `).join('');
-  document.querySelectorAll('.nav-item').forEach(b => b.addEventListener('click', () => {
-    setState({ view: b.dataset.view });
-    if (window.matchMedia('(max-width: 860px)').matches) document.getElementById('sidebar').classList.remove('mobile-open');
-  }));
-
+  /* ================= Ligações fixas ================= */
   document.getElementById('btn-collapse').innerHTML = svgIcon('menu');
   document.getElementById('btn-collapse').addEventListener('click', alternarSidebar);
   document.getElementById('btn-menu-mobile').innerHTML = svgIcon('menu');
   document.getElementById('btn-menu-mobile').addEventListener('click', alternarSidebar);
   document.getElementById('btn-tema').addEventListener('click', alternarTema);
-  document.getElementById('btn-sair').addEventListener('click', () => {
-    desligarCameraPonto();
-    pararStream(cadastroStream); cadastroStream = null;
-    limparSessao();
-    setState({ logado: null, token: null, loginStep: 'cargo', loginCargo: null, loginPessoaId: null, loginPin: '' });
-  });
+  document.getElementById('btn-sair').addEventListener('click', sair);
   document.getElementById('busca').addEventListener('input', (e) => setState({ busca: e.target.value }));
-  document.getElementById('mes-anterior').addEventListener('click', () => setState({ mesIndex: Math.max(0, state.mesIndex - 1) }));
-  document.getElementById('mes-proximo').addEventListener('click', () => setState({ mesIndex: Math.min(MESES.length - 1, state.mesIndex + 1) }));
-  document.getElementById('confirmar').addEventListener('click', confirmarVenda);
+  document.getElementById('mes-anterior').addEventListener('click', () => mudarMes(-1));
+  document.getElementById('mes-proximo').addEventListener('click', () => mudarMes(1));
+  document.getElementById('confirmar').addEventListener('click', () => confirmarVenda());
   document.getElementById('btn-novo-produto').addEventListener('click', abrirNovoProduto);
+  document.getElementById('btn-troca').addEventListener('click', abrirTroca);
+  document.getElementById('btn-limpar-carrinho').addEventListener('click', () => { if (!state.cart.length || confirm('Limpar o carrinho?')) setState({ cart: [], pagamentos: [], cliente: null }); });
+  document.getElementById('btn-novo-cliente').addEventListener('click', abrirNovoCliente);
+  document.getElementById('btn-nova-compra').addEventListener('click', abrirNovaCompra);
+  document.getElementById('btn-novo-usuario').addEventListener('click', () => abrirUsuario(null));
+  const inputVendaBusca = document.getElementById('venda-busca');
+  inputVendaBusca.addEventListener('input', (e) => { state.vendaBusca = e.target.value; renderVenda(); });
+  inputVendaBusca.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); onBuscaVendaEnter(); } });
+  document.getElementById('clientes-busca').addEventListener('input', (e) => {
+    state.clientesBusca = e.target.value.trim();
+    clearTimeout(timerBuscaClientes);
+    timerBuscaClientes = setTimeout(() => carregarDadosDaView('clientes'), 250);
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape') return;
+    if (document.getElementById('modal-topo').style.display === 'flex') document.getElementById('modal-topo').click();
+    else if (document.getElementById('modal').style.display === 'flex') document.getElementById('modal').click();
+  });
 
   iniciar();
 </script>

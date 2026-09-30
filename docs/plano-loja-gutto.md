@@ -116,3 +116,31 @@ comissão, metas — hoje só tem produtos mais vendidos e formas de pagamento).
 6. **Migração do GDOOR** — produtos, grade, clientes, saldos.
 
 Plano fechado — pronto pra começar a Fase 1.
+
+## Andamento
+
+- **Fase 1 — Fundação: concluída.** Banco real, login com PIN (hash), Produtos/Estoque com
+  grade tamanho×cor, Venda rápida ligada ao banco. Instalado no PC da loja (C:\LojaGutto).
+- **Fase 2 — Operação da loja: concluída (30/09/2026).**
+  - Caixa: abertura com troco, suprimento, sangria, fechamento com contagem cega
+    (esperado × contado) e histórico de fechamentos (só Administrador vê).
+  - Venda rápida: leitor de código de barras (EAN-13 interno gerado automaticamente por
+    tamanho/cor), desconto por item em % (Caixa até o limite configurado — padrão 10% —
+    acima disso pede PIN de Administrador), pagamento dividido em várias formas com troco,
+    cliente na venda.
+  - Clientes: cadastro, cashback (padrão 5%, só sobre o que foi pago sem crédito),
+    vale-troca, extrato de crédito e últimas compras.
+  - Troca/devolução: peça volta pro estoque, cliente ganha vale-troca pelo valor pago
+    (já com desconto), cashback da venda é estornado na proporção.
+  - Compras: entrada de nota manual por grade, custo médio ponderado, fornecedor
+    cadastrado na hora, lançamento opcional como despesa no fluxo.
+  - Fluxo de caixa real por mês (receita por forma; cashback/vale-troca usados não contam
+    como receita), despesas com inclusão/exclusão.
+  - Equipe: criar/editar usuários, trocar PIN, desativar; configuração de cashback % e
+    desconto livre %.
+  - Estoque: editar produto, preço, código de barras, mínimo, ativar/desativar variação,
+    ajuste de contagem (fica no histórico), nova cor.
+  - Bater ponto gravado no banco (PIN da própria pessoa ou reconhecimento facial).
+- **Próximas**: Fase 3 (pedidos online), Fase 4 (relatórios), Fase 5 (NFC-e), Fase 6
+  (migração do GDOOR). Também na fila: importar XML de nota do fornecedor e imprimir
+  etiqueta de código de barras.
