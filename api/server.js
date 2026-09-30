@@ -1207,7 +1207,7 @@ app.get('/api/lojas/:lojaId/compras/:id', admin, rota(async (req, res) => {
   );
   if (!rows.length) falha(404, 'compra não encontrada');
   const { rows: itens } = await pool.query(
-    `SELECT ci.qtd, ci.custo_unitario, v.tamanho, v.cor, p.nome AS produto_nome
+    `SELECT ci.variacao_id, ci.qtd, ci.custo_unitario, v.tamanho, v.cor, p.nome AS produto_nome
      FROM compras_itens ci JOIN produto_variacoes v ON v.id = ci.variacao_id JOIN produtos p ON p.id = v.produto_id
      WHERE ci.compra_id = $1 ORDER BY p.nome, v.tamanho, v.cor`,
     [req.params.id]

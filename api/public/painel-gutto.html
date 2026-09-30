@@ -1959,7 +1959,7 @@
     detalheEl.innerHTML = `
       <div class="detalhe-head">
         <div><div class="detalhe-categoria">${esc(produto.categoria)}${produto.ncm ? ' · NCM ' + esc(produto.ncm) : ''}</div><div class="detalhe-nome titulo">${esc(produto.nome)}</div></div>
-        ${ehAdmin() ? `<div class="detalhe-acoes"><button class="btn-secundario" id="btn-editar-produto">Editar produto e estoque</button><button class="btn-secundario" id="btn-nova-cor">+ Nova cor</button></div>` : ''}
+        <div class="detalhe-acoes"><button class="btn-secundario" id="btn-etiquetas">Imprimir etiquetas</button>${ehAdmin() ? `<button class="btn-secundario" id="btn-editar-produto">Editar produto e estoque</button><button class="btn-secundario" id="btn-nova-cor">+ Nova cor</button>` : ''}</div>
       </div>
       <div class="stats-row">
         <div class="stat-card"><div class="stat-label">Estoque total</div><div class="stat-valor">${produto.estoqueTotal} un.</div></div>
@@ -1972,6 +1972,7 @@
         <div class="grade-sub">Tamanho × cor${produto.grade ? ' · grade "' + esc(produto.grade.nome) + '"' : ''}</div>
         ${gradeHtml(produto, { grande: true })}
       </div>`;
+    document.getElementById('btn-etiquetas').onclick = () => abrirImprimirEtiquetas(etiquetasDoProduto(produto), 'Etiquetas — ' + produto.nome);
     if (ehAdmin()) {
       document.getElementById('btn-editar-produto').onclick = () => abrirEditarProduto(produto.id);
       document.getElementById('btn-nova-cor').onclick = () => abrirNovaCor(produto.id);
@@ -2182,6 +2183,177 @@
     }, camada.querySelector('#nc-erro'));
   }
 
+  /* ================= Etiquetas (código de barras) ================= */
+  // Impressão pelo driver do Windows (Elgin L42 ou qualquer térmica): cada "página" é uma linha de
+  // etiquetas do rolo, no tamanho configurado. Código com 13 dígitos (o interno do sistema e o EAN
+  // dos fabricantes) sai em EAN-13; 12 dígitos (UPC) vira EAN-13 com zero na frente; 8 dígitos EAN-8;
+  // qualquer outro em Code 128.
+  const EAN_L = ['0001101', '0011001', '0010011', '0111101', '0100011', '0110001', '0101111', '0111011', '0110111', '0001011'];
+  const EAN_R = EAN_L.map(p => p.replace(/./g, b => (b === '0' ? '1' : '0')));
+  const EAN_G = EAN_R.map(p => p.split('').reverse().join(''));
+  const EAN_PARIDADE = ['LLLLLL', 'LLGLGG', 'LLGGLG', 'LLGGGL', 'LGLLGG', 'LGGLLG', 'LGGGLL', 'LGLGLG', 'LGLGGL', 'LGGLGL'];
+  const C128 = '11011001100,11001101100,11001100110,10010011000,10010001100,10001001100,10011001000,10011000100,10001100100,11001001000,11001000100,11000100100,10110011100,10011011100,10011001110,10111001100,10011101100,10011100110,11001110010,11001011100,11001001110,11011100100,11001110100,11101101110,11101001100,11100101100,11100100110,11101100100,11100110100,11100110010,11011011000,11011000110,11000110110,10100011000,10001011000,10001000110,10110001000,10001101000,10001100010,11010001000,11000101000,11000100010,10110111000,10110001110,10001101110,10111011000,10111000110,10001110110,11101110110,11010001110,11000101110,11011101000,11011100010,11011101110,11101011000,11101000110,11100010110,11101101000,11101100010,11100011010,11101111010,11001000010,11110001010,10100110000,10100001100,10010110000,10010000110,10000101100,10000100110,10110010000,10110000100,10011010000,10011000010,10000110100,10000110010,11000010010,11001010000,11110111010,11000010100,10001111010,10100111100,10010111100,10010011110,10111100100,10011110100,10011110010,11110100100,11110010100,11110010010,11011011110,11011110110,11110110110,10101111000,10100011110,10001011110,10111101000,10111100010,11110101000,11110100010,10111011110,10111101110,11101011110,11110101110,11010000100,11010010000,11010011100'.split(',');
+  function digitoGtin(corpo) {
+    let soma = 0;
+    for (let i = 0; i < corpo.length; i++) soma += Number(corpo[corpo.length - 1 - i]) * (i % 2 === 0 ? 3 : 1);
+    return String((10 - (soma % 10)) % 10);
+  }
+  function modulosEan13(c) {
+    const par = EAN_PARIDADE[Number(c[0])];
+    let m = '101';
+    for (let i = 1; i <= 6; i++) m += (par[i - 1] === 'L' ? EAN_L : EAN_G)[Number(c[i])];
+    m += '01010';
+    for (let i = 7; i <= 12; i++) m += EAN_R[Number(c[i])];
+    return m + '101';
+  }
+  function modulosEan8(c) {
+    let m = '101';
+    for (let i = 0; i < 4; i++) m += EAN_L[Number(c[i])];
+    m += '01010';
+    for (let i = 4; i < 8; i++) m += EAN_R[Number(c[i])];
+    return m + '101';
+  }
+  function modulosCode128(texto) {
+    const soDigitos = /^\d+$/.test(texto) && texto.length % 2 === 0 && texto.length >= 4;
+    const valores = [soDigitos ? 105 : 104];
+    if (soDigitos) for (let i = 0; i < texto.length; i += 2) valores.push(Number(texto.slice(i, i + 2)));
+    else for (const ch of texto) { const v = ch.charCodeAt(0) - 32; valores.push(v >= 0 && v < 95 ? v : 0); }
+    let soma = valores[0];
+    for (let i = 1; i < valores.length; i++) soma += valores[i] * i;
+    valores.push(soma % 103);
+    return valores.map(v => C128[v]).join('') + '1100011101011';
+  }
+  // Devolve { modulos, formato, texto } do que vai desenhado.
+  function codificarBarras(codigo) {
+    const d = String(codigo || '').trim();
+    if (/^\d{13}$/.test(d) && digitoGtin(d.slice(0, 12)) === d[12]) return { modulos: modulosEan13(d), formato: 'ean13', texto: d };
+    if (/^\d{12}$/.test(d) && digitoGtin(d.slice(0, 11)) === d[11]) return { modulos: modulosEan13('0' + d), formato: 'ean13', texto: '0' + d };
+    if (/^\d{8}$/.test(d) && digitoGtin(d.slice(0, 7)) === d[7]) return { modulos: modulosEan8(d), formato: 'ean8', texto: d };
+    return { modulos: modulosCode128(d), formato: 'code128', texto: d };
+  }
+  // SVG com a zona de silêncio que os leitores precisam dos lados.
+  function svgBarras(codigo, larguraMm, alturaMm) {
+    const { modulos, texto } = codificarBarras(codigo);
+    const silencio = 10, total = modulos.length + silencio * 2;
+    let barras = '', i = 0;
+    while (i < modulos.length) {
+      if (modulos[i] === '1') { let n = 1; while (modulos[i + n] === '1') n++; barras += `<rect x="${i + silencio}" y="0" width="${n}" height="100"/>`; i += n; } else i++;
+    }
+    return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${total} 100" preserveAspectRatio="none" style="width:${larguraMm}mm;height:${alturaMm}mm;display:block" shape-rendering="crispEdges"><rect width="${total}" height="100" fill="#fff"/><g fill="#000">${barras}</g></svg>
+      <div style="font:600 2.1mm/1 Arial,sans-serif;letter-spacing:.3mm;text-align:center">${esc(texto)}</div>`;
+  }
+
+  const ETIQUETA_PADRAO = { largura: 40, altura: 25, colunas: 2, espaco: 2, preco: true, loja: true };
+  function configEtiqueta() { try { return Object.assign({}, ETIQUETA_PADRAO, JSON.parse(localStorage.getItem('gutto-etiqueta') || '{}')); } catch (e) { return Object.assign({}, ETIQUETA_PADRAO); } }
+  function salvarConfigEtiqueta(c) { try { localStorage.setItem('gutto-etiqueta', JSON.stringify(c)); } catch (e) {} }
+
+  function htmlEtiqueta(e, cfg) {
+    const barrasAlt = Math.max(6, cfg.altura * 0.36);
+    return `<div class="et" style="width:${cfg.largura}mm;height:${cfg.altura}mm">
+      ${cfg.loja ? '<div class="et-loja">LOJA GUTTO</div>' : ''}
+      <div class="et-nome">${esc(e.nome)}</div>
+      <div class="et-linha"><span class="et-tam">${esc(e.tamanho)}</span><span class="et-cor">${esc(e.cor || '')}</span>${cfg.preco ? `<span class="et-preco">${fmt(e.preco)}</span>` : ''}</div>
+      <div class="et-barras">${svgBarras(e.codigo, cfg.largura - 3, barrasAlt)}</div></div>`;
+  }
+  function documentoEtiquetas(lista, cfg) {
+    const unidades = [];
+    lista.forEach(e => { for (let i = 0; i < e.qtd; i++) unidades.push(e); });
+    const linhas = [];
+    for (let i = 0; i < unidades.length; i += cfg.colunas) linhas.push(unidades.slice(i, i + cfg.colunas));
+    const larguraPagina = cfg.largura * cfg.colunas + cfg.espaco * (cfg.colunas - 1);
+    return `<!doctype html><html><head><meta charset="utf-8"><title>Etiquetas</title><style>
+      @page { size: ${larguraPagina}mm ${cfg.altura}mm; margin: 0; }
+      * { box-sizing: border-box; margin: 0; padding: 0; }
+      html, body { background: #fff; color: #000; }
+      .linha { display: flex; gap: ${cfg.espaco}mm; width: ${larguraPagina}mm; height: ${cfg.altura}mm; page-break-after: always; break-after: page; overflow: hidden; }
+      .linha:last-child { page-break-after: auto; break-after: auto; }
+      .et { padding: 1mm 1.5mm; display: flex; flex-direction: column; overflow: hidden; font-family: Arial, sans-serif; }
+      .et-loja { font-size: 1.9mm; font-weight: 700; letter-spacing: .2mm; }
+      .et-nome { font-size: 2.5mm; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+      .et-linha { display: flex; align-items: baseline; gap: 1.5mm; margin: .3mm 0 .6mm; white-space: nowrap; overflow: hidden; }
+      .et-tam { font-size: 4mm; font-weight: 800; }
+      .et-cor { font-size: 2.3mm; flex-grow: 1; overflow: hidden; text-overflow: ellipsis; }
+      .et-preco { font-size: 3.4mm; font-weight: 800; }
+      .et-barras { margin-top: auto; }
+    </style></head><body>${linhas.map(l => `<div class="linha">${l.map(e => htmlEtiqueta(e, cfg)).join('')}</div>`).join('')}</body></html>`;
+  }
+  // Imprime por um iframe escondido: abre a janela de impressão do Windows já no tamanho da etiqueta.
+  function imprimirDocumento(html) {
+    const antigo = document.getElementById('frame-impressao');
+    if (antigo) antigo.remove();
+    const f = document.createElement('iframe');
+    f.id = 'frame-impressao';
+    f.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0';
+    document.body.appendChild(f);
+    f.contentDocument.open(); f.contentDocument.write(html); f.contentDocument.close();
+    setTimeout(() => { f.contentWindow.focus(); f.contentWindow.print(); }, 250);
+  }
+
+  // Lista: [{ variacaoId, nome, tamanho, cor, preco, codigo, qtd }] — a quantidade de cada uma é editável antes de imprimir.
+  function abrirImprimirEtiquetas(lista, titulo) {
+    const itens = lista.filter(e => e.codigo).map(e => Object.assign({}, e, { qtd: Math.max(0, Math.floor(e.qtd || 0)) }));
+    const semCodigo = lista.filter(e => !e.codigo).length;
+    let cfg = configEtiqueta();
+    const camada = abrirModal(`<div class="modal-card largo">${cabecalhoModal(titulo || 'Imprimir etiquetas', 'Confira a quantidade de cada peça')}
+      ${semCodigo ? `<div class="aviso-caixa">${semCodigo} peça(s) sem código de barras ficaram de fora.</div>` : ''}
+      <div class="tabela-scroll" style="max-height:34vh"><table class="tabela"><tr><th>Peça</th><th>Código</th><th style="width:90px">Etiquetas</th></tr>
+        ${itens.map((e, k) => `<tr><td>${esc(e.nome)} · <b>${esc(e.tamanho)}</b>${e.cor ? ' · ' + esc(e.cor) : ''}</td><td class="mono">${esc(e.codigo)}</td><td><input data-et="${k}" inputmode="numeric" value="${e.qtd}"></td></tr>`).join('')}
+      </table></div>
+      <details id="et-config"><summary style="cursor:pointer;font-size:13px;font-weight:600">Tamanho da etiqueta (${cfg.largura}×${cfg.altura} mm, ${cfg.colunas} coluna${cfg.colunas > 1 ? 's' : ''}) — salvo neste computador</summary>
+        <div class="linha-campos" style="margin-top:10px">
+          <label class="campo">Largura (mm)<input id="et-larg" inputmode="decimal" value="${cfg.largura}"></label>
+          <label class="campo">Altura (mm)<input id="et-alt" inputmode="decimal" value="${cfg.altura}"></label>
+          <label class="campo">Colunas no rolo<input id="et-col" inputmode="numeric" value="${cfg.colunas}"></label>
+          <label class="campo">Espaço entre colunas (mm)<input id="et-esp" inputmode="decimal" value="${cfg.espaco}"></label>
+        </div>
+        <div style="display:flex;gap:16px;font-size:13px;margin-top:8px"><label><input type="checkbox" id="et-preco" ${cfg.preco ? 'checked' : ''}> Mostrar preço</label><label><input type="checkbox" id="et-loja" ${cfg.loja ? 'checked' : ''}> Mostrar "Loja Gutto"</label></div>
+        <div class="modal-dica">Na janela de impressão do Windows: escolha a Elgin L42, papel do mesmo tamanho do rolo, margens "Nenhuma" e escala 100%.</div>
+      </details>
+      <div><div class="modal-dica" style="margin:0 0 6px">Prévia:</div><div id="et-previa" style="background:#fff;border:1px dashed var(--border);border-radius:8px;padding:8px;overflow-x:auto;color:#000"></div></div>
+      <div class="erro-modal" id="et-erro"></div>
+      <div class="modal-acoes"><span class="modal-dica" id="et-total" style="margin:0 auto 0 0;align-self:center"></span><button class="btn-secundario" data-fechar>Cancelar</button><button class="btn-primario btn-grande" id="et-imprimir">Imprimir</button></div></div>`);
+    const lerCfg = () => {
+      const n = (id, min, max) => { const v = parseNumBR(camada.querySelector(id).value); return Number.isFinite(v) ? Math.min(max, Math.max(min, v)) : null; };
+      const novo = { largura: n('#et-larg', 15, 120), altura: n('#et-alt', 10, 100), colunas: Math.round(n('#et-col', 1, 5) || 1), espaco: n('#et-esp', 0, 10),
+        preco: camada.querySelector('#et-preco').checked, loja: camada.querySelector('#et-loja').checked };
+      if (Object.values(novo).some(v => v === null)) return null;
+      return novo;
+    };
+    const previa = () => {
+      const c = lerCfg();
+      if (c) { cfg = c; salvarConfigEtiqueta(cfg); }
+      const total = itens.reduce((s, e) => s + e.qtd, 0);
+      camada.querySelector('#et-total').textContent = total + ' etiqueta(s)';
+      const exemplo = itens.find(e => e.qtd > 0) || itens[0];
+      const quadro = camada.querySelector('#et-previa');
+      if (!exemplo) { quadro.innerHTML = ''; return; }
+      const larguraPagina = cfg.largura * cfg.colunas + cfg.espaco * (cfg.colunas - 1);
+      // Mesmo documento que vai pra impressora (uma linha do rolo), em escala 2x pra dar pra ler.
+      quadro.innerHTML = `<iframe title="Prévia da etiqueta" style="border:1px solid #ccc;background:#fff;width:${larguraPagina}mm;height:${cfg.altura}mm;transform:scale(2);transform-origin:0 0;display:block"></iframe>`;
+      quadro.style.height = 'calc(' + (cfg.altura * 2) + 'mm + 18px)';
+      quadro.querySelector('iframe').srcdoc = documentoEtiquetas([Object.assign({}, exemplo, { qtd: cfg.colunas })], cfg);
+    };
+    camada.querySelectorAll('[data-et]').forEach(inp => inp.addEventListener('input', () => { const q = Math.floor(parseNumBR(inp.value)); itens[Number(inp.dataset.et)].qtd = Number.isFinite(q) && q >= 0 ? Math.min(q, 500) : 0; previa(); }));
+    camada.querySelectorAll('#et-config input').forEach(inp => inp.addEventListener('input', previa));
+    previa();
+    camada.querySelector('#et-imprimir').onclick = () => {
+      const lista2 = itens.filter(e => e.qtd > 0);
+      if (!lista2.length) { mostrarErro(camada.querySelector('#et-erro'), 'Coloque a quantidade de pelo menos uma etiqueta.'); return; }
+      if (!lerCfg()) { mostrarErro(camada.querySelector('#et-erro'), 'Confira o tamanho da etiqueta.'); return; }
+      imprimirDocumento(documentoEtiquetas(lista2, cfg));
+    };
+  }
+  function etiquetasDoProduto(p, qtdPor) {
+    const ordem = p.tamanhos;
+    return p.variacoes.filter(v => v.ativo).sort((a, b) => ordem.indexOf(a.tamanho) - ordem.indexOf(b.tamanho) || a.cor.localeCompare(b.cor))
+      .map(v => ({ variacaoId: v.id, nome: p.nome, tamanho: v.tamanho, cor: v.cor, preco: v.preco, codigo: v.codigoBarras, qtd: qtdPor ? qtdPor(v) : Math.max(0, v.estoque) }));
+  }
+  function etiquetasDeItens(itensNota) {
+    const porVar = {};
+    itensNota.forEach(i => { porVar[i.variacaoId] = (porVar[i.variacaoId] || 0) + Number(i.qtd); });
+    return Object.keys(porVar).map(id => { const a = acharVariacao(id); return a ? { variacaoId: id, nome: a.produto.nome, tamanho: a.variacao.tamanho, cor: a.variacao.cor, preco: a.variacao.preco, codigo: a.variacao.codigoBarras, qtd: porVar[id] } : null; }).filter(Boolean);
+  }
+
   /* ================= Compras ================= */
   function renderCompras() {
     const el = document.getElementById('compras-lista');
@@ -2200,7 +2372,9 @@
     abrirModal(`<div class="modal-card largo">${cabecalhoModal('Nota ' + (c.numero_nota || 's/ número'), (c.fornecedor_nome || 'Sem fornecedor') + ' · ' + dataBR(c.data))}
       <div class="tabela-scroll"><table class="tabela"><tr><th>Peça</th><th>Qtd</th><th style="text-align:right">Custo un.</th><th style="text-align:right">Subtotal</th></tr>
       ${c.itens.map(i => `<tr><td>${esc(i.produto_nome)} · ${esc(i.tamanho)}${i.cor ? ' · ' + esc(i.cor) : ''}</td><td>${Number(i.qtd)}</td><td style="text-align:right">${fmt(i.custo_unitario)}</td><td style="text-align:right">${fmt(Number(i.qtd) * Number(i.custo_unitario))}</td></tr>`).join('')}
-      </table></div><div class="linha-total grande"><span>Total</span><span>${fmt(c.total)}</span></div></div>`);
+      </table></div><div class="linha-total grande"><span>Total</span><span>${fmt(c.total)}</span></div>
+      <div class="modal-acoes"><button class="btn-secundario" id="vc-etiquetas">Imprimir etiquetas desta nota</button></div></div>`);
+    document.getElementById('vc-etiquetas').onclick = async () => { await carregarProdutos(); abrirImprimirEtiquetas(etiquetasDeItens(c.itens.map(i => ({ variacaoId: i.variacao_id, qtd: i.qtd }))), 'Etiquetas da nota ' + (c.numero_nota || '')); };
   }
 
   async function abrirNovaCompra() {
@@ -2303,6 +2477,8 @@
         lancarDespesa: camada.querySelector('#nc-despesa').checked, formaPagamento: camada.querySelector('#nc-forma').value,
       } });
       fecharModal(); toast('Entrada registrada — estoque atualizado'); carregarDadosDaView('compras');
+      await carregarProdutos();
+      abrirImprimirEtiquetas(etiquetasDeItens(itens.map(i => ({ variacaoId: i.variacaoId, qtd: i.qtd }))), 'Etiquetas das peças que chegaram');
     }, camada.querySelector('#nc-erro'));
   }
 
@@ -2505,6 +2681,7 @@
       toast('Nota lançada — ' + lancar.reduce((s, i) => s + i.qtd, 0) + ' peças no estoque');
       await carregarProdutos();
       carregarDadosDaView('compras');
+      abrirImprimirEtiquetas(etiquetasDeItens(lancar.map(i => ({ variacaoId: i.destino.variacaoId, qtd: i.qtd }))), 'Etiquetas das peças que chegaram');
     }, camada.querySelector('#cn-erro'));
   }
 

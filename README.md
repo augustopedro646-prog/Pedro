@@ -64,6 +64,16 @@ Também avisa o cliente a cada mudança de status dos pedidos (do site e do What
   atendente escreve em ritmo humano e mostra no painel o "aquecimento" de número novo — divulgue
   o número aos poucos nos primeiros dias.
 
+## Etiquetas de código de barras (Elgin L42 ou outra térmica)
+
+Estoque → produto → **Imprimir etiquetas** (já vem com a quantidade em estoque de cada tamanho/cor),
+ou automaticamente depois de dar entrada numa nota (só as peças que chegaram), ou em Compras →
+nota → "Imprimir etiquetas desta nota". Sai pelo driver do Windows: na janela de impressão,
+escolha a Elgin L42, papel do tamanho do rolo, margens "Nenhuma" e escala 100%. O tamanho da
+etiqueta (padrão 40×25 mm, 2 colunas) se ajusta na própria tela e fica salvo no computador.
+Código de 13 dígitos sai em EAN-13 (o interno do sistema e o EAN do fabricante), 8 dígitos em
+EAN-8 e os demais em Code 128.
+
 ## Backup do banco
 
 Automático, de hora em hora, feito pelo próprio servidor (não precisa configurar nada no Windows).
