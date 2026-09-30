@@ -215,6 +215,7 @@ app.get('/api/lojas/:lojaId/config', qualquer, rota(async (req, res) => {
   if (!rows.length) falha(404, 'loja não encontrada');
   const l = rows[0];
   res.json({ nome: l.nome, cashbackPct: Number(l.cashback_pct), descontoLivrePct: Number(l.desconto_livre_pct), leituraIA: !!anthropic,
+    cupomRodape: l.cupom_rodape || '',
     site: { ativo: l.site_ativo, aceitaEntrega: l.aceita_entrega, aceitaRetirada: l.aceita_retirada, taxaEntrega: Number(l.taxa_entrega),
       whatsapp: l.whatsapp || '', endereco: l.endereco || '', mensagem: l.mensagem_site || '' } });
 }));
@@ -227,6 +228,9 @@ app.put('/api/lojas/:lojaId/config', admin, rota(async (req, res) => {
     'UPDATE lojas SET cashback_pct = COALESCE($1, cashback_pct), desconto_livre_pct = COALESCE($2, desconto_livre_pct) WHERE id = $3',
     [cashback, desconto, req.lojaId]
   );
+  if (body.cupomRodape != null) {
+    await pool.query('UPDATE lojas SET cupom_rodape = $1 WHERE id = $2', [texto(body.cupomRodape, 'rodapé do cupom', { obrigatorio: false, max: 300 }) || '', req.lojaId]);
+  }
   const site = body.site;
   if (site && typeof site === 'object') {
     const bool = (v) => (typeof v === 'boolean' ? v : null);
@@ -751,10 +755,12 @@ app.post('/api/lojas/:lojaId/vendas', qualquer, rota(async (req, res) => {
 
     const vendaId = uid();
     const formasLabel = [...pagPorForma.keys()].join(' + ') || 'Sem pagamento';
+    // Troco só existe com pagamento em dinheiro (o valor devolvido ao cliente, pro cupom).
+    const troco = pagPorForma.has('Dinheiro') && body.troco != null && body.troco !== '' ? numero(body.troco, 'troco', { max: 100000 }) : 0;
     await c.query(
-      `INSERT INTO vendas (id, loja_id, usuario_id, canal, subtotal, desconto, total, forma_pagamento, caixa_sessao_id, cliente_id, aprovado_por)
-       VALUES ($1,$2,$3,'loja',$4,$5,$6,$7,$8,$9,$10)`,
-      [vendaId, req.lojaId, req.usuario.id, bruto, descontoTotal, total, formasLabel, sessao.id, clienteId, aprovadoPor]
+      `INSERT INTO vendas (id, loja_id, usuario_id, canal, subtotal, desconto, total, forma_pagamento, caixa_sessao_id, cliente_id, aprovado_por, troco)
+       VALUES ($1,$2,$3,'loja',$4,$5,$6,$7,$8,$9,$10,$11)`,
+      [vendaId, req.lojaId, req.usuario.id, bruto, descontoTotal, total, formasLabel, sessao.id, clienteId, aprovadoPor, troco]
     );
     for (const it of gravar) {
       await c.query('UPDATE produto_variacoes SET estoque = estoque - $1 WHERE id = $2', [it.qtd, it.variacaoId]);
@@ -797,7 +803,7 @@ app.post('/api/lojas/:lojaId/vendas', qualquer, rota(async (req, res) => {
     }
 
     return {
-      id: vendaId, subtotal: bruto, desconto: descontoTotal, total,
+      id: vendaId, subtotal: bruto, desconto: descontoTotal, total, troco, criadoEm: new Date().toISOString(),
       pagamentos: [...pagPorForma].map(([forma, valor]) => ({ forma, valor })),
       cashbackGerado, clienteId,
       saldosCliente: clienteId ? await saldosCliente(c, clienteId) : null,

@@ -74,6 +74,19 @@ etiqueta (padrão 40×25 mm, 2 colunas) se ajusta na própria tela e fica salvo 
 Código de 13 dígitos sai em EAN-13 (o interno do sistema e o EAN do fabricante), 8 dígitos em
 EAN-8 e os demais em Code 128.
 
+## Cupom da venda (impressora térmica do caixa)
+
+Depois de confirmar a venda: **Imprimir cupom** (ou marque "imprimir automaticamente em toda
+venda"). Reimpressão em Venda rápida → **Vendas / troca** → "cupom". Na troca/devolução sai o
+comprovante de **vale-troca**. É cupom **não fiscal** (a NFC-e é outra etapa). Papel de 80 ou
+58 mm e o rodapé (ex.: política de troca) em Equipe → Configurações da loja. A página sai com a
+altura exata do conteúdo, sem gastar rolo.
+
+Sai pela janela de impressão do Windows (o navegador lembra a última impressora usada). Pra
+imprimir sem a janela, dá pra pôr `--kiosk-printing` no atalho do Edge — aí tudo vai direto pra
+impressora padrão do Windows, inclusive as etiquetas; só vale a pena se as etiquetas forem
+impressas em outro computador.
+
 ## Backup do banco
 
 Automático, de hora em hora, feito pelo próprio servidor (não precisa configurar nada no Windows).

@@ -444,3 +444,7 @@ CREATE TABLE IF NOT EXISTS bot_conversas (
 
 -- Cancelar venda (só Administrador, com motivo).
 ALTER TABLE vendas ADD COLUMN IF NOT EXISTS motivo_cancelamento TEXT;
+
+-- Cupom da venda (não fiscal): troco guardado pra reimpressão e rodapé configurável.
+ALTER TABLE vendas ADD COLUMN IF NOT EXISTS troco NUMERIC(12,2) NOT NULL DEFAULT 0;
+ALTER TABLE lojas ADD COLUMN IF NOT EXISTS cupom_rodape TEXT;

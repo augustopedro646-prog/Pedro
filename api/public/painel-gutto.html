@@ -1454,10 +1454,12 @@
     const corpo = {
       itens: calc.linhas.map(l => ({ variacaoId: l.variacaoId, qtd: l.qtd, descontoItem: l.descontoItem })),
       pagamentos: pag.aplicados, clienteId: state.cliente ? state.cliente.id : undefined, aprovacao,
+      troco: pag.troco > 0.005 ? pag.troco : undefined,
     };
     try {
       const r = await api('/vendas', { method: 'POST', body: corpo });
       const troco = pag.troco;
+      r.clienteNome = state.cliente ? state.cliente.nome : null;
       Object.assign(state, { cart: [], pagamentos: [], cliente: null });
       await Promise.all([carregarProdutos(), carregarCaixa()]);
       render();
@@ -1480,6 +1482,8 @@
   }
 
   function mostrarRecibo(venda, troco) {
+    const cfg = configCupom();
+    const cupom = cupomDaVendaNova(venda);
     abrirModal(`
       <div class="modal-card estreito" style="text-align:center">
         ${cabecalhoModal('Venda concluída', '')}
@@ -1487,11 +1491,82 @@
         <div style="font-size:13px;color:var(--text-2)">${venda.pagamentos.map(p => esc(p.forma) + ' ' + fmt(p.valor)).join(' + ')}</div>
         ${troco > 0.005 ? `<div class="stat-valor" style="color:var(--ok-text)">Troco: ${fmt(troco)}</div>` : ''}
         ${venda.cashbackGerado ? `<div style="font-size:13px">Cliente ganhou <b>${fmt(venda.cashbackGerado)}</b> de cashback (saldo ${fmt(venda.saldosCliente.cashback)})</div>` : ''}
-        <button class="btn-primario btn-grande" id="btn-nova-venda">Nova venda</button>
+        <div style="display:flex;gap:8px"><button class="btn-secundario" id="btn-cupom" style="flex:1">🖨 Imprimir cupom</button><button class="btn-primario btn-grande" id="btn-nova-venda" style="flex:2">Nova venda</button></div>
+        <label style="font-size:12px;color:var(--text-2);display:flex;gap:6px;align-items:center;justify-content:center"><input type="checkbox" id="cupom-auto" ${cfg.auto ? 'checked' : ''}> Imprimir cupom automaticamente em toda venda (neste computador)</label>
       </div>`, () => document.getElementById('venda-busca').focus());
     const b = document.getElementById('btn-nova-venda');
     b.focus();
     b.onclick = () => { fecharModal(); document.getElementById('venda-busca').focus(); };
+    document.getElementById('btn-cupom').onclick = () => imprimirCupom(cupom);
+    document.getElementById('cupom-auto').onchange = (e) => salvarConfigCupom(Object.assign(configCupom(), { auto: e.target.checked }));
+    if (cfg.auto) imprimirCupom(cupom);
+  }
+
+  /* ---------- Cupom (não fiscal) na impressora térmica ---------- */
+  function configCupom() { try { return Object.assign({ largura: 80, auto: false }, JSON.parse(localStorage.getItem('gutto-cupom') || '{}')); } catch (e) { return { largura: 80, auto: false }; } }
+  function salvarConfigCupom(c) { try { localStorage.setItem('gutto-cupom', JSON.stringify(c)); } catch (e) {} }
+  function numeroVenda(id) { return String(id || '').slice(-6).toUpperCase(); }
+  // Formato único do cupom, venha da venda que acabou de acontecer ou da reimpressão.
+  function cupomDaVendaNova(r) {
+    return { id: r.id, criadoEm: r.criadoEm || new Date().toISOString(), vendedor: state.logado.nome, cliente: r.clienteNome,
+      itens: r.itens.map(i => ({ nome: i.produtoNome, tamanho: i.tamanho, cor: i.cor, qtd: i.qtd, precoUnit: i.precoUnit, desconto: i.descontoItem })),
+      subtotal: r.subtotal, desconto: r.desconto, taxaEntrega: 0, total: r.total, pagamentos: r.pagamentos, troco: r.troco || 0,
+      cashbackGerado: r.cashbackGerado, saldoCashback: r.saldosCliente ? r.saldosCliente.cashback : null };
+  }
+  function cupomDaVendaSalva(v) {
+    return { id: v.id, criadoEm: v.criado_em, vendedor: v.usuario_nome, cliente: v.cliente_nome, cancelada: v.cancelada,
+      itens: v.itens.map(i => ({ nome: i.produto_nome, tamanho: i.tamanho, cor: i.cor, qtd: Number(i.qtd), precoUnit: Number(i.preco_unit), desconto: Number(i.desconto_item) })),
+      subtotal: Number(v.subtotal), desconto: Number(v.desconto), taxaEntrega: Number(v.taxa_entrega || 0), total: Number(v.total),
+      pagamentos: v.pagamentos.map(p => ({ forma: p.forma, valor: Number(p.valor) })), troco: Number(v.troco || 0), cashbackGerado: Number(v.cashback_gerado || 0), saldoCashback: null };
+  }
+  function cabecalhoCupom() {
+    const site = state.config.site || {};
+    return `<div class="c">LOJA GUTTO</div>
+      ${site.endereco ? `<div class="c p">${esc(site.endereco)}</div>` : ''}${site.whatsapp ? `<div class="c p">WhatsApp ${esc(telefoneBR(site.whatsapp))}</div>` : ''}`;
+  }
+  function estiloCupom(largura) {
+    return `* { box-sizing: border-box; margin: 0; padding: 0; }
+      body { width: ${largura}mm; padding: 3mm ${largura >= 80 ? 4 : 2}mm 6mm; font: 12px/1.35 Arial, sans-serif; color: #000; background: #fff; }
+      .c { text-align: center; } .p { font-size: 11px; } .b { font-weight: 700; }
+      .t { font-size: 16px; font-weight: 800; }
+      hr { border: none; border-top: 1px dashed #000; margin: 2mm 0; }
+      .l { display: flex; justify-content: space-between; gap: 2mm; } .l span:last-child { white-space: nowrap; }
+      .it { margin-bottom: 1mm; }`;
+  }
+  function documentoCupom(v, largura) {
+    return `<!doctype html><html><head><meta charset="utf-8"><title>Cupom</title><style>${estiloCupom(largura)}</style></head><body>
+      ${cabecalhoCupom()}
+      <hr><div class="c b">CUPOM NÃO FISCAL${v.cancelada ? ' — VENDA CANCELADA' : ''}</div>
+      <div class="l p"><span>Venda ${numeroVenda(v.id)}</span><span>${dataHora(v.criadoEm)}</span></div>
+      <div class="p">Atendido por: ${esc(v.vendedor || '')}</div>${v.cliente ? `<div class="p">Cliente: ${esc(v.cliente)}</div>` : ''}
+      <hr>
+      ${v.itens.map(i => `<div class="it"><div>${esc(i.nome)} · ${esc(i.tamanho)}${i.cor ? ' · ' + esc(i.cor) : ''}</div>
+        <div class="l"><span>${i.qtd} x ${fmt(i.precoUnit)}</span><span>${fmt(i.qtd * i.precoUnit)}</span></div>
+        ${i.desconto ? `<div class="l p"><span>desconto</span><span>- ${fmt(i.desconto)}</span></div>` : ''}</div>`).join('')}
+      <hr>
+      ${v.desconto ? `<div class="l"><span>Subtotal</span><span>${fmt(v.subtotal)}</span></div><div class="l"><span>Descontos</span><span>- ${fmt(v.desconto)}</span></div>` : ''}
+      ${v.taxaEntrega ? `<div class="l"><span>Entrega</span><span>${fmt(v.taxaEntrega)}</span></div>` : ''}
+      <div class="l t"><span>TOTAL</span><span>${fmt(v.total)}</span></div>
+      ${v.pagamentos.map(p => `<div class="l"><span>${esc(p.forma)}</span><span>${fmt(p.valor)}</span></div>`).join('')}
+      ${v.troco > 0.005 ? `<div class="l"><span>Dinheiro recebido</span><span>${fmt((v.pagamentos.find(p => p.forma === 'Dinheiro') || { valor: 0 }).valor + v.troco)}</span></div><div class="l b"><span>Troco</span><span>${fmt(v.troco)}</span></div>` : ''}
+      ${v.cashbackGerado ? `<hr><div class="c">Você ganhou <b>${fmt(v.cashbackGerado)}</b> de cashback${v.saldoCashback != null ? `<br>Saldo: <b>${fmt(v.saldoCashback)}</b>` : ''}<br><span class="p">use como desconto na próxima compra</span></div>` : ''}
+      ${state.config.cupomRodape ? `<hr><div class="c p">${esc(state.config.cupomRodape)}</div>` : ''}
+      <hr><div class="c p">Obrigado pela preferência!</div>
+    </body></html>`;
+  }
+  function imprimirCupom(v) { imprimirDocumento(documentoCupom(v, configCupom().largura), configCupom().largura); }
+  function imprimirValeTroca(d) {
+    const largura = configCupom().largura;
+    imprimirDocumento(`<!doctype html><html><head><meta charset="utf-8"><title>Vale-troca</title><style>${estiloCupom(largura)}</style></head><body>
+      ${cabecalhoCupom()}<hr><div class="c t">VALE-TROCA</div>
+      <div class="l p"><span>${dataHora(new Date().toISOString())}</span><span>Venda ${numeroVenda(d.vendaId)}</span></div>
+      <div>Cliente: <b>${esc(d.cliente)}</b></div><hr>
+      ${d.itens.map(i => `<div class="l p"><span>${i.qtd} x ${esc(i.nome)} · ${esc(i.tamanho)}</span></div>`).join('')}
+      <hr><div class="l t"><span>CRÉDITO</span><span>${fmt(d.valor)}</span></div>
+      <div class="l"><span>Saldo total de vale-troca</span><span>${fmt(d.saldo)}</span></div>
+      <hr><div class="c p">O crédito fica no cadastro do cliente (pelo telefone) e pode ser usado em qualquer compra na loja.</div>
+      ${state.config.cupomRodape ? `<div class="c p" style="margin-top:2mm">${esc(state.config.cupomRodape)}</div>` : ''}
+    </body></html>`, largura);
   }
 
   /* ---------- Troca / devolução ---------- */
@@ -1508,10 +1583,14 @@
         ${vendas.map(v => `<tr style="${v.cancelada ? 'opacity:.55' : ''}"><td>${dataHora(v.criado_em)}${v.canal === 'online' ? ' <span class="tag cinza">site</span>' : ''}</td><td>${esc(v.cliente_nome || '—')}</td><td>${Number(v.qtd_itens)}</td><td>${esc(v.forma_pagamento)}</td>
           <td style="text-align:right">${v.cancelada ? '<s>' + fmt(v.total) + '</s>' : fmt(v.total)}</td>
           <td style="white-space:nowrap">${v.cancelada ? `<span class="tag cinza" title="${esc(v.motivo_cancelamento || '')}">cancelada</span>`
-            : `<button class="btn-secundario" data-venda="${v.id}">Troca</button>${ehAdmin() && !v.devolucoes ? ` <button class="link-btn" style="color:var(--zero-text)" data-cancelar="${v.id}">cancelar</button>` : ''}`}</td></tr>`).join('')}</table></div>`
+            : `<button class="btn-secundario" data-venda="${v.id}">Troca</button>${ehAdmin() && !v.devolucoes ? ` <button class="link-btn" style="color:var(--zero-text)" data-cancelar="${v.id}">cancelar</button>` : ''}`}
+            <button class="link-btn" data-cupom="${v.id}" title="Reimprimir cupom">cupom</button></td></tr>`).join('')}</table></div>`
         : '<div class="vazio">Nenhuma venda ' + (todas ? 'registrada ainda.' : 'hoje.') + '</div>';
       corpo.querySelectorAll('[data-venda]').forEach(b => b.addEventListener('click', () => abrirTrocaDaVenda(b.dataset.venda)));
       corpo.querySelectorAll('[data-cancelar]').forEach(b => b.addEventListener('click', () => abrirCancelarVenda(vendas.find(v => v.id === b.dataset.cancelar), todas)));
+      corpo.querySelectorAll('[data-cupom]').forEach(b => b.addEventListener('click', async () => {
+        try { imprimirCupom(cupomDaVendaSalva(await api('/vendas/' + b.dataset.cupom))); } catch (e) { toast(e.message, 'erro'); }
+      }));
     } catch (e) { toast(e.message, 'erro'); }
   }
 
@@ -1592,7 +1671,9 @@
           <div>Vale-troca gerado para <b>${esc(cliente.nome)}</b></div>
           <div class="stat-valor" style="font-size:28px;color:var(--teal)">${fmt(r.valeTroca)}</div>
           <div style="font-size:12px;color:var(--text-2)">Saldo de vale-troca agora: ${fmt(r.saldosCliente.vale_troca)}${r.cashbackEstornado ? ' · Cashback estornado: ' + fmt(r.cashbackEstornado) : ''}</div>
-          <button class="btn-primario" data-fechar>Ok</button></div>`);
+          <div style="display:flex;gap:8px"><button class="btn-secundario" id="btn-vale-imprimir" style="flex:1">🖨 Imprimir vale-troca</button><button class="btn-primario" data-fechar style="flex:1">Ok</button></div></div>`);
+        document.getElementById('btn-vale-imprimir').onclick = () => imprimirValeTroca({ vendaId: venda.id, cliente: cliente.nome, valor: r.valeTroca, saldo: r.saldosCliente.vale_troca,
+          itens: pedidos.map(p => { const i = itens.find(x => x.id === p.vendaItemId); return { qtd: p.qtd, nome: i.produto_nome, tamanho: i.tamanho }; }) });
       }, camada.querySelector('#troca-erro'));
     };
     desenhar();
@@ -2278,15 +2359,25 @@
     </style></head><body>${linhas.map(l => `<div class="linha">${l.map(e => htmlEtiqueta(e, cfg)).join('')}</div>`).join('')}</body></html>`;
   }
   // Imprime por um iframe escondido: abre a janela de impressão do Windows já no tamanho da etiqueta.
-  function imprimirDocumento(html) {
+  // larguraRoloMm (cupom): a altura da página vira a altura real do conteúdo — o rolo térmico corta
+  // logo depois do texto, sem avançar papel em branco.
+  function imprimirDocumento(html, larguraRoloMm) {
     const antigo = document.getElementById('frame-impressao');
     if (antigo) antigo.remove();
     const f = document.createElement('iframe');
     f.id = 'frame-impressao';
-    f.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0';
+    f.style.cssText = 'position:fixed;right:0;bottom:0;width:' + (larguraRoloMm ? larguraRoloMm + 'mm' : '0') + ';height:0;border:0;visibility:hidden';
     document.body.appendChild(f);
     f.contentDocument.open(); f.contentDocument.write(html); f.contentDocument.close();
-    setTimeout(() => { f.contentWindow.focus(); f.contentWindow.print(); }, 250);
+    setTimeout(() => {
+      if (larguraRoloMm) {
+        const alturaMm = Math.ceil(f.contentDocument.body.scrollHeight * 25.4 / 96) + 4;
+        const st = f.contentDocument.createElement('style');
+        st.textContent = '@page { size: ' + larguraRoloMm + 'mm ' + alturaMm + 'mm; margin: 0; }';
+        f.contentDocument.head.appendChild(st);
+      }
+      f.contentWindow.focus(); f.contentWindow.print();
+    }, 250);
   }
 
   // Lista: [{ variacaoId, nome, tamanho, cor, preco, codigo, qtd }] — a quantidade de cada uma é editável antes de imprimir.
@@ -2833,6 +2924,11 @@
         <label class="campo">Cashback pro cliente (%)<input id="cfg-cashback" inputmode="decimal" value="${String(cfg.cashbackPct).replace('.', ',')}"></label>
         <label class="campo">Desconto que o Caixa dá sem PIN (%)<input id="cfg-desconto" inputmode="decimal" value="${String(cfg.descontoLivrePct).replace('.', ',')}"></label>
       </div>
+      <div class="painel-titulo" style="margin:18px 0 8px;font-size:14px">Cupom da venda</div>
+      <div class="linha-campos" style="max-width:720px;align-items:flex-end">
+        <label class="campo" style="flex:3">Rodapé do cupom (ex.: política de troca)<input id="cfg-cupom-rodape" maxlength="300" value="${esc(cfg.cupomRodape || '')}" placeholder="Trocas em até 30 dias com a etiqueta e o cupom."></label>
+        <label class="campo">Papel (neste computador)<select id="cfg-cupom-largura"><option value="80" ${configCupom().largura == 80 ? 'selected' : ''}>80 mm</option><option value="58" ${configCupom().largura == 58 ? 'selected' : ''}>58 mm</option></select></label>
+      </div>
       <div class="painel-titulo" style="margin:18px 0 8px;font-size:14px">Site da loja (pedidos online)</div>
       <div style="display:flex;gap:16px;flex-wrap:wrap;font-size:13px;margin-bottom:10px">
         <label style="display:flex;gap:6px;align-items:center"><input type="checkbox" id="cfg-site-ativo" ${cfg.site && cfg.site.ativo ? 'checked' : ''}> Site recebendo pedidos</label>
@@ -2858,7 +2954,8 @@
       if (!Number.isFinite(cashbackPct) || !Number.isFinite(descontoLivrePct)) throw new Error('Valores inválidos');
       const taxa = parseNumBR(document.getElementById('cfg-site-taxa').value || '0');
       if (!Number.isFinite(taxa) || taxa < 0) throw new Error('Taxa de entrega inválida');
-      await api('/config', { method: 'PUT', body: { cashbackPct, descontoLivrePct, site: {
+      salvarConfigCupom(Object.assign(configCupom(), { largura: Number(document.getElementById('cfg-cupom-largura').value) }));
+      await api('/config', { method: 'PUT', body: { cashbackPct, descontoLivrePct, cupomRodape: document.getElementById('cfg-cupom-rodape').value, site: {
         ativo: document.getElementById('cfg-site-ativo').checked, aceitaRetirada: document.getElementById('cfg-site-retirada').checked,
         aceitaEntrega: document.getElementById('cfg-site-entrega').checked, taxaEntrega: taxa, whatsapp: document.getElementById('cfg-site-whats').value,
         endereco: document.getElementById('cfg-site-endereco').value, mensagem: document.getElementById('cfg-site-msg').value } } });
