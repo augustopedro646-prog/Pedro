@@ -10,6 +10,7 @@ const notas = require('./notas');
 const backup = require('./backup');
 const relatorios = require('./relatorios');
 const fiscal = require('./fiscal');
+const ExcelJS = require('exceljs');
 const Anthropic = require('@anthropic-ai/sdk');
 const crypto = require('crypto');
 
@@ -991,6 +992,96 @@ app.put('/api/lojas/:lojaId/fiscal/ncm', admin, rota(async (req, res) => {
   res.json({ atualizados: rowCount });
 }));
 
+// Planilha pra contadora: um produto por linha, ela preenche o NCM e a planilha volta pelo painel.
+const COL_CODIGO = 'Código (não mexer)', COL_NCM = 'NCM (8 números)';
+app.get('/api/lojas/:lojaId/fiscal/planilha', admin, rota(async (req, res) => {
+  const { rows } = await pool.query(
+    `SELECT p.id, p.nome, p.categoria, p.descricao, p.ncm,
+            string_agg(DISTINCT v.tamanho, ', ') AS tamanhos, string_agg(DISTINCT NULLIF(v.cor, ''), ', ') AS cores
+     FROM produtos p LEFT JOIN produto_variacoes v ON v.produto_id = p.id AND v.ativo
+     WHERE p.loja_id = $1 AND p.ativo GROUP BY p.id ORDER BY p.categoria NULLS LAST, p.nome`, [req.lojaId]);
+  const livro = new ExcelJS.Workbook();
+  const aba = livro.addWorksheet('Produtos', { views: [{ state: 'frozen', ySplit: 1 }] });
+  aba.columns = [
+    { header: COL_CODIGO, key: 'id', width: 20 }, { header: 'Produto', key: 'nome', width: 34 }, { header: 'Categoria', key: 'categoria', width: 16 },
+    { header: 'Descrição / tecido', key: 'descricao', width: 30 }, { header: 'Tamanhos', key: 'tamanhos', width: 18 }, { header: 'Cores', key: 'cores', width: 18 },
+    { header: COL_NCM, key: 'ncm', width: 16 }, { header: 'Observação', key: 'obs', width: 30 },
+  ];
+  for (const r of rows) aba.addRow({ ...r, ncm: r.ncm || '' });
+  aba.getRow(1).font = { bold: true };
+  aba.getColumn('ncm').numFmt = '@';
+  aba.getColumn('ncm').eachCell((cel, n) => { if (n > 1) cel.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFF4CC' } }; });
+  const ajuda = livro.addWorksheet('Como preencher');
+  ajuda.getColumn(1).width = 110;
+  ['Planilha de produtos da Loja Gutto pra classificação fiscal (NFC-e).', '',
+    'Preencha a coluna "NCM (8 números)" de cada produto (pode ser com ou sem pontos: 6104.42.00 ou 61044200).',
+    'Não mexa na coluna "Código" — é por ela que o sistema acha o produto.',
+    'Linha com NCM vazio fica como está no sistema. Pode usar a coluna "Observação" pra comentários.',
+    'CFOP, CSOSN e origem são da loja inteira (configurados à parte) — só o NCM é por produto.',
+  ].forEach((t) => ajuda.addRow([t]));
+  res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+  res.setHeader('Content-Disposition', 'attachment; filename="produtos-ncm-loja-gutto.xlsx"');
+  res.send(Buffer.from(await livro.xlsx.writeBuffer()));
+}));
+
+// Planilha preenchida de volta (.xlsx ou .csv, em base64). Aplica o NCM de cada linha preenchida.
+app.post('/api/lojas/:lojaId/fiscal/planilha', admin, express.json({ limit: '8mb' }), rota(async (req, res) => {
+  const body = req.body || {};
+  if (typeof body.arquivo !== 'string' || !body.arquivo) falha(400, 'Envie o arquivo da planilha');
+  const buf = Buffer.from(body.arquivo, 'base64');
+  const livro = new ExcelJS.Workbook();
+  const ehCsv = /\.csv$/i.test(String(body.nome || ''));
+  try {
+    if (ehCsv) {
+      // Excel em português salva CSV com ";" e, às vezes, em Windows-1252.
+      let txt = buf.toString('utf8');
+      if (txt.includes('\uFFFD')) txt = new TextDecoder('windows-1252').decode(buf);
+      const aba = livro.addWorksheet('csv');
+      const sep = (txt.split(/\r?\n/)[0].match(/;/g) || []).length ? ';' : ',';
+      for (const linha of txt.replace(/^\uFEFF/, '').split(/\r?\n/)) {
+        if (linha.trim()) aba.addRow(linha.split(sep).map((x) => x.replace(/^"|"$/g, '').trim()));
+      }
+    } else {
+      await livro.xlsx.load(buf);
+    }
+  } catch (e) {
+    falha(400, 'Não consegui abrir essa planilha — salve como .xlsx (Excel) e tente de novo');
+  }
+  // Acha a aba e as colunas pelo cabeçalho (a contadora pode ter mudado a ordem das colunas).
+  let aba = null, colCodigo = 0, colNcm = 0;
+  livro.eachSheet((a) => {
+    if (aba) return;
+    a.getRow(1).eachCell((cel, n) => {
+      const t = String(cel.text || '').toLowerCase();
+      if (t.startsWith('código') || t.startsWith('codigo')) colCodigo = n;
+      if (t.startsWith('ncm')) colNcm = n;
+    });
+    if (colCodigo && colNcm) aba = a; else { colCodigo = 0; colNcm = 0; }
+  });
+  if (!aba) falha(400, 'Essa planilha não tem as colunas "Código" e "NCM" — use a planilha baixada do sistema');
+  const { rows: produtos } = await pool.query('SELECT id, nome FROM produtos WHERE loja_id = $1', [req.lojaId]);
+  const nomes = new Map(produtos.map((p) => [p.id, p.nome]));
+  const aplicar = [], problemas = [];
+  aba.eachRow((linha, n) => {
+    if (n === 1) return;
+    const codigo = String(linha.getCell(colCodigo).text || '').trim();
+    let ncm = String(linha.getCell(colNcm).text || '').replace(/\D/g, '');
+    if (!codigo && !ncm) return;
+    if (!ncm) return; // vazio: fica como está
+    if (ncm.length === 7) ncm = '0' + ncm; // Excel come o zero da frente quando trata como número
+    if (!nomes.has(codigo)) { problemas.push({ linha: n, motivo: 'código "' + codigo + '" não é de nenhum produto' }); return; }
+    if (ncm.length !== 8) { problemas.push({ linha: n, produto: nomes.get(codigo), motivo: 'NCM "' + linha.getCell(colNcm).text + '" não tem 8 números' }); return; }
+    aplicar.push([codigo, ncm]);
+  });
+  let atualizados = 0;
+  await transacao(async (c) => {
+    for (const [id, ncm] of aplicar) {
+      atualizados += (await c.query('UPDATE produtos SET ncm = $1 WHERE id = $2 AND loja_id = $3 AND ncm IS DISTINCT FROM $1', [ncm, id, req.lojaId])).rowCount;
+    }
+  });
+  res.json({ atualizados, problemas: problemas.slice(0, 50) });
+}));
+
 /* ---------- Troca / devolução → vale-troca ---------- */
 
 // Corpo: { itens: [{vendaItemId, qtd}], clienteId? (obrigatório se a venda não teve cliente), observacao? }
@@ -1167,6 +1258,7 @@ app.post('/api/lojas/:lojaId/compras', admin, rota(async (req, res) => {
       // código de barras da etiqueta, quando o Administrador escolheu passar a usá-lo na peça.
       codigoFornecedor: texto(it.codigoFornecedor, 'codigoFornecedor', { obrigatorio: false, max: 60 }),
       codigoBarras: soDigitos(it.codigoBarras),
+      ncm: soDigitos(it.ncm),
     };
   }).sort((a, b) => (a.variacaoId < b.variacaoId ? -1 : 1));
   const numeroNota = texto(body.numeroNota, 'numeroNota', { obrigatorio: false, max: 30 });
@@ -1206,6 +1298,7 @@ app.post('/api/lojas/:lojaId/compras', admin, rota(async (req, res) => {
       if (e.code === '23505') falha(409, 'Essa nota já foi lançada antes (mesma chave de NF-e)', { codigo: 'nota_repetida' });
       throw e;
     }
+    let ncmPreenchidos = 0;
     for (const it of itens) {
       await c.query('INSERT INTO compras_itens (id, compra_id, variacao_id, qtd, custo_unitario) VALUES ($1,$2,$3,$4,$5)', [uid(), compraId, it.variacaoId, it.qtd, it.custo]);
       await darEntradaEstoque(c, {
@@ -1221,6 +1314,13 @@ app.post('/api/lojas/:lojaId/compras', admin, rota(async (req, res) => {
           if (e.code !== '23505') throw e;
           falha(409, 'O código de barras ' + it.codigoBarras + ' já está em outra peça — desmarque "usar código da nota" nesse item');
         }
+      }
+      // NCM do XML do fornecedor preenche o produto que ainda não tem (nunca troca um já preenchido).
+      if (origem === 'xml' && it.ncm && it.ncm.length === 8) {
+        const { rowCount } = await c.query(
+          `UPDATE produtos SET ncm = $1 WHERE loja_id = $3 AND id = (SELECT produto_id FROM produto_variacoes WHERE id = $2)
+             AND (ncm IS NULL OR ncm !~ '^[0-9]{8}$')`, [it.ncm, it.variacaoId, req.lojaId]);
+        ncmPreenchidos += rowCount;
       }
       if (it.codigoFornecedor && fornecedorId) {
         await c.query(
@@ -1241,7 +1341,7 @@ app.post('/api/lojas/:lojaId/compras', admin, rota(async (req, res) => {
       );
       await c.query('UPDATE compras SET despesa_id = $1 WHERE id = $2', [despesaId, compraId]);
     }
-    return { id: compraId, total, despesaId, fornecedorId };
+    return { id: compraId, total, despesaId, fornecedorId, ncmPreenchidos };
   });
   res.status(201).json(compra);
 }));

@@ -111,8 +111,16 @@ continua sendo "não fiscal"; a NFC-e é a nota de verdade.
 5. Em **Equipe → Configurações da loja → Nota fiscal**:
    - Preencha **CFOP**, **CSOSN** e **origem**. Confirme esses três com a contadora; numa loja de
      roupa do Simples costuma ser 5102 / 102 / 0.
-   - Preencha o **NCM** dos produtos. Dá pra fazer por categoria ali mesmo, ou um por um no
-     Estoque. Nas compras lançadas pelo XML, o NCM já vem do fornecedor.
+   - Preencha o **NCM** dos produtos. É o único dado fiscal que vai em cada produto (CFOP, CSOSN e
+     origem são da loja inteira). Três jeitos, que podem ser combinados:
+     - **XML do fornecedor**: ao lançar uma compra pelo XML (Compras → Ler nota), o NCM que o
+       fornecedor usou vai sozinho pros produtos que ainda não têm. Um NCM já preenchido nunca é
+       trocado. Vale também pra produto cadastrado à mão, depois de ligado ao item da nota.
+     - **Planilha pra contadora**: "Baixar planilha pra contadora" gera um Excel com todos os
+       produtos. Ela preenche a coluna NCM, e "Importar planilha preenchida" aplica tudo de uma
+       vez. Linha com problema (NCM incompleto, código apagado) é listada e não mexe em nada.
+     - **Por categoria** (quando a categoria inteira tem o mesmo NCM) ali mesmo, ou um por um
+       no Estoque.
 
 **Testar** (homologação, sem valor fiscal): faça uma venda e clique em **Emitir NFC-e**. A nota sai
 marcada "teste". Só depois de algumas notas autorizadas em teste troque para

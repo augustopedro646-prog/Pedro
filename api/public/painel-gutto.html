@@ -2860,18 +2860,19 @@
       // 2) Lança a nota inteira de uma vez (estoque, custo médio, despesa e códigos).
       const nomeForn = camada.querySelector('#cn-fornecedor').value.trim();
       const mesmoFornecedor = r.fornecedorId && nomeForn.toLowerCase() === String(r.fornecedorCadastrado || '').toLowerCase();
-      await api('/compras', { method: 'POST', body: {
+      const lancada = await api('/compras', { method: 'POST', body: {
         fornecedorId: mesmoFornecedor ? r.fornecedorId : undefined,
         fornecedorNome: mesmoFornecedor ? undefined : (nomeForn || undefined),
         fornecedorCnpj: mesmoFornecedor ? undefined : (r.fornecedor.cnpj || undefined),
         numeroNota: camada.querySelector('#cn-numero').value, data: camada.querySelector('#cn-data').value,
         chaveNfe: r.chave || undefined, origem: r.origem,
         itens: lancar.map(i => ({ variacaoId: i.destino.variacaoId, qtd: i.qtd, custoUnitario: i.custoUnitario,
-          codigoFornecedor: i.codigoFornecedor || undefined, codigoBarras: i.usarCodigo && !i.destino.criado ? i.ean : undefined })),
+          codigoFornecedor: i.codigoFornecedor || undefined, codigoBarras: i.usarCodigo && !i.destino.criado ? i.ean : undefined,
+          ncm: r.origem === 'xml' ? (i.ncm || undefined) : undefined })),
         lancarDespesa: camada.querySelector('#cn-despesa').checked, formaPagamento: camada.querySelector('#cn-forma').value,
       } });
       fecharModal();
-      toast('Nota lançada — ' + lancar.reduce((s, i) => s + i.qtd, 0) + ' peças no estoque');
+      toast('Nota lançada — ' + lancar.reduce((s, i) => s + i.qtd, 0) + ' peças no estoque' + (lancada.ncmPreenchidos ? ' · NCM do fornecedor preenchido em ' + lancada.ncmPreenchidos + ' produto' + (lancada.ncmPreenchidos > 1 ? 's' : '') : ''));
       await carregarProdutos();
       carregarDadosDaView('compras');
       abrirImprimirEtiquetas(etiquetasDeItens(lancar.map(i => ({ variacaoId: i.destino.variacaoId, qtd: i.qtd }))), 'Etiquetas das peças que chegaram');
@@ -3091,14 +3092,43 @@
       </div>
       <div class="modal-dica" style="margin:6px 0 0">Confirme CFOP, CSOSN e origem com a contadora antes de emitir (numa loja de roupa do Simples costuma ser 5102 e 102).</div>
       <label style="display:flex;gap:6px;align-items:center;font-size:13px;margin-top:10px"><input type="checkbox" id="cfg-nfce-auto" ${f.automatica ? 'checked' : ''} ${f.pronto ? '' : 'disabled'}> Emitir a NFC-e automaticamente em toda venda (sem isso, fica o botão "Emitir NFC-e" depois da venda)</label>
-      <div style="margin-top:12px;font-size:13px;font-weight:600">NCM dos produtos</div>
-      ${sem.length ? `<div class="modal-dica" style="margin:2px 0 6px">Todo produto precisa do NCM (8 números) pra sair na nota. Dá pra preencher por categoria aqui, ou um por um no Estoque. Na entrada de nota por XML, o NCM do fornecedor já vem sozinho.</div>
+      <div style="margin-top:12px;display:flex;gap:8px;align-items:center;flex-wrap:wrap"><span style="font-size:13px;font-weight:600;flex:1">NCM dos produtos</span>
+        <button class="btn-secundario" id="ncm-baixar">Baixar planilha pra contadora</button>
+        <button class="btn-secundario" id="ncm-importar">Importar planilha preenchida</button>
+        <input type="file" id="ncm-arquivo" accept=".xlsx,.csv" style="display:none"></div>
+      <div class="modal-dica" style="margin:2px 0 6px">O NCM vem sozinho quando a compra é lançada pelo XML do fornecedor. Pro resto: mande a planilha pra contadora preencher e importe de volta.</div>
+      <div id="ncm-resultado"></div>
+      ${sem.length ? `<div class="modal-dica" style="margin:2px 0 6px">Ou preencha por categoria aqui (quando todos da categoria têm o mesmo NCM), ou um por um no Estoque:</div>
         ${sem.map(c => `<div class="linha-simples" style="gap:8px;flex-wrap:wrap"><span style="flex:1;min-width:140px;font-size:13px">${esc(c.categoria)} <span style="color:var(--text-2);font-size:12px">${c.sem_ncm} de ${c.produtos} sem NCM</span></span>
           <input data-ncm-cat="${esc(c.categoria)}" inputmode="numeric" maxlength="10" style="width:120px;padding:7px 9px;border-radius:8px;border:1px solid var(--border)" placeholder="${c.exemplo_ncm ? esc(c.exemplo_ncm) : '8 números'}" value="${c.exemplo_ncm ? esc(c.exemplo_ncm) : ''}">
           <button class="btn-secundario" data-ncm-aplicar="${esc(c.categoria)}">Aplicar nos sem NCM</button></div>`).join('')}`
         : `<div class="modal-dica" style="margin:2px 0 0">${ncm.length ? '✓ Todos os produtos têm NCM.' : ''}</div>`}`;
   }
   function ligarNcmCategorias() {
+    const baixar = document.getElementById('ncm-baixar');
+    if (baixar) baixar.onclick = (ev) => comBotao(ev.target, 'Gerando...', async () => {
+      const res = await fetch(API_BASE + '/fiscal/planilha', { headers: { Authorization: 'Bearer ' + state.token } });
+      if (!res.ok) throw new Error('Não consegui gerar a planilha (' + res.status + ')');
+      const url = URL.createObjectURL(await res.blob());
+      const a = document.createElement('a'); a.href = url; a.download = 'produtos-ncm-loja-gutto.xlsx';
+      document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 2000);
+    });
+    const importar = document.getElementById('ncm-importar'), arquivo = document.getElementById('ncm-arquivo');
+    if (importar) importar.onclick = () => arquivo.click();
+    if (arquivo) arquivo.onchange = async () => {
+      const f = arquivo.files[0]; arquivo.value = '';
+      if (!f) return;
+      await comBotao(importar, 'Importando...', async () => {
+        const base64 = (await lerArquivoComo(f)).split(',')[1];
+        const r = await api('/fiscal/planilha', { method: 'POST', body: { arquivo: base64, nome: f.name } });
+        state.fiscalNcm = await api('/fiscal/ncm');
+        await carregarProdutos();
+        renderEquipe();
+        document.getElementById('ncm-resultado').innerHTML = `<div class="nfce-box ${r.problemas.length ? 'erro' : 'ok'}" style="align-items:flex-start;margin-bottom:8px">
+          <div>✓ NCM atualizado em ${r.atualizados} produto${r.atualizados === 1 ? '' : 's'}.</div>
+          ${r.problemas.length ? `<div style="font-weight:400">Linhas com problema (ficaram como estavam):<br>${r.problemas.map(p => 'Linha ' + p.linha + (p.produto ? ' (' + esc(p.produto) + ')' : '') + ': ' + esc(p.motivo)).join('<br>')}</div>` : ''}</div>`;
+      });
+    };
     document.querySelectorAll('[data-ncm-aplicar]').forEach(b => b.onclick = (ev) => comBotao(ev.target, 'Aplicando...', async () => {
       const cat = b.dataset.ncmAplicar;
       const input = Array.from(document.querySelectorAll('[data-ncm-cat]')).find(i => i.dataset.ncmCat === cat);
