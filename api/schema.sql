@@ -441,3 +441,6 @@ CREATE TABLE IF NOT EXISTS bot_conversas (
   atualizado_em TIMESTAMPTZ NOT NULL DEFAULT now(),
   PRIMARY KEY (loja_id, telefone)
 );
+
+-- Cancelar venda (só Administrador, com motivo).
+ALTER TABLE vendas ADD COLUMN IF NOT EXISTS motivo_cancelamento TEXT;

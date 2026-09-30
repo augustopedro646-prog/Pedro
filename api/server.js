@@ -812,8 +812,9 @@ app.get('/api/lojas/:lojaId/vendas', qualquer, rota(async (req, res) => {
   const hoje = req.query.periodo === 'hoje';
   const { rows } = await pool.query(
     `SELECT v.id, v.usuario_id, u.nome AS usuario_nome, v.canal, v.subtotal, v.desconto, v.total, v.forma_pagamento,
-            v.cancelada, v.cashback_gerado, v.criado_em, v.cliente_id, c.nome AS cliente_nome,
-            (SELECT COALESCE(SUM(qtd),0) FROM vendas_itens vi WHERE vi.venda_id = v.id) AS qtd_itens
+            v.cancelada, v.motivo_cancelamento, v.cashback_gerado, v.criado_em, v.cliente_id, c.nome AS cliente_nome, v.pedido_online_id,
+            (SELECT COALESCE(SUM(qtd),0) FROM vendas_itens vi WHERE vi.venda_id = v.id) AS qtd_itens,
+            (SELECT count(*) FROM devolucoes d WHERE d.venda_id = v.id)::int AS devolucoes
      FROM vendas v JOIN usuarios u ON u.id = v.usuario_id LEFT JOIN clientes c ON c.id = v.cliente_id
      WHERE v.loja_id = $1 ${hoje ? "AND (v.criado_em AT TIME ZONE $2)::date = (now() AT TIME ZONE $2)::date" : ''}
      ORDER BY v.criado_em DESC LIMIT 200`,
@@ -838,6 +839,76 @@ app.get('/api/lojas/:lojaId/vendas/:id', qualquer, rota(async (req, res) => {
   const { rows: pagamentos } = await pool.query('SELECT forma, valor FROM venda_pagamentos WHERE venda_id = $1', [req.params.id]);
   const { rows: devolucoes } = await pool.query('SELECT id, valor_total, criado_em FROM devolucoes WHERE venda_id = $1 ORDER BY criado_em', [req.params.id]);
   res.json({ ...rows[0], itens, pagamentos, devolucoes });
+}));
+
+/* ---------- Cancelar venda (só Administrador) ---------- */
+
+// Desfaz a venda inteira: peças de volta ao estoque, cashback gerado estornado, cashback/vale-troca
+// usados devolvidos ao cliente. Venda de um caixa já fechado: o dinheiro devolvido sai do caixa de
+// hoje como "saída" (o caixa antigo já foi conferido e não é reaberto). Cartão/Pix: o estorno é
+// feito na maquininha/banco — a resposta lista o que devolver. Venda que já teve troca/devolução
+// não cancela (o cliente ficaria com o vale-troca e o dinheiro).
+app.post('/api/lojas/:lojaId/vendas/:id/cancelar', admin, rota(async (req, res) => {
+  const motivo = texto((req.body || {}).motivo, 'Motivo do cancelamento', { max: 200 });
+  const r = await transacao(async (c) => {
+    const { rows } = await c.query('SELECT * FROM vendas WHERE id = $1 AND loja_id = $2 FOR UPDATE', [req.params.id, req.lojaId]);
+    const venda = rows[0];
+    if (!venda) falha(404, 'venda não encontrada');
+    if (venda.cancelada) falha(409, 'Essa venda já foi cancelada');
+    const { rowCount: devs } = await c.query('SELECT 1 FROM devolucoes WHERE venda_id = $1', [venda.id]);
+    if (devs) falha(409, 'Essa venda já teve troca/devolução — não dá pra cancelar (o cliente já recebeu vale-troca). Faça a troca/devolução do restante.');
+
+    const aberta = await sessaoAberta(c, req.lojaId, 'SHARE');
+    const doCaixaAberto = aberta && aberta.id === venda.caixa_sessao_id;
+    const { rows: pagamentos } = await c.query('SELECT forma, SUM(valor) AS valor FROM venda_pagamentos WHERE venda_id = $1 GROUP BY forma', [venda.id]);
+    const porForma = Object.fromEntries(pagamentos.map((p) => [p.forma, round2(Number(p.valor))]));
+    const dinheiro = porForma['Dinheiro'] || 0;
+    if (!doCaixaAberto && dinheiro > 0) {
+      if (!aberta) falha(409, 'Essa venda é de um caixa já fechado: abra o caixa de hoje pra registrar a devolução do dinheiro', { codigo: 'caixa_fechado' });
+      await c.query(
+        'INSERT INTO caixa_movimentos (id, sessao_id, loja_id, tipo, valor, descricao, criado_por) VALUES ($1,$2,$3,$4,$5,$6,$7)',
+        [uid(), aberta.id, req.lojaId, 'sangria', dinheiro, 'Dinheiro devolvido — venda cancelada: ' + motivo, req.usuario.id]);
+    }
+
+    const { rows: itens } = await c.query('SELECT variacao_id, SUM(qtd) AS qtd FROM vendas_itens WHERE venda_id = $1 GROUP BY variacao_id ORDER BY variacao_id', [venda.id]);
+    for (const it of itens) {
+      const { rows: v } = await c.query('SELECT custo_unitario FROM produto_variacoes WHERE id = $1 FOR UPDATE', [it.variacao_id]);
+      if (!v.length) continue; // peça apagada do cadastro: não tem estoque pra onde voltar
+      const qtd = Number(it.qtd), custo = Number(v[0].custo_unitario);
+      await c.query('UPDATE produto_variacoes SET estoque = estoque + $1 WHERE id = $2', [qtd, it.variacao_id]);
+      await c.query(
+        `INSERT INTO movimentos_estoque_produto (id, loja_id, variacao_id, tipo, quantidade, custo_unitario, valor_total, referencia_tipo, referencia_id, observacao, criado_por)
+         VALUES ($1,$2,$3,'devolucao',$4,$5,$6,'cancelamento_venda',$7,$8,$9)`,
+        [uid(), req.lojaId, it.variacao_id, qtd, custo, round2(qtd * custo), venda.id, 'Venda cancelada: ' + motivo, req.usuario.id]);
+    }
+
+    // Créditos do cliente: um ajuste líquido por tipo (devolve o que usou, tira o cashback que ganhou).
+    let saldosCli = null;
+    if (venda.cliente_id) {
+      const ajustes = {
+        cashback: round2((porForma['Cashback'] || 0) - Number(venda.cashback_gerado || 0)),
+        vale_troca: porForma['Vale-troca'] || 0,
+      };
+      for (const [tipo, valor] of Object.entries(ajustes)) {
+        if (!valor) continue;
+        await c.query(
+          `INSERT INTO cliente_creditos (id, loja_id, cliente_id, tipo, valor, origem, referencia_id, observacao, criado_por)
+           VALUES ($1,$2,$3,$4,$5,'ajuste',$6,$7,$8)`,
+          [uid(), req.lojaId, venda.cliente_id, tipo, valor, venda.id, 'Venda cancelada', req.usuario.id]);
+      }
+      saldosCli = await saldosCliente(c, venda.cliente_id);
+    }
+    if (venda.pedido_online_id) {
+      await c.query("UPDATE pedidos_online SET status = 'cancelado', motivo_cancelamento = $1, atualizado_em = now() WHERE id = $2", ['Venda cancelada: ' + motivo, venda.pedido_online_id]);
+    }
+    await c.query('UPDATE vendas SET cancelada = true, cancelada_por = $1, cancelada_em = now(), motivo_cancelamento = $2 WHERE id = $3', [req.usuario.id, motivo, venda.id]);
+    return {
+      ok: true, total: Number(venda.total), doCaixaAberto, dinheiroDevolvido: dinheiro,
+      estornarFora: Object.entries(porForma).filter(([f]) => ['Pix', 'Débito', 'Crédito'].includes(f)).map(([forma, valor]) => ({ forma, valor })),
+      saldosCliente: saldosCli,
+    };
+  });
+  res.json(r);
 }));
 
 /* ---------- Troca / devolução → vale-troca ---------- */

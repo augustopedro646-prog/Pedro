@@ -401,7 +401,7 @@
         <h1 class="titulo">Venda rápida</h1>
         <div class="venda-topo">
           <input id="venda-busca" data-leitor type="text" autocomplete="off" placeholder="Leia o código de barras ou digite o nome da peça">
-          <button class="btn-secundario" id="btn-troca">Troca / devolução</button>
+          <button class="btn-secundario" id="btn-troca">Vendas / troca</button>
         </div>
         <div id="venda-aviso-caixa"></div>
         <div class="produtos-grid" id="produtos-grid"></div>
@@ -1495,18 +1495,50 @@
   }
 
   /* ---------- Troca / devolução ---------- */
-  async function abrirTroca() {
-    const camada = abrirModal(`<div class="modal-card largo">${cabecalhoModal('Troca / devolução', 'Escolha a venda — a peça volta pro estoque e o cliente ganha vale-troca')}
+  // Lista de vendas (hoje ou todas): troca/devolução e, pro Administrador, cancelar.
+  async function abrirTroca(todas) {
+    const camada = abrirModal(`<div class="modal-card largo">${cabecalhoModal('Vendas', 'Troca/devolução gera vale-troca; cancelar desfaz a venda inteira')}
+      <div class="chips"><button class="chip ${todas ? '' : 'ativo'}" data-per="hoje">Hoje</button><button class="chip ${todas ? 'ativo' : ''}" data-per="todas">Todas</button></div>
       <div id="troca-corpo"><div class="carregando">Carregando vendas...</div></div></div>`);
+    camada.querySelectorAll('[data-per]').forEach(b => b.onclick = () => abrirTroca(b.dataset.per === 'todas'));
     try {
-      const vendas = (await api('/vendas')).filter(v => !v.cancelada);
+      const vendas = await api('/vendas' + (todas ? '' : '?periodo=hoje'));
       const corpo = camada.querySelector('#troca-corpo');
       corpo.innerHTML = vendas.length ? `<div class="tabela-scroll"><table class="tabela"><tr><th>Quando</th><th>Cliente</th><th>Peças</th><th>Pagamento</th><th style="text-align:right">Total</th><th></th></tr>
-        ${vendas.map(v => `<tr><td>${dataHora(v.criado_em)}</td><td>${esc(v.cliente_nome || '—')}</td><td>${Number(v.qtd_itens)}</td><td>${esc(v.forma_pagamento)}</td>
-          <td style="text-align:right">${fmt(v.total)}</td><td><button class="btn-secundario" data-venda="${v.id}">Escolher</button></td></tr>`).join('')}</table></div>`
-        : '<div class="vazio">Nenhuma venda registrada ainda.</div>';
+        ${vendas.map(v => `<tr style="${v.cancelada ? 'opacity:.55' : ''}"><td>${dataHora(v.criado_em)}${v.canal === 'online' ? ' <span class="tag cinza">site</span>' : ''}</td><td>${esc(v.cliente_nome || '—')}</td><td>${Number(v.qtd_itens)}</td><td>${esc(v.forma_pagamento)}</td>
+          <td style="text-align:right">${v.cancelada ? '<s>' + fmt(v.total) + '</s>' : fmt(v.total)}</td>
+          <td style="white-space:nowrap">${v.cancelada ? `<span class="tag cinza" title="${esc(v.motivo_cancelamento || '')}">cancelada</span>`
+            : `<button class="btn-secundario" data-venda="${v.id}">Troca</button>${ehAdmin() && !v.devolucoes ? ` <button class="link-btn" style="color:var(--zero-text)" data-cancelar="${v.id}">cancelar</button>` : ''}`}</td></tr>`).join('')}</table></div>`
+        : '<div class="vazio">Nenhuma venda ' + (todas ? 'registrada ainda.' : 'hoje.') + '</div>';
       corpo.querySelectorAll('[data-venda]').forEach(b => b.addEventListener('click', () => abrirTrocaDaVenda(b.dataset.venda)));
+      corpo.querySelectorAll('[data-cancelar]').forEach(b => b.addEventListener('click', () => abrirCancelarVenda(vendas.find(v => v.id === b.dataset.cancelar), todas)));
     } catch (e) { toast(e.message, 'erro'); }
+  }
+
+  function abrirCancelarVenda(v, todas) {
+    const camada = abrirModal(`<div class="modal-card estreito">${cabecalhoModal('Cancelar venda de ' + fmt(v.total), dataHora(v.criado_em) + (v.cliente_nome ? ' · ' + v.cliente_nome : '') + ' · ' + v.forma_pagamento)}
+      <div class="modal-dica" style="margin:0">As peças voltam pro estoque. Cashback/vale-troca que o cliente usou volta pra ele, e o cashback que ganhou nessa compra sai.
+        Dinheiro: devolva da gaveta (se a venda for de um caixa já fechado, vira uma saída no caixa de hoje). Cartão/Pix: faça o estorno na maquininha/banco.</div>
+      <label class="campo">Motivo<input id="cv-motivo" type="text" maxlength="200" placeholder="Ex.: cliente desistiu, registrei errado"></label>
+      <div class="erro-modal" id="cv-erro"></div>
+      <div class="modal-acoes"><button class="btn-secundario" id="cv-voltar">Voltar</button><button class="btn-perigo btn-grande" id="cv-ok">Cancelar venda</button></div></div>`);
+    camada.querySelector('#cv-motivo').focus();
+    camada.querySelector('#cv-voltar').onclick = () => abrirTroca(todas);
+    camada.querySelector('#cv-ok').onclick = (ev) => comBotao(ev.target, 'Cancelando...', async () => {
+      const motivo = camada.querySelector('#cv-motivo').value.trim();
+      if (!motivo) throw new Error('Escreva o motivo do cancelamento.');
+      let r;
+      try { r = await api('/vendas/' + v.id + '/cancelar', { method: 'POST', body: { motivo } }); }
+      catch (e) { if (e.data && e.data.codigo === 'caixa_fechado') { fecharModal(); toast(e.message, 'erro'); irPara('inicio'); return; } throw e; }
+      await Promise.all([carregarProdutos(), carregarCaixa()]); render();
+      abrirModal(`<div class="modal-card estreito" style="text-align:center">${cabecalhoModal('Venda cancelada', '')}
+        <div>Peças de volta no estoque.</div>
+        ${r.dinheiroDevolvido ? `<div class="stat-valor" style="color:var(--zero-text)">Devolver ${fmt(r.dinheiroDevolvido)} em dinheiro</div><div class="modal-dica" style="margin:0">${r.doCaixaAberto ? 'Já saiu da conta do caixa de hoje.' : 'Registrado como saída no caixa de hoje.'}</div>` : ''}
+        ${r.estornarFora.length ? `<div style="font-size:13px"><b>Estornar fora do sistema:</b> ${r.estornarFora.map(x => esc(x.forma) + ' ' + fmt(x.valor)).join(' + ')}</div>` : ''}
+        ${r.saldosCliente ? `<div class="modal-dica" style="margin:0">Cliente agora tem cashback ${fmt(r.saldosCliente.cashback)} e vale-troca ${fmt(r.saldosCliente.vale_troca)}.</div>` : ''}
+        <button class="btn-primario" id="cv-fim">Ok</button></div>`);
+      document.getElementById('cv-fim').onclick = () => abrirTroca(todas);
+    }, camada.querySelector('#cv-erro'));
   }
 
   async function abrirTrocaDaVenda(vendaId) {
@@ -3123,7 +3155,7 @@
   document.getElementById('btn-escalar').addEventListener('click', () => abrirFormAgenda('escala'));
   document.getElementById('confirmar').addEventListener('click', () => confirmarVenda());
   document.getElementById('btn-novo-produto').addEventListener('click', abrirNovoProduto);
-  document.getElementById('btn-troca').addEventListener('click', abrirTroca);
+  document.getElementById('btn-troca').addEventListener('click', () => abrirTroca(false));
   document.getElementById('btn-limpar-carrinho').addEventListener('click', () => { if (!state.cart.length || confirm('Limpar o carrinho?')) setState({ cart: [], pagamentos: [], cliente: null }); });
   document.getElementById('btn-novo-cliente').addEventListener('click', abrirNovoCliente);
   document.getElementById('btn-nova-compra').addEventListener('click', abrirNovaCompra);
