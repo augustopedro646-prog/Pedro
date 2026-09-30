@@ -23,28 +23,16 @@ function gerarToken(usuario) {
   );
 }
 
-// Exige um token válido (Authorization: Bearer <token>) — o Jabá confiava na
-// rede local isolada pra não precisar disso; a Gutto é exposta na internet
-// (hospedagem em nuvem), então cada rota de escrita passa por aqui.
-function requireAuth(req, res, next) {
+// Devolve o conteúdo do token (Authorization: Bearer <token>) ou null se ausente/inválido.
+function lerToken(req) {
   const header = req.headers.authorization || '';
   const token = header.startsWith('Bearer ') ? header.slice(7) : null;
-  if (!token) return res.status(401).json({ erro: 'Token ausente' });
+  if (!token) return null;
   try {
-    req.usuario = jwt.verify(token, SECRET);
-    next();
+    return jwt.verify(token, SECRET);
   } catch (e) {
-    return res.status(401).json({ erro: 'Token inválido ou expirado' });
+    return null;
   }
 }
 
-function requirePapel(...papeis) {
-  return (req, res, next) => {
-    if (!req.usuario || !papeis.includes(req.usuario.papel)) {
-      return res.status(403).json({ erro: 'Sem permissão pra essa ação' });
-    }
-    next();
-  };
-}
-
-module.exports = { hashPin, verificarPin, gerarToken, requireAuth, requirePapel };
+module.exports = { hashPin, verificarPin, gerarToken, lerToken };

@@ -107,6 +107,14 @@ async function main() {
     console.log('Usuário "' + u.nome + '" criado (papel: ' + u.papel + ').');
   }
 
+  // Variações cadastradas antes do código de barras automático ganham um código agora.
+  const { gerarCodigoBarras } = require('./codigos');
+  const { rows: semCodigo } = await pool.query('SELECT id FROM produto_variacoes WHERE codigo_barras IS NULL');
+  for (const v of semCodigo) {
+    await pool.query('UPDATE produto_variacoes SET codigo_barras = $1 WHERE id = $2', [await gerarCodigoBarras(pool), v.id]);
+  }
+  if (semCodigo.length) console.log(semCodigo.length + ' variação(ões) ganharam código de barras.');
+
   console.log('\nTudo pronto. Agora rode:  npm start');
   console.log('E abra no navegador:      http://localhost:3000');
   await pool.end();
