@@ -8,6 +8,7 @@ const { verificarPin, gerarToken, hashPin, lerToken } = require('./auth');
 const { gerarCodigoBarras } = require('./codigos');
 const notas = require('./notas');
 const backup = require('./backup');
+const relatorios = require('./relatorios');
 const Anthropic = require('@anthropic-ai/sdk');
 const crypto = require('crypto');
 
@@ -157,7 +158,7 @@ app.post('/api/lojas/:lojaId/login', pinLimiter, rota(async (req, res) => {
 
 app.get('/api/lojas/:lojaId/equipe', admin, rota(async (req, res) => {
   const { rows } = await pool.query(
-    'SELECT id, nome, papel, ativo, criado_em FROM usuarios WHERE loja_id = $1 ORDER BY ativo DESC, nome',
+    'SELECT id, nome, papel, ativo, criado_em, meta_mensal::float AS meta_mensal FROM usuarios WHERE loja_id = $1 ORDER BY ativo DESC, nome',
     [req.lojaId]
   );
   res.json(rows);
@@ -169,10 +170,11 @@ app.post('/api/lojas/:lojaId/equipe', admin, rota(async (req, res) => {
   const pin = (req.body || {}).pin;
   if (!PAPEIS.includes(papel)) falha(400, 'papel inválido');
   if (typeof pin !== 'string' || !/^\d{4}$/.test(pin)) falha(400, 'PIN deve ter 4 dígitos');
+  const meta = (req.body || {}).metaMensal;
   const id = uid();
   await pool.query(
-    'INSERT INTO usuarios (id, loja_id, nome, papel, pin_hash) VALUES ($1,$2,$3,$4,$5)',
-    [id, req.lojaId, nome, papel, hashPin(pin)]
+    'INSERT INTO usuarios (id, loja_id, nome, papel, pin_hash, meta_mensal) VALUES ($1,$2,$3,$4,$5,$6)',
+    [id, req.lojaId, nome, papel, hashPin(pin), meta != null && meta !== '' ? numero(meta, 'meta do mês', { max: 1e7 }) : 0]
   );
   res.status(201).json({ id });
 }));
@@ -183,6 +185,7 @@ app.put('/api/lojas/:lojaId/equipe/:id', admin, rota(async (req, res) => {
   if (body.papel != null && !PAPEIS.includes(body.papel)) falha(400, 'papel inválido');
   if (body.pin != null && body.pin !== '' && !/^\d{4}$/.test(body.pin)) falha(400, 'PIN deve ter 4 dígitos');
   const ativo = typeof body.ativo === 'boolean' ? body.ativo : null;
+  const meta = body.metaMensal != null && body.metaMensal !== '' ? numero(body.metaMensal, 'meta do mês', { max: 1e7 }) : null;
 
   await transacao(async (c) => {
     const { rows } = await c.query('SELECT id, papel, ativo FROM usuarios WHERE id = $1 AND loja_id = $2 FOR UPDATE', [req.params.id, req.lojaId]);
@@ -200,9 +203,9 @@ app.put('/api/lojas/:lojaId/equipe/:id', admin, rota(async (req, res) => {
     }
     await c.query(
       `UPDATE usuarios SET nome = COALESCE($1, nome), papel = $2, ativo = $3,
-         pin_hash = COALESCE($4, pin_hash)
+         pin_hash = COALESCE($4, pin_hash), meta_mensal = COALESCE($6, meta_mensal)
        WHERE id = $5`,
-      [nome, novoPapel, novoAtivo, body.pin ? hashPin(body.pin) : null, req.params.id]
+      [nome, novoPapel, novoAtivo, body.pin ? hashPin(body.pin) : null, req.params.id, meta]
     );
   });
   res.json({ ok: true });
@@ -214,7 +217,7 @@ app.get('/api/lojas/:lojaId/config', qualquer, rota(async (req, res) => {
   const { rows } = await pool.query('SELECT * FROM lojas WHERE id = $1', [req.lojaId]);
   if (!rows.length) falha(404, 'loja não encontrada');
   const l = rows[0];
-  res.json({ nome: l.nome, cashbackPct: Number(l.cashback_pct), descontoLivrePct: Number(l.desconto_livre_pct), leituraIA: !!anthropic,
+  res.json({ nome: l.nome, cashbackPct: Number(l.cashback_pct), descontoLivrePct: Number(l.desconto_livre_pct), comissaoPct: Number(l.comissao_pct), leituraIA: !!anthropic,
     cupomRodape: l.cupom_rodape || '',
     site: { ativo: l.site_ativo, aceitaEntrega: l.aceita_entrega, aceitaRetirada: l.aceita_retirada, taxaEntrega: Number(l.taxa_entrega),
       whatsapp: l.whatsapp || '', endereco: l.endereco || '', mensagem: l.mensagem_site || '' } });
@@ -228,6 +231,9 @@ app.put('/api/lojas/:lojaId/config', admin, rota(async (req, res) => {
     'UPDATE lojas SET cashback_pct = COALESCE($1, cashback_pct), desconto_livre_pct = COALESCE($2, desconto_livre_pct) WHERE id = $3',
     [cashback, desconto, req.lojaId]
   );
+  if (body.comissaoPct != null) {
+    await pool.query('UPDATE lojas SET comissao_pct = $1 WHERE id = $2', [numero(body.comissaoPct, 'comissão', { max: 50 }), req.lojaId]);
+  }
   if (body.cupomRodape != null) {
     await pool.query('UPDATE lojas SET cupom_rodape = $1 WHERE id = $2', [texto(body.cupomRodape, 'rodapé do cupom', { obrigatorio: false, max: 300 }) || '', req.lojaId]);
   }
@@ -1001,6 +1007,18 @@ app.post('/api/lojas/:lojaId/vendas/:id/devolucoes', qualquer, rota(async (req, 
     return { id: devolucaoId, valeTroca: valorTotal, cashbackEstornado, clienteId, saldosCliente: await saldosCliente(c, clienteId) };
   });
   res.status(201).json(resultado);
+}));
+
+/* ---------- Relatórios (Fase 4) ---------- */
+
+// ?inicio=AAAA-MM-DD&fim=AAAA-MM-DD (dias inteiros na hora da loja). Sem nada: últimos 30 dias.
+app.get('/api/lojas/:lojaId/relatorios', admin, rota(async (req, res) => {
+  const hoje = new Intl.DateTimeFormat('en-CA', { timeZone: TZ }).format(new Date());
+  const fim = req.query.fim ? dataISO(req.query.fim, 'data final') : hoje;
+  const inicio = req.query.inicio ? dataISO(req.query.inicio, 'data inicial') : relatorios.somaDias(fim, -29);
+  if (inicio > fim) falha(400, 'A data inicial é depois da final');
+  if (relatorios.diasEntre(inicio, fim) > 366) falha(400, 'Escolha um período de até 1 ano');
+  res.json(await relatorios.montarRelatorio(pool, req.lojaId, inicio, fim, TZ));
 }));
 
 /* ---------- Fluxo de caixa (mês) e despesas ---------- */

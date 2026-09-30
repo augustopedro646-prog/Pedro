@@ -61,7 +61,7 @@ function carimbo(d) {
 // Todos das últimas 48h; antes disso, o mais novo de cada dia; nada com mais de 30 dias.
 function limparAntigos(pasta, agora) {
   const arquivos = fs.readdirSync(pasta).filter((f) => f.startsWith(PREFIXO) && f.endsWith('.dump'))
-    .map((f) => ({ f, t: fs.statSync(path.join(pasta, f)).mtimeMs })).sort((a, b) => b.t - a.t);
+    .map((f) => ({ f, t: fs.statSync(path.join(pasta, f)).mtimeMs })).sort((a, b) => b.t - a.t || (a.f < b.f ? 1 : -1)); // empate: o nome tem a hora
   const diasVistos = new Set();
   for (const { f, t } of arquivos) {
     const idade = agora - t;

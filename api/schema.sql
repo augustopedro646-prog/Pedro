@@ -448,3 +448,7 @@ ALTER TABLE vendas ADD COLUMN IF NOT EXISTS motivo_cancelamento TEXT;
 -- Cupom da venda (não fiscal): troco guardado pra reimpressão e rodapé configurável.
 ALTER TABLE vendas ADD COLUMN IF NOT EXISTS troco NUMERIC(12,2) NOT NULL DEFAULT 0;
 ALTER TABLE lojas ADD COLUMN IF NOT EXISTS cupom_rodape TEXT;
+
+-- Relatórios (Fase 4): meta de vendas do mês por pessoa e % de comissão da loja.
+ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS meta_mensal NUMERIC(12,2) NOT NULL DEFAULT 0;
+ALTER TABLE lojas ADD COLUMN IF NOT EXISTS comissao_pct NUMERIC NOT NULL DEFAULT 0;

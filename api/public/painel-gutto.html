@@ -115,6 +115,52 @@
   #conteudo { flex-grow: 1; height: 100vh; overflow-y: auto; }
   .view { display: none; }
   .page { padding: 28px 32px; max-width: 1100px; }
+  /* ---------- Relatórios ---------- */
+  /* Cor da série e rampa sequencial (azul) — validadas contra o fundo claro e o escuro. */
+  :root { --serie: #2a78d6; --heat-1: #cde2fb; --heat-2: #9ec5f4; --heat-3: #6da7ec; --heat-4: #3987e5; --heat-5: #256abf; --heat-6: #184f95; --heat-7: #0d366b; }
+  [data-theme="dark"] { --serie: #3987e5; --heat-1: #0d366b; --heat-2: #184f95; --heat-3: #256abf; --heat-4: #3987e5; --heat-5: #6da7ec; --heat-6: #9ec5f4; --heat-7: #cde2fb; }
+  .rel-filtros { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 14px; background: var(--bg); padding: 8px 0; }
+  @media (min-width: 861px) { .rel-filtros { position: sticky; top: 0; z-index: 5; } }
+  .rel-filtros .chip { font-size: 12px; padding: 7px 13px; }
+  .rel-datas { display: flex; gap: 6px; align-items: center; font-size: 12px; color: var(--text-2); flex-wrap: wrap; }
+  .rel-datas input { padding: 6px 8px; border-radius: 8px; border: 1px solid var(--border); font-size: 12px; }
+  .rel-comparado { font-size: 12px; color: var(--text-2); margin: 0 0 8px; }
+  .rel-kpis { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 12px; }
+  .rel-kpi { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 14px; }
+  .rel-kpi-valor { font-family: 'Baloo 2', sans-serif; font-weight: 700; font-size: 22px; margin-top: 2px; font-variant-numeric: tabular-nums; }
+  .rel-kpi-sub { font-size: 11px; color: var(--text-2); margin-top: 2px; }
+  .rel-delta { font-size: 11px; font-weight: 600; margin-top: 2px; }
+  .rel-delta.bom { color: var(--ok-text); } .rel-delta.ruim { color: var(--zero-text); } .rel-delta.neutro { color: var(--text-2); }
+  #rel-conteudo > .rel-painel, #rel-conteudo > .paineis-duas-colunas { margin-top: 16px !important; }
+  .rel-grafico svg text { font-size: 10px; fill: var(--text-2); font-family: 'Work Sans', sans-serif; }
+  .rel-grade { stroke: var(--border-2); stroke-width: 1; }
+  .rel-base { stroke: var(--border); stroke-width: 1; }
+  .rel-barra { fill: var(--serie); }
+  .rel-alvo { fill: transparent; }
+  .rel-col { outline: none; }
+  .rel-col:hover .rel-alvo, .rel-col:focus .rel-alvo { fill: var(--border-2); }
+  #rel-tip { position: fixed; z-index: 100; pointer-events: none; background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; font-size: 12px; line-height: 1.5; box-shadow: 0 6px 20px var(--shadow); display: none; max-width: 260px; }
+  #rel-tip b { display: block; }
+  .rel-hbar { display: grid; grid-template-columns: 84px 1fr auto; gap: 10px; align-items: center; padding: 5px 0; font-size: 12px; outline: none; border-radius: 6px; }
+  .rel-hbar:hover, .rel-hbar:focus { background: var(--border-2); }
+  .rel-hbar-fill { height: 14px; background: var(--serie); border-radius: 0 4px 4px 0; min-width: 2px; }
+  .rel-hbar-valor { text-align: right; font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .rel-hbar-valor span { color: var(--text-2); font-weight: 400; margin-left: 4px; }
+  .rel-heat { display: grid; gap: 2px; font-size: 10px; color: var(--text-2); min-width: 420px; }
+  .rel-heat-cel { height: 24px; border-radius: 3px; outline: none; }
+  .rel-heat-cel.vazia { box-shadow: inset 0 0 0 1px var(--border-2); }
+  .rel-heat-cel:hover, .rel-heat-cel:focus { box-shadow: 0 0 0 2px var(--text); }
+  .rel-heat-rot { display: flex; align-items: center; justify-content: center; }
+  .rel-heat-legenda { display: flex; gap: 2px; align-items: center; font-size: 11px; color: var(--text-2); margin-top: 10px; }
+  .rel-heat-legenda i { width: 18px; height: 10px; border-radius: 2px; display: inline-block; }
+  .rel-meta { display: flex; align-items: center; gap: 6px; min-width: 150px; }
+  .rel-meta-trilho { flex: 1; height: 8px; background: var(--border-2); border-radius: 4px; overflow: hidden; }
+  .rel-meta-fill { height: 100%; background: var(--serie); border-radius: 0 4px 4px 0; }
+  .tabela td.num, .tabela th.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .rel-classe { font-weight: 700; font-size: 11px; padding: 1px 8px; border-radius: 999px; border: 1px solid var(--border); color: var(--text); }
+  .rel-acoes { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .rel-resumo-linha { font-size: 12px; color: var(--text-2); margin: -4px 0 10px; }
+  .rel-carregando { opacity: .5; pointer-events: none; transition: opacity .15s; }
   .page-topo { display: flex; justify-content: space-between; align-items: flex-end; flex-wrap: wrap; gap: 10px; margin-bottom: 16px; }
   .page-topo h1 { margin: 0; }
   .page-topo .sub { margin: 2px 0 0; }
@@ -542,12 +588,11 @@
     </div>
 
     <div class="view page" id="view-relatorios">
-      <h1 class="titulo">Relatórios<span class="badge-prototipo">protótipo</span></h1>
-      <p class="sub">Dados de exemplo — relatórios ligados às vendas reais chegam na Fase 4</p>
-      <div class="paineis-duas-colunas">
-        <div class="painel"><div class="painel-titulo">Produtos mais vendidos</div><div id="relatorio-produtos"></div></div>
-        <div class="painel"><div class="painel-titulo">Formas de pagamento</div><div id="relatorio-formas"></div></div>
-      </div>
+      <h1 class="titulo" style="margin-bottom:0">Relatórios</h1>
+      <p class="sub">Tudo tirado das vendas reais. Vendas canceladas não entram, e o que voltou em troca ou devolução é descontado da venda original.</p>
+      <div class="rel-filtros" id="rel-filtros"></div>
+      <div id="rel-conteudo"></div>
+      <div id="rel-tip" role="tooltip"></div>
     </div>
   </main>
 </div>
@@ -691,6 +736,7 @@
     pedidosOnline: null, onlineNovos: 0, ultimoPedidoVisto: null,
     wa: { status: null, conversas: null, sel: null, detalhe: null, erro: null },
     backup: null,
+    rel: null, relFiltro: null, relPedido: null, relCarregando: false, relVer: {}, relTodos: {},
     tema: temaInicial, sidebarCollapsed: false,
     rostos: carregarRostos(),
   };
@@ -794,6 +840,8 @@
         if (mesCarregado === state.calMes) Object.assign(state, { calAgenda: agenda, calPontos: pontos, calAniversarios: aniversarios });
       } else if (view === 'ponto') {
         state.pontos = await api('/pontos');
+      } else if (view === 'relatorios') {
+        await carregarRelatorio();
       }
     } catch (e) {
       if (!e.status || e.status !== 401) toast(e.message, 'erro');
@@ -2913,7 +2961,7 @@
       <div class="linha-simples" style="padding:12px 0;${u.ativo ? '' : 'opacity:.55'}">
         <div class="avatar" style="width:36px;height:36px;font-size:14px;background:var(--accent)">${esc(u.nome.charAt(0))}</div>
         <div style="flex-grow:1;min-width:0"><div style="font-size:14px;font-weight:600">${esc(u.nome)}${u.id === state.logado.id ? ' <span class="tag cinza">você</span>' : ''}</div>
-          <div style="font-size:11px;color:var(--text-2)">${u.ativo ? 'Ativo' : 'Desativado'}</div></div>
+          <div style="font-size:11px;color:var(--text-2)">${u.ativo ? 'Ativo' : 'Desativado'}${u.meta_mensal > 0 ? ' · meta ' + brl(u.meta_mensal) + '/mês' : ''}</div></div>
         <div class="badge-papel">${esc(PAPEL_LABEL[u.papel] || u.papel)}</div>
         <button class="btn-secundario" data-editar="${u.id}">Editar</button>
       </div>`).join('');
@@ -2923,6 +2971,7 @@
       <div class="linha-campos" style="max-width:520px;align-items:flex-end">
         <label class="campo">Cashback pro cliente (%)<input id="cfg-cashback" inputmode="decimal" value="${String(cfg.cashbackPct).replace('.', ',')}"></label>
         <label class="campo">Desconto que o Caixa dá sem PIN (%)<input id="cfg-desconto" inputmode="decimal" value="${String(cfg.descontoLivrePct).replace('.', ',')}"></label>
+        <label class="campo">Comissão sobre o vendido (%)<input id="cfg-comissao" inputmode="decimal" value="${String(cfg.comissaoPct || 0).replace('.', ',')}"></label>
       </div>
       <div class="painel-titulo" style="margin:18px 0 8px;font-size:14px">Cupom da venda</div>
       <div class="linha-campos" style="max-width:720px;align-items:flex-end">
@@ -2951,11 +3000,12 @@
     renderBackup();
     document.getElementById('cfg-salvar').onclick = (ev) => comBotao(ev.target, 'Salvando...', async () => {
       const cashbackPct = parseNumBR(document.getElementById('cfg-cashback').value), descontoLivrePct = parseNumBR(document.getElementById('cfg-desconto').value);
-      if (!Number.isFinite(cashbackPct) || !Number.isFinite(descontoLivrePct)) throw new Error('Valores inválidos');
+      const comissaoPct = parseNumBR(document.getElementById('cfg-comissao').value || '0');
+      if (!Number.isFinite(cashbackPct) || !Number.isFinite(descontoLivrePct) || !Number.isFinite(comissaoPct)) throw new Error('Valores inválidos');
       const taxa = parseNumBR(document.getElementById('cfg-site-taxa').value || '0');
       if (!Number.isFinite(taxa) || taxa < 0) throw new Error('Taxa de entrega inválida');
       salvarConfigCupom(Object.assign(configCupom(), { largura: Number(document.getElementById('cfg-cupom-largura').value) }));
-      await api('/config', { method: 'PUT', body: { cashbackPct, descontoLivrePct, cupomRodape: document.getElementById('cfg-cupom-rodape').value, site: {
+      await api('/config', { method: 'PUT', body: { cashbackPct, descontoLivrePct, comissaoPct, cupomRodape: document.getElementById('cfg-cupom-rodape').value, site: {
         ativo: document.getElementById('cfg-site-ativo').checked, aceitaRetirada: document.getElementById('cfg-site-retirada').checked,
         aceitaEntrega: document.getElementById('cfg-site-entrega').checked, taxaEntrega: taxa, whatsapp: document.getElementById('cfg-site-whats').value,
         endereco: document.getElementById('cfg-site-endereco').value, mensagem: document.getElementById('cfg-site-msg').value } } });
@@ -3002,12 +3052,16 @@
       <label class="campo">Nome<input id="us-nome" type="text" value="${novo ? '' : esc(u.nome)}"></label>
       <label class="campo">Cargo<select id="us-papel"><option value="caixa" ${!novo && u.papel === 'caixa' ? 'selected' : ''}>Caixa</option><option value="administrador" ${!novo && u.papel === 'administrador' ? 'selected' : ''}>Administrador</option></select></label>
       <label class="campo">${novo ? 'PIN (4 números)' : 'Novo PIN (deixe vazio pra manter)'}<input id="us-pin" type="password" inputmode="numeric" maxlength="4" autocomplete="new-password"></label>
+      <label class="campo">Meta de vendas no mês (R$, opcional — aparece nos Relatórios)<input id="us-meta" inputmode="decimal" value="${!novo && u.meta_mensal > 0 ? fmtNum(u.meta_mensal) : ''}" placeholder="0,00"></label>
       ${novo ? '' : `<label style="display:flex;gap:8px;align-items:center;font-size:13px"><input type="checkbox" id="us-ativo" ${u.ativo ? 'checked' : ''}> Ativo (pode entrar no sistema)</label>`}
       <div class="erro-modal" id="us-erro"></div>
       <button class="btn-primario btn-grande" id="us-salvar">${novo ? 'Criar' : 'Salvar'}</button></div>`);
     camada.querySelector('#us-nome').focus();
     camada.querySelector('#us-salvar').onclick = (ev) => comBotao(ev.target, 'Salvando...', async () => {
       const corpo = { nome: camada.querySelector('#us-nome').value, papel: camada.querySelector('#us-papel').value };
+      const meta = parseNumBR(camada.querySelector('#us-meta').value || '0');
+      if (!Number.isFinite(meta) || meta < 0) throw new Error('Meta inválida');
+      corpo.metaMensal = meta;
       const pin = camada.querySelector('#us-pin').value;
       if (pin || novo) {
         if (!/^\d{4}$/.test(pin)) throw new Error('O PIN precisa ter 4 números');
@@ -3403,11 +3457,303 @@
   }
 
   /* ================= Relatórios (Fase 4) ================= */
-  function renderRelatorios() {
-    const top = [{ nome: 'Exemplo — Camiseta', qtd: 2 }, { nome: 'Exemplo — Vestido', qtd: 1 }];
-    document.getElementById('relatorio-produtos').innerHTML = top.map(t => `<div class="barra-linha"><div class="barra-label">${esc(t.nome)}</div><div class="barra-trilho"><div class="barra-fill" style="width:${t.qtd * 50}%"></div></div><div class="barra-valor">${t.qtd} un.</div></div>`).join('');
-    document.getElementById('relatorio-formas').innerHTML = [['Pix', 79.8], ['Crédito', 59.9]].map(([f, v]) => `<div class="barra-linha"><div class="barra-label">${f}</div><div class="barra-trilho"><div class="barra-fill" style="width:${(v / 79.8 * 100).toFixed(0)}%;background:var(--teal)"></div></div><div class="barra-valor">${fmt(v)}</div></div>`).join('');
+  // Um filtro de período no topo vale pra tudo abaixo. Gráficos têm dica ao passar o mouse (ou Tab)
+  // e cada bloco tem a versão em tabela / CSV. Cor única (azul) pra valores; texto nunca na cor da série.
+  const REL_PRESETS = [['hoje', 'Hoje'], ['7d', '7 dias'], ['30d', '30 dias'], ['mes', 'Este mês'], ['mes_passado', 'Mês passado'], ['custom', 'Escolher datas']];
+  const DIAS_SEMANA = ['', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'];
+  function somaDiasISO(iso, n) { const d = new Date(iso + 'T12:00:00Z'); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); }
+  function periodoDoPreset(p) {
+    const hoje = hojeLocal(), iniMes = hoje.slice(0, 8) + '01';
+    if (p === 'hoje') return { inicio: hoje, fim: hoje };
+    if (p === '7d') return { inicio: somaDiasISO(hoje, -6), fim: hoje };
+    if (p === 'mes') return { inicio: iniMes, fim: hoje };
+    if (p === 'mes_passado') { const fim = somaDiasISO(iniMes, -1); return { inicio: fim.slice(0, 8) + '01', fim }; }
+    return { inicio: somaDiasISO(hoje, -29), fim: hoje };
   }
+  function relFiltro() {
+    if (!state.relFiltro) state.relFiltro = Object.assign({ preset: '30d' }, periodoDoPreset('30d'));
+    return state.relFiltro;
+  }
+  async function carregarRelatorio() {
+    const f = relFiltro(), pedido = f.inicio + '|' + f.fim;
+    state.relPedido = pedido;
+    try {
+      const dados = await api('/relatorios?inicio=' + f.inicio + '&fim=' + f.fim);
+      if (state.relPedido === pedido) state.rel = dados;
+    } finally {
+      if (state.relPedido === pedido) state.relCarregando = false;
+    }
+  }
+  function mudarPeriodoRel(filtro) {
+    state.relFiltro = filtro; state.relCarregando = true; state.relTodos = {};
+    render();
+    carregarRelatorio().catch(e => toast(e.message, 'erro')).then(() => { if (state.view === 'relatorios') render(); });
+  }
+
+  const brl = (v) => 'R$ ' + Number(v || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const inteiro = (v) => Number(v || 0).toLocaleString('pt-BR', { maximumFractionDigits: 0 });
+  const pct1 = (v) => (v * 100).toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + '%';
+  function brlCurto(v) {
+    if (Math.abs(v) >= 1000) return 'R$ ' + (v / 1000).toLocaleString('pt-BR', { maximumFractionDigits: 1 }) + ' mil';
+    return 'R$ ' + Number(v).toLocaleString('pt-BR', { maximumFractionDigits: 0 });
+  }
+  function dataCurtaRel(iso) { return iso.slice(8, 10) + '/' + iso.slice(5, 7); }
+  function diaSemanaISO(iso) { return DIAS_SEMANA[new Date(iso + 'T12:00:00Z').getUTCDay() || 7]; }
+  function rotuloPeriodo(p) { return p.inicio === p.fim ? dataBR(p.inicio) : dataBR(p.inicio) + ' a ' + dataBR(p.fim); }
+
+  // Variação contra o período anterior: seta + texto (nunca só a cor). `inverso`: subir é ruim (descontos).
+  function relDelta(atual, anterior, inverso) {
+    if (!anterior) return `<div class="rel-delta neutro">${atual ? 'sem vendas no período anterior' : '= igual'}</div>`;
+    const d = (atual - anterior) / Math.abs(anterior);
+    if (Math.abs(d) < 0.0005) return '<div class="rel-delta neutro">= igual</div>';
+    const sobe = d > 0, bom = inverso ? !sobe : sobe;
+    return `<div class="rel-delta ${bom ? 'bom' : 'ruim'}">${sobe ? '▲ +' : '▼ −'}${pct1(Math.abs(d))}</div>`;
+  }
+
+  function escalaBonita(max, partes) {
+    if (!(max > 0)) return { topo: 100, passo: 25 };
+    const bruto = max / partes, mag = Math.pow(10, Math.floor(Math.log10(bruto))), f = bruto / mag;
+    const passo = (f <= 1 ? 1 : f <= 2 ? 2 : f <= 2.5 ? 2.5 : f <= 5 ? 5 : 10) * mag;
+    return { topo: Math.ceil(max / passo) * passo, passo };
+  }
+
+  // Colunas (uma série, sem legenda: o título diz o que é). Dica por coluna; área de toque = a faixa inteira.
+  function desenharColunas(el, pontos) {
+    const W = Math.max(280, el.clientWidth || 600), H = 220, m = { t: 10, r: 6, b: 24, l: 60 };
+    const iw = W - m.l - m.r, ih = H - m.t - m.b;
+    const { topo, passo } = escalaBonita(Math.max(0, ...pontos.map(p => p.valor)), 4);
+    const slot = iw / Math.max(1, pontos.length), bw = Math.max(2, Math.min(24, slot * 0.7));
+    const y = (v) => m.t + ih - (v / topo) * ih;
+    let svg = `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" role="img" aria-label="Vendido por período">`;
+    for (let v = 0; v <= topo + 1e-9; v += passo) {
+      const yy = Math.round(y(v)) + 0.5;
+      svg += `<line class="${v === 0 ? 'rel-base' : 'rel-grade'}" x1="${m.l}" x2="${W - m.r}" y1="${yy}" y2="${yy}"/><text x="${m.l - 8}" y="${yy + 3}" text-anchor="end">${brlCurto(v)}</text>`;
+    }
+    const cabem = Math.max(1, Math.floor(iw / 46)), cada = Math.ceil(pontos.length / cabem);
+    pontos.forEach((p, i) => {
+      const x0 = m.l + slot * i, xb = x0 + (slot - bw) / 2, base = m.t + ih, h = Math.max(0, base - y(Math.max(0, p.valor)));
+      svg += `<g class="rel-col" tabindex="0" data-tip="${esc(p.tip)}"><rect class="rel-alvo" x="${x0}" y="${m.t}" width="${slot}" height="${ih}"/>`;
+      if (h > 0.5) {
+        const r = Math.min(4, bw / 2, h), yt = base - h, x1 = xb + bw;
+        svg += `<path class="rel-barra" d="M${xb},${base}V${yt + r}Q${xb},${yt} ${xb + r},${yt}H${x1 - r}Q${x1},${yt} ${x1},${yt + r}V${base}Z"/>`;
+      }
+      svg += '</g>';
+      if (i % cada === 0) svg += `<text x="${x0 + slot / 2}" y="${H - 8}" text-anchor="middle">${esc(p.rotulo)}</text>`;
+    });
+    el.innerHTML = svg + '</svg>';
+  }
+
+  function baixarCSV(nome, colunas, linhas) {
+    const cel = (v) => {
+      if (typeof v === 'number') return String(Math.round(v * 100) / 100).replace('.', ',');
+      let s = String(v == null ? '' : v);
+      if (/^[=+\-@]/.test(s)) s = "'" + s; // não vira fórmula no Excel
+      return /[;"\n\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+    };
+    const txt = '﻿' + [colunas].concat(linhas).map(l => l.map(cel).join(';')).join('\r\n');
+    const url = URL.createObjectURL(new Blob([txt], { type: 'text/csv;charset=utf-8' }));
+    const a = document.createElement('a'); a.href = url; a.download = nome;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 2000);
+  }
+
+  function relPainel(id, titulo, corpo, acoes, extraTitulo) {
+    return `<div class="painel rel-painel" id="${id}"><div class="painel-titulo-linha"><div class="painel-titulo">${titulo}</div><div class="rel-acoes">${acoes || ''}</div></div>${extraTitulo || ''}${corpo}</div>`;
+  }
+  const relBtnCSV = (qual) => `<button class="btn-secundario" data-rel-csv="${qual}">Baixar planilha</button>`;
+  const relBtnTabela = (qual) => `<button class="link-btn" data-rel-tabela="${qual}">${state.relVer && state.relVer[qual] ? 'Ver gráfico' : 'Ver tabela'}</button>`;
+  function relVerTodos(qual, total, limite) {
+    if (total <= limite) return '';
+    const todos = state.relTodos && state.relTodos[qual];
+    return `<div style="margin-top:8px"><button class="link-btn" data-rel-todos="${qual}">${todos ? 'Mostrar menos' : 'Ver todos (' + total + ')'}</button></div>`;
+  }
+  const relLimite = (qual, lista, n) => (state.relTodos && state.relTodos[qual] ? lista : lista.slice(0, n));
+
+  function renderFiltrosRel() {
+    const f = relFiltro();
+    const el = document.getElementById('rel-filtros');
+    el.innerHTML = REL_PRESETS.map(([id, rot]) => `<button class="chip ${f.preset === id ? 'ativo' : ''}" data-rel-preset="${id}">${rot}</button>`).join('') +
+      (f.preset === 'custom' ? `<span class="rel-datas">de <input type="date" id="rel-inicio" value="${f.inicio}" max="${hojeLocal()}"> até <input type="date" id="rel-fim" value="${f.fim}" max="${hojeLocal()}">
+        <button class="btn-primario" id="rel-aplicar">Ver</button></span>` : `<span class="rel-datas">${rotuloPeriodo(f)}</span>`);
+    el.querySelectorAll('[data-rel-preset]').forEach(b => b.onclick = () => {
+      const p = b.dataset.relPreset;
+      if (p === 'custom') { state.relFiltro = Object.assign({}, relFiltro(), { preset: 'custom' }); renderFiltrosRel(); return; }
+      mudarPeriodoRel(Object.assign({ preset: p }, periodoDoPreset(p)));
+    });
+    const aplicar = document.getElementById('rel-aplicar');
+    if (aplicar) aplicar.onclick = () => {
+      const inicio = document.getElementById('rel-inicio').value, fim = document.getElementById('rel-fim').value;
+      if (!inicio || !fim) { toast('Escolha as duas datas', 'erro'); return; }
+      if (inicio > fim) { toast('A data inicial é depois da final', 'erro'); return; }
+      mudarPeriodoRel({ preset: 'custom', inicio, fim });
+    };
+  }
+
+  function renderRelatorios() {
+    renderFiltrosRel();
+    const el = document.getElementById('rel-conteudo');
+    const r = state.rel;
+    if (!r) { el.innerHTML = '<div class="carregando">Carregando...</div>'; return; }
+    el.classList.toggle('rel-carregando', !!state.relCarregando);
+    const s = r.resumo, a = r.anterior;
+    const semVendas = !s.vendas;
+
+    const kpi = (rot, valor, delta, sub) => `<div class="rel-kpi"><div class="stat-label">${rot}</div><div class="rel-kpi-valor">${valor}</div>${delta}${sub ? `<div class="rel-kpi-sub">${sub}</div>` : ''}</div>`;
+    const subVendido = [s.devolvido > 0 ? 'já sem ' + brl(s.devolvido) + ' de trocas' : '', s.taxasEntrega > 0 ? '+ ' + brl(s.taxasEntrega) + ' de entrega' : ''].filter(Boolean).join(' · ');
+    let html = `<p class="rel-comparado">Setas: comparação com ${rotuloPeriodo(r.anteriorPeriodo)}.</p>
+      <div class="rel-kpis">
+        ${kpi('Vendido', brl(s.vendido), relDelta(s.vendido, a.vendido), subVendido)}
+        ${kpi('Vendas', inteiro(s.vendas), relDelta(s.vendas, a.vendas))}
+        ${kpi('Ticket médio', brl(s.ticketMedio), relDelta(s.ticketMedio, a.ticketMedio))}
+        ${kpi('Peças vendidas', inteiro(s.pecas), relDelta(s.pecas, a.pecas))}
+        ${kpi('Lucro bruto', brl(s.lucroBruto), relDelta(s.lucroBruto, a.lucroBruto), s.margem != null ? 'margem ' + pct1(s.margem) + ' · custo ' + brl(s.custo) : '')}
+        ${kpi('Descontos dados', brl(s.descontos), relDelta(s.descontos, a.descontos, true), s.vendido > 0 ? pct1(s.descontos / (s.vendido + s.descontos)) + ' do valor cheio' : '')}
+      </div>`;
+
+    // Vendas por dia/mês
+    const porMes = r.agrupamento === 'mes';
+    const verTabelaDia = state.relVer && state.relVer.dia;
+    html += relPainel('rel-dia', porMes ? 'Vendido por mês' : 'Vendido por dia',
+      verTabelaDia ? `<div class="tabela-scroll"><table class="tabela"><thead><tr><th>${porMes ? 'Mês' : 'Dia'}</th><th class="num">Vendas</th><th class="num">Vendido</th></tr></thead><tbody>
+        ${r.porPeriodo.map(p => `<tr><td>${porMes ? MESES_NOME[Number(p.chave.slice(5)) - 1] + '/' + p.chave.slice(0, 4) : diaSemanaISO(p.chave) + ' ' + dataBR(p.chave)}</td><td class="num">${inteiro(p.vendas)}</td><td class="num">${brl(p.vendido)}</td></tr>`).join('')}
+        </tbody></table></div>`
+        : '<div class="rel-grafico" id="rel-grafico-dia"></div>',
+      relBtnTabela('dia') + relBtnCSV('dia'));
+
+    // Mais vendidos + curva ABC + giro
+    const prods = r.produtos;
+    const classes = ['A', 'B', 'C'].map(c => { const l = prods.filter(p => p.classe === c); return { c, n: l.length, part: l.reduce((t, p) => t + p.participacao, 0) }; });
+    html += relPainel('rel-produtos', 'Mais vendidos e curva ABC',
+      prods.length ? `<div class="tabela-scroll"><table class="tabela"><thead><tr><th>#</th><th>Produto</th><th>Curva</th><th class="num">Peças</th><th class="num">Vendido</th><th class="num">% do vendido</th><th class="num">Lucro</th><th class="num">Margem</th><th class="num">Estoque</th><th class="num" title="Quantos dias o estoque atual dura no ritmo de venda do período">Dura</th></tr></thead><tbody>
+        ${relLimite('produtos', prods, 20).map((p, i) => `<tr><td style="color:var(--text-2)">${i + 1}</td><td>${esc(p.nome)}${p.categoria ? `<div style="font-size:11px;color:var(--text-2)">${esc(p.categoria)}</div>` : ''}</td>
+          <td><span class="rel-classe">${p.classe}</span></td><td class="num">${inteiro(p.pecas)}</td><td class="num">${brl(p.vendido)}</td><td class="num">${pct1(p.participacao)}</td>
+          <td class="num">${brl(p.lucro)}</td><td class="num">${p.margem != null ? pct1(p.margem) : '—'}</td><td class="num">${inteiro(p.estoque)}</td>
+          <td class="num">${p.coberturaDias == null ? '—' : p.estoque <= 0 ? '<span class="valor-neg">acabou</span>' : p.coberturaDias > 365 ? 'mais de 1 ano' : inteiro(p.coberturaDias) + ' dias'}</td></tr>`).join('')}
+        </tbody></table></div>${relVerTodos('produtos', prods.length, 20)}` : '<div class="vazio">Nenhuma peça vendida nesse período.</div>',
+      prods.length ? relBtnCSV('produtos') : '',
+      prods.length ? `<p class="rel-resumo-linha">${classes.filter(c => c.n).map(c => `<b>${c.c}</b>: ${c.n} produto${c.n > 1 ? 's' : ''} = ${pct1(c.part)} do vendido`).join(' · ')}. Curva A é o que mais pesa no caixa: nunca deixe faltar.</p>` : '');
+
+    // Vendas por pessoa
+    const vend = r.vendedores;
+    html += relPainel('rel-pessoas', 'Vendas por pessoa',
+      vend.length ? `<div class="tabela-scroll"><table class="tabela"><thead><tr><th>Pessoa</th><th class="num">Vendas</th><th class="num">Vendido</th><th class="num">Peças</th><th class="num">Ticket médio</th><th class="num">Comissão (${String(r.comissaoPct).replace('.', ',')}%)</th>${r.temMeta ? '<th>Meta do mês</th>' : ''}</tr></thead><tbody>
+        ${vend.map(p => `<tr><td>${esc(p.nome)}</td><td class="num">${inteiro(p.vendas)}</td><td class="num">${brl(p.vendido)}</td><td class="num">${inteiro(p.pecas)}</td><td class="num">${brl(p.ticketMedio)}</td><td class="num">${brl(p.comissao)}</td>
+          ${r.temMeta ? `<td>${p.meta ? `<div class="rel-meta" title="${esc(brl(p.vendido) + ' de ' + brl(p.meta))}"><div class="rel-meta-trilho"><div class="rel-meta-fill" style="width:${Math.min(100, p.vendido / p.meta * 100).toFixed(1)}%"></div></div><span class="num" style="font-size:12px;white-space:nowrap">${Math.round(p.vendido / p.meta * 100)}% de ${brlCurto(p.meta)}</span></div>` : '<span style="color:var(--text-2);font-size:12px">sem meta</span>'}</td>` : ''}</tr>`).join('')}
+        </tbody></table></div>
+        <p class="modal-dica" style="margin:10px 0 0">${r.temMeta ? '' : 'A meta do mês aparece quando o período é "Este mês" ou "Mês passado". '}Meta de cada pessoa e % de comissão: aba Equipe.</p>` : '<div class="vazio">Nenhuma venda nesse período.</div>',
+      vend.length ? relBtnCSV('pessoas') : '');
+
+    // Formas de pagamento + horários de pico
+    const totalFormas = r.formas.reduce((t, f) => t + f.valor, 0), maxForma = Math.max(0, ...r.formas.map(f => f.valor));
+    const formasHtml = r.formas.length ? r.formas.map(f => `<div class="rel-hbar" tabindex="0" data-tip="${esc('<b>' + esc(f.forma) + '</b>' + brl(f.valor) + ' · ' + pct1(f.valor / totalFormas) + '<br>' + inteiro(f.vendas) + ' venda' + (f.vendas > 1 ? 's' : ''))}">
+        <div>${esc(f.forma)}</div><div><div class="rel-hbar-fill" style="width:${(f.valor / maxForma * 100).toFixed(1)}%"></div></div><div class="rel-hbar-valor">${brl(f.valor)}<span>${pct1(f.valor / totalFormas)}</span></div></div>`).join('') +
+      (r.formas.some(f => f.forma === 'Cashback' || f.forma === 'Vale-troca') ? '<p class="modal-dica" style="margin:8px 0 0">Cashback e vale-troca são crédito do cliente, não dinheiro novo entrando.</p>' : '')
+      : '<div class="vazio">Nenhuma venda nesse período.</div>';
+    html += `<div class="paineis-duas-colunas" style="margin-top:0">${relPainel('rel-formas', 'Formas de pagamento', formasHtml, r.formas.length ? relBtnCSV('formas') : '')}
+      ${relPainel('rel-horarios', 'Horários de pico', htmlHorarios(r), r.horarios.length ? relBtnTabela('horarios') : '')}</div>`;
+
+    // Parados
+    const parados = r.parados, custoParado = parados.reduce((t, p) => t + p.valorCusto, 0), vendaParado = parados.reduce((t, p) => t + p.valorVenda, 0);
+    html += relPainel('rel-parados', 'Parados no estoque (não venderam nesse período)',
+      parados.length ? `<div class="tabela-scroll"><table class="tabela"><thead><tr><th>Produto</th><th class="num">Peças</th><th class="num">Custo parado</th><th class="num">A preço de venda</th><th>Última venda</th></tr></thead><tbody>
+        ${relLimite('parados', parados, 15).map(p => `<tr><td>${esc(p.nome)}${p.categoria ? `<div style="font-size:11px;color:var(--text-2)">${esc(p.categoria)}</div>` : ''}</td><td class="num">${inteiro(p.estoque)}</td><td class="num">${brl(p.valorCusto)}</td><td class="num">${brl(p.valorVenda)}</td>
+          <td>${p.ultimaVenda ? dataBR(new Intl.DateTimeFormat('en-CA', { timeZone: TZ }).format(new Date(p.ultimaVenda))) + ` <span style="color:var(--text-2);font-size:12px">(${inteiro(p.diasSemVender)} dias)</span>` : '<span style="color:var(--text-2)">nunca vendeu</span>'}</td></tr>`).join('')}
+        </tbody></table></div>${relVerTodos('parados', parados.length, 15)}` : '<div class="vazio">Todo produto com estoque vendeu alguma coisa nesse período. 👏</div>',
+      parados.length ? relBtnCSV('parados') : '',
+      parados.length ? `<p class="rel-resumo-linha">${inteiro(parados.length)} produto${parados.length > 1 ? 's' : ''} · <b>${brl(custoParado)}</b> de custo parado (${brl(vendaParado)} a preço de venda). Bons candidatos a promoção ou vitrine.</p>` : '');
+
+    // Reposição
+    const rep = r.reposicao;
+    html += relPainel('rel-reposicao', 'Precisa repor (abaixo do mínimo agora)',
+      rep.length ? `<div class="tabela-scroll"><table class="tabela"><thead><tr><th>Peça</th><th class="num">Estoque</th><th class="num">Mínimo</th><th class="num">Vendidas no período</th></tr></thead><tbody>
+        ${relLimite('reposicao', rep, 20).map(p => `<tr><td>${esc(p.produtoNome)} <span style="color:var(--text-2)">${esc(p.tamanho)}${p.cor ? ' · ' + esc(p.cor) : ''}</span></td>
+          <td class="num">${p.estoque <= 0 ? '<span class="valor-neg">' + inteiro(p.estoque) + '</span>' : inteiro(p.estoque)}</td><td class="num">${inteiro(p.estoqueMinimo)}</td><td class="num">${inteiro(p.vendidasNoPeriodo)}</td></tr>`).join('')}
+        </tbody></table></div>${relVerTodos('reposicao', rep.length, 20)}` : '<div class="vazio">Nada abaixo do estoque mínimo. O mínimo de cada peça é definido no Estoque.</div>',
+      rep.length ? relBtnCSV('reposicao') : '');
+
+    if (semVendas) html = `<div class="aviso-caixa" style="margin-bottom:12px"><span>Nenhuma venda em ${rotuloPeriodo(r.periodo)}. Escolha outro período acima.</span></div>` + html;
+    el.innerHTML = html;
+
+    const grafico = document.getElementById('rel-grafico-dia');
+    if (grafico) desenharColunasDia(grafico, r);
+    el.querySelectorAll('[data-rel-tabela]').forEach(b => b.onclick = () => { state.relVer = Object.assign({}, state.relVer, { [b.dataset.relTabela]: !(state.relVer && state.relVer[b.dataset.relTabela]) }); renderRelatorios(); });
+    el.querySelectorAll('[data-rel-todos]').forEach(b => b.onclick = () => { state.relTodos = Object.assign({}, state.relTodos, { [b.dataset.relTodos]: !(state.relTodos && state.relTodos[b.dataset.relTodos]) }); renderRelatorios(); });
+    el.querySelectorAll('[data-rel-csv]').forEach(b => b.onclick = () => csvRelatorio(b.dataset.relCsv));
+  }
+
+  function desenharColunasDia(el, r) {
+    const porMes = r.agrupamento === 'mes';
+    desenharColunas(el, r.porPeriodo.map(p => ({
+      valor: p.vendido,
+      rotulo: porMes ? MESES_NOME[Number(p.chave.slice(5)) - 1].slice(0, 3) : dataCurtaRel(p.chave),
+      tip: '<b>' + (porMes ? MESES_NOME[Number(p.chave.slice(5)) - 1] + ' ' + p.chave.slice(0, 4) : diaSemanaISO(p.chave) + ' ' + dataBR(p.chave)) + '</b>' +
+        brl(p.vendido) + '<br>' + (p.vendas ? inteiro(p.vendas) + ' venda' + (p.vendas > 1 ? 's' : '') : 'sem vendas'),
+    })));
+  }
+
+  // Mapa dia da semana × hora, em número de vendas (movimento da loja). Rampa de uma cor só.
+  function htmlHorarios(r) {
+    if (!r.horarios.length) return '<div class="vazio">Nenhuma venda nesse período.</div>';
+    if (state.relVer && state.relVer.horarios) {
+      const lista = r.horarios.slice().sort((x, y) => y.vendas - x.vendas || y.vendido - x.vendido);
+      return `<div class="tabela-scroll"><table class="tabela"><thead><tr><th>Dia</th><th>Hora</th><th class="num">Vendas</th><th class="num">Vendido</th></tr></thead><tbody>
+        ${lista.map(h => `<tr><td>${DIAS_SEMANA[h.dow]}</td><td>${h.hora}h–${h.hora + 1}h</td><td class="num">${inteiro(h.vendas)}</td><td class="num">${brl(h.vendido)}</td></tr>`).join('')}</tbody></table></div>`;
+    }
+    const horas = r.horarios.map(h => h.hora);
+    const hIni = Math.min(8, ...horas), hFim = Math.max(19, ...horas);
+    const max = Math.max(...r.horarios.map(h => h.vendas));
+    const mapa = new Map(r.horarios.map(h => [h.dow + '-' + h.hora, h]));
+    const n = hFim - hIni + 1;
+    let g = `<div class="tabela-scroll"><div class="rel-heat" style="grid-template-columns:32px repeat(${n}, minmax(20px, 1fr))"><div></div>`;
+    for (let h = hIni; h <= hFim; h++) g += `<div class="rel-heat-rot">${h % 2 === 0 ? h + 'h' : ''}</div>`;
+    for (let d = 1; d <= 7; d++) {
+      g += `<div class="rel-heat-rot" style="justify-content:flex-start">${DIAS_SEMANA[d]}</div>`;
+      for (let h = hIni; h <= hFim; h++) {
+        const c = mapa.get(d + '-' + h);
+        const tip = '<b>' + DIAS_SEMANA[d] + ', ' + h + 'h–' + (h + 1) + 'h</b>' + (c ? inteiro(c.vendas) + ' venda' + (c.vendas > 1 ? 's' : '') + '<br>' + brl(c.vendido) : 'sem vendas');
+        g += c ? `<div class="rel-heat-cel" tabindex="0" style="background:var(--heat-${Math.max(1, Math.ceil(c.vendas / max * 7))})" data-tip="${esc(tip)}"></div>`
+          : `<div class="rel-heat-cel vazia" data-tip="${esc(tip)}"></div>`;
+      }
+    }
+    g += '</div></div><div class="rel-heat-legenda">menos&nbsp;' + [1, 2, 3, 4, 5, 6, 7].map(i => `<i style="background:var(--heat-${i})"></i>`).join('') + '&nbsp;mais vendas</div>';
+    return g;
+  }
+
+  function csvRelatorio(qual) {
+    const r = state.rel; if (!r) return;
+    const sufixo = '_' + r.periodo.inicio + (r.periodo.fim !== r.periodo.inicio ? '_a_' + r.periodo.fim : '') + '.csv';
+    if (qual === 'dia') baixarCSV('vendas-por-' + r.agrupamento + sufixo, [r.agrupamento === 'mes' ? 'Mês' : 'Dia', 'Vendas', 'Vendido (R$)'], r.porPeriodo.map(p => [r.agrupamento === 'mes' ? p.chave : dataBR(p.chave), p.vendas, p.vendido]));
+    if (qual === 'produtos') baixarCSV('mais-vendidos' + sufixo, ['Produto', 'Categoria', 'Curva', 'Peças', 'Vendido (R$)', '% do vendido', 'Lucro (R$)', 'Margem %', 'Estoque', 'Dura (dias)'],
+      r.produtos.map(p => [p.nome, p.categoria, p.classe, p.pecas, p.vendido, p.participacao * 100, p.lucro, p.margem == null ? '' : p.margem * 100, p.estoque, p.coberturaDias == null ? '' : p.coberturaDias]));
+    if (qual === 'pessoas') baixarCSV('vendas-por-pessoa' + sufixo, ['Pessoa', 'Vendas', 'Vendido (R$)', 'Peças', 'Ticket médio (R$)', 'Comissão (R$)', 'Meta do mês (R$)'],
+      r.vendedores.map(p => [p.nome, p.vendas, p.vendido, p.pecas, p.ticketMedio, p.comissao, p.meta == null ? '' : p.meta]));
+    if (qual === 'formas') baixarCSV('formas-de-pagamento' + sufixo, ['Forma', 'Valor (R$)', 'Vendas'], r.formas.map(f => [f.forma, f.valor, f.vendas]));
+    if (qual === 'parados') baixarCSV('parados' + sufixo, ['Produto', 'Categoria', 'Peças em estoque', 'Custo parado (R$)', 'A preço de venda (R$)', 'Última venda', 'Dias sem vender'],
+      r.parados.map(p => [p.nome, p.categoria, p.estoque, p.valorCusto, p.valorVenda, p.ultimaVenda ? dataBR(new Intl.DateTimeFormat('en-CA', { timeZone: TZ }).format(new Date(p.ultimaVenda))) : 'nunca', p.diasSemVender]));
+    if (qual === 'reposicao') baixarCSV('repor' + sufixo, ['Produto', 'Tamanho', 'Cor', 'Estoque', 'Mínimo', 'Vendidas no período'],
+      r.reposicao.map(p => [p.produtoNome, p.tamanho, p.cor, p.estoque, p.estoqueMinimo, p.vendidasNoPeriodo]));
+  }
+
+  // Dica flutuante dos gráficos: mouse e teclado (Tab), um só elemento pra página toda.
+  (function ligarDicasRelatorio() {
+    const view = document.getElementById('view-relatorios'), tip = document.getElementById('rel-tip');
+    const mostrar = (alvo, x, y) => {
+      tip.innerHTML = alvo.getAttribute('data-tip'); tip.style.display = 'block';
+      const w = tip.offsetWidth, h = tip.offsetHeight;
+      tip.style.left = Math.max(8, Math.min(window.innerWidth - w - 8, x + 14)) + 'px';
+      tip.style.top = (y - h - 12 < 8 ? y + 18 : y - h - 12) + 'px';
+    };
+    view.addEventListener('pointermove', (e) => { const alvo = e.target.closest('[data-tip]'); if (alvo && view.contains(alvo)) mostrar(alvo, e.clientX, e.clientY); else tip.style.display = 'none'; });
+    view.addEventListener('pointerleave', () => { tip.style.display = 'none'; });
+    const noFoco = () => { const f = document.activeElement; return f && f.closest && view.contains(f) ? f.closest('[data-tip]') : null; };
+    const mostrarNoFoco = (alvo) => { const b = alvo.getBoundingClientRect(); mostrar(alvo, b.left + b.width / 2 - 14, b.top); };
+    view.addEventListener('focusin', (e) => { const alvo = e.target.closest('[data-tip]'); if (alvo) mostrarNoFoco(alvo); });
+    view.addEventListener('focusout', () => { tip.style.display = 'none'; });
+    // Rolar esconde a dica do mouse; a do teclado acompanha o elemento (o foco rola a página até ele).
+    document.getElementById('conteudo').addEventListener('scroll', () => { const f = noFoco(); if (f) mostrarNoFoco(f); else tip.style.display = 'none'; }, { passive: true });
+    let timer = null;
+    window.addEventListener('resize', () => { clearTimeout(timer); timer = setTimeout(() => { const g = document.getElementById('rel-grafico-dia'); if (state.view === 'relatorios' && g && state.rel) desenharColunasDia(g, state.rel); }, 150); });
+  })();
 
   /* ================= Ligações fixas ================= */
   document.getElementById('btn-collapse').innerHTML = svgIcon('menu');

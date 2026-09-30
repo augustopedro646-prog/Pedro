@@ -87,6 +87,29 @@ imprimir sem a janela, dá pra pôr `--kiosk-printing` no atalho do Edge — aí
 impressora padrão do Windows, inclusive as etiquetas; só vale a pena se as etiquetas forem
 impressas em outro computador.
 
+## Relatórios (só Administrador)
+
+Tudo sai das vendas reais. Um filtro de período no topo (Hoje, 7 dias, 30 dias, Este mês, Mês
+passado ou datas escolhidas) vale pra tela inteira, e cada número vem com a seta de comparação com o
+período anterior. "Este mês" compara com os mesmos dias do mês passado.
+
+- **Vendido, vendas, ticket médio, peças, lucro bruto (e margem) e descontos.** Vendas canceladas
+  não entram. O que voltou em troca/devolução é descontado da venda original. O lucro usa o custo
+  do dia da venda e não desconta despesas (isso é o Fluxo de caixa).
+- **Vendido por dia** (por mês, se o período passar de 2 meses): passe o mouse na coluna pra ver
+  o valor, ou use "Ver tabela".
+- **Mais vendidos e curva ABC.** A = os produtos que fazem os primeiros 80% do vendido, B até 95%,
+  C o resto. A coluna "Dura" diz quantos dias o estoque atual aguenta no ritmo de venda do período.
+- **Vendas por pessoa**, com comissão e barra da meta do mês. A meta aparece em "Este mês" e em
+  "Mês passado". A meta de cada pessoa se define em Equipe → Editar, e o % de comissão em Equipe →
+  Configurações da loja.
+- **Formas de pagamento** e **horários de pico** (dia da semana × hora; quanto mais escuro, mais
+  vendas).
+- **Parados no estoque**: produtos com estoque que não venderam no período, com o custo parado.
+- **Precisa repor**: peças abaixo do estoque mínimo agora.
+
+Cada bloco tem **Baixar planilha** (abre direto no Excel).
+
 ## Backup do banco
 
 Automático, de hora em hora, feito pelo próprio servidor (não precisa configurar nada no Windows).

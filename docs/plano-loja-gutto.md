@@ -149,5 +149,12 @@ Plano fechado — pronto pra começar a Fase 1.
   - Calendário (eventos, escala, ponto, aniversariantes).
   - **Fase 3 — Canal online: concluída.** Site da loja (/loja) e aba Pedidos online.
   - Atendente de WhatsApp com IA (bot-whatsapp/) e aba WhatsApp no painel.
-- **Próximas**: domínio (Cloudflare Tunnel, como o Jabá), Fase 4 (relatórios), Fase 5
-  (NFC-e), Fase 6 (migração do GDOOR), cancelar venda, etiqueta de código de barras.
+- **Passos 1 a 4 (30/09/2026): concluídos.** Backup automático (de hora em hora, com
+  cópia fora do PC e restauração segura), cancelar venda (Administrador, com estorno completo),
+  etiquetas de código de barras na Elgin L42, cupom não fiscal e comprovante de vale-troca.
+- **Fase 4 — Relatórios: concluída (30/09/2026).** Período no topo (com comparação ao período
+  anterior), vendido por dia, mais vendidos com curva ABC e giro (dias de estoque), vendas por
+  pessoa com comissão e meta do mês, formas de pagamento, horários de pico, parados no estoque,
+  reposição, e planilha de cada bloco.
+- **Próximas**: Fase 5 (NFC-e), domínio (Cloudflare Tunnel, como o Jabá), Fase 6 (migração
+  do GDOOR).
