@@ -304,6 +304,22 @@ CREATE TABLE IF NOT EXISTS compras_itens (
 );
 CREATE INDEX IF NOT EXISTS compras_itens_compra_idx ON compras_itens(compra_id);
 
+-- Leitura de nota (XML/PDF/foto): a chave de 44 dígitos impede lançar a mesma NF-e duas vezes.
+ALTER TABLE compras ADD COLUMN IF NOT EXISTS chave_nfe TEXT;
+ALTER TABLE compras ADD COLUMN IF NOT EXISTS origem TEXT NOT NULL DEFAULT 'manual';
+CREATE UNIQUE INDEX IF NOT EXISTS compras_loja_chave_uk ON compras(loja_id, chave_nfe) WHERE chave_nfe IS NOT NULL;
+
+-- Código/referência que o fornecedor usa pra cada peça: aprendido ao confirmar uma nota, casa
+-- sozinho nas próximas notas do mesmo fornecedor (muita confecção pequena não usa código de barras).
+CREATE TABLE IF NOT EXISTS fornecedor_codigos (
+  loja_id INTEGER NOT NULL REFERENCES lojas(id) ON DELETE CASCADE,
+  fornecedor_id TEXT NOT NULL REFERENCES fornecedores(id) ON DELETE CASCADE,
+  codigo TEXT NOT NULL,
+  variacao_id TEXT NOT NULL REFERENCES produto_variacoes(id) ON DELETE CASCADE,
+  atualizado_em TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (loja_id, fornecedor_id, codigo)
+);
+
 -- Bater ponto. metodo registra se veio de PIN (conferido no servidor) ou do
 -- reconhecimento facial (que roda no navegador — fica anotado pra auditoria).
 CREATE TABLE IF NOT EXISTS pontos (

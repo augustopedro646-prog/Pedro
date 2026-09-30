@@ -380,7 +380,11 @@
     <div class="view page" id="view-compras">
       <div class="page-topo">
         <div><h1 class="titulo">Compras</h1><p class="sub">Entrada de nota do fornecedor — atualiza estoque e custo médio</p></div>
-        <button class="btn-primario" id="btn-nova-compra">+ Entrada de nota</button>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn-secundario" id="btn-nova-compra">+ Lançar na mão</button>
+          <button class="btn-primario" id="btn-ler-nota">Ler nota (XML, PDF ou foto)</button>
+          <input type="file" id="input-nota" accept=".xml,text/xml,application/xml,application/pdf,image/*" multiple style="display:none">
+        </div>
       </div>
       <div class="painel"><div id="compras-lista"></div></div>
     </div>
@@ -1955,6 +1959,273 @@
     }, camada.querySelector('#nc-erro'));
   }
 
+  /* ---------- Ler nota: XML (exato), PDF ou foto (IA) → conferir → lançar ---------- */
+  function lerArquivoComo(arquivo, modo) {
+    return new Promise((resolve, reject) => {
+      const r = new FileReader();
+      r.onload = () => resolve(r.result);
+      r.onerror = () => reject(new Error('Não consegui abrir o arquivo ' + arquivo.name));
+      if (modo === 'texto') r.readAsText(arquivo); else r.readAsDataURL(arquivo);
+    });
+  }
+  // Foto de celular tem vários MB: reduz pra no máximo 2000px (a IA lê bem) antes de enviar.
+  async function fotoParaJpeg(arquivo) {
+    const url = URL.createObjectURL(arquivo);
+    try {
+      const img = await new Promise((resolve, reject) => { const i = new Image(); i.onload = () => resolve(i); i.onerror = () => reject(new Error('Não consegui abrir a foto ' + arquivo.name + ' — use JPG ou PNG')); i.src = url; });
+      const escala = Math.min(1, 2000 / Math.max(img.naturalWidth, img.naturalHeight));
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.round(img.naturalWidth * escala); canvas.height = Math.round(img.naturalHeight * escala);
+      canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+      return canvas.toDataURL('image/jpeg', 0.85).split(',')[1];
+    } finally { URL.revokeObjectURL(url); }
+  }
+  function ehXml(a) { return /\.xml$/i.test(a.name) || /xml/.test(a.type); }
+  function ehPdf(a) { return /\.pdf$/i.test(a.name) || a.type === 'application/pdf'; }
+
+  async function lerNotaArquivos(arquivos) {
+    const xml = arquivos.find(ehXml);
+    const usaIA = !xml;
+    abrirModal(`<div class="modal-card estreito" style="text-align:center">${cabecalhoModal('Lendo a nota...', '')}
+      <div class="carregando">${usaIA ? 'A IA está lendo a nota — pode levar até 1 minuto.' : 'Lendo o XML da nota...'}</div></div>`);
+    try {
+      let corpo;
+      if (xml) corpo = { xml: await lerArquivoComo(xml, 'texto') };
+      else {
+        const outros = arquivos.filter(a => !ehPdf(a) && !/^image\//.test(a.type));
+        if (outros.length) throw new Error('Arquivo não suportado: ' + outros[0].name + ' — use XML, PDF ou foto (JPG/PNG)');
+        corpo = { arquivos: [] };
+        for (const a of arquivos) {
+          if (ehPdf(a)) corpo.arquivos.push({ mediaType: 'application/pdf', base64: (await lerArquivoComo(a)).split(',')[1] });
+          else corpo.arquivos.push({ mediaType: 'image/jpeg', base64: await fotoParaJpeg(a) });
+        }
+      }
+      const rascunho = await api('/compras/ler-nota', { method: 'POST', body: corpo });
+      await carregarProdutos();
+      if (!state.grades.length) await carregarGrades();
+      abrirConferenciaNota(rascunho);
+    } catch (e) {
+      fecharModal();
+      toast(e.message, 'erro');
+    }
+  }
+
+  const COMO_CASOU = { codigo_barras: 'pelo código de barras', codigo_fornecedor: 'pela referência do fornecedor', ia: 'sugestão da IA — confira' };
+  // Código gerado pelo sistema (prefixo 2): trocar pelo da etiqueta do fornecedor faz a peça bipar direto.
+  function codigoInterno(c) { return !c || /^2\d{12}$/.test(c); }
+
+  function abrirConferenciaNota(r) {
+    let markup = 2;
+    const itens = r.itens.map((it) => {
+      const item = Object.assign({}, it, { destino: null, usarCodigo: false });
+      const s = it.sugestao;
+      if (s && s.tipo === 'existente' && acharVariacao(s.variacaoId)) {
+        item.destino = { tipo: 'existente', variacaoId: s.variacaoId, como: s.como };
+        const v = acharVariacao(s.variacaoId).variacao;
+        item.usarCodigo = !!it.ean && normalizarCodigo(v.codigoBarras) !== it.ean && codigoInterno(v.codigoBarras);
+      } else if (s && s.tipo === 'novo') {
+        item.destino = { tipo: 'novo', nome: s.nome, categoria: s.categoria || '', tamanho: s.tamanho || '', cor: s.cor || 'Única', precoVenda: round2(it.custoUnitario * markup) };
+      }
+      return item;
+    });
+
+    const camada = abrirModal(`<div class="modal-card largo">
+      ${cabecalhoModal('Conferir nota' + (r.numeroNota ? ' ' + r.numeroNota : ''), (r.origem === 'xml' ? 'Lida do XML' : r.origem === 'pdf' ? 'Lida do PDF pela IA — confira os valores' : 'Lida da foto pela IA — confira os valores') + ' · nada foi lançado ainda')}
+      ${r.repetida ? `<div class="aviso-caixa">⚠ Essa nota parece já ter sido lançada em ${dataBR(r.repetida.data)}. Lançar de novo soma o estoque duas vezes.</div>` : ''}
+      ${r.avisoCasamento ? `<div class="aviso-caixa">${esc(r.avisoCasamento)}</div>` : ''}
+      <div class="linha-campos">
+        <label class="campo">Fornecedor<input id="cn-fornecedor" type="text" value="${esc(r.fornecedorCadastrado || r.fornecedor.nome || '')}"></label>
+        <label class="campo">Nº da nota<input id="cn-numero" type="text" value="${esc(r.numeroNota || '')}"></label>
+        <label class="campo">Data<input id="cn-data" type="date" value="${r.data || hojeLocal()}"></label>
+      </div>
+      <div class="modal-dica">Produtos novos: preço de venda = custo × <input id="cn-markup" inputmode="decimal" value="2,0" style="width:52px;padding:4px 6px;border-radius:6px;border:1px solid var(--border)"> <button class="link-btn" id="cn-aplicar-markup">aplicar aos novos</button></div>
+      <div id="cn-itens"></div>
+      <div id="cn-resumo"></div>
+      <label style="display:flex;align-items:center;gap:8px;font-size:13px"><input type="checkbox" id="cn-despesa" checked> Lançar no fluxo de caixa como despesa
+        <select id="cn-forma" style="padding:6px;border-radius:7px;border:1px solid var(--border)"><option>Boleto</option><option>Pix</option><option>Dinheiro</option><option>Cartão</option><option>Transferência</option></select></label>
+      <div class="erro-modal" id="cn-erro"></div>
+      <div class="modal-acoes"><button class="btn-secundario" data-fechar>Cancelar</button><button class="btn-primario btn-grande" id="cn-confirmar">Dar entrada no estoque</button></div>
+    </div>`);
+
+    const rotuloDestino = (it) => {
+      const d = it.destino;
+      if (!d) return '<span class="valor-neg" style="font-weight:700">Escolher peça</span>';
+      if (d.tipo === 'ignorar') return '<span style="color:var(--text-2)">— não entra no estoque</span>';
+      if (d.tipo === 'novo') return `<span class="tag aviso">novo</span> <b>${esc(d.nome)}</b> · ${esc(d.tamanho)} · ${esc(d.cor)}<div style="font-size:11px;color:var(--text-2)">venda ${fmt(d.precoVenda)}${it.ean ? ' · usa o código da nota' : ''}</div>`;
+      const a = acharVariacao(d.variacaoId);
+      if (!a) return '<span class="valor-neg">peça não encontrada</span>';
+      return `<span class="tag ok">✓</span> <b>${esc(a.produto.nome)}</b> · ${esc(a.variacao.tamanho)} · ${esc(a.variacao.cor)}
+        <div style="font-size:11px;color:var(--text-2)">${d.criado ? 'criada agora' : esc(COMO_CASOU[d.como] || 'escolhida por você')}</div>
+        ${it.ean && normalizarCodigo(a.variacao.codigoBarras) !== it.ean ? `<label style="font-size:11px;display:flex;gap:4px;align-items:center;margin-top:2px"><input type="checkbox" data-usar-codigo="${itens.indexOf(it)}" ${it.usarCodigo ? 'checked' : ''} style="width:auto;min-width:0"> usar o código de barras da nota nesta peça</label>` : ''}`;
+    };
+
+    const desenhar = () => {
+      camada.querySelector('#cn-itens').innerHTML = `<div class="tabela-scroll"><table class="tabela"><tr><th>Item da nota</th><th style="width:70px">Qtd</th><th style="width:100px">Custo un.</th><th>Vai para</th><th></th></tr>
+        ${itens.map((it, k) => `<tr style="${it.destino && it.destino.tipo === 'ignorar' ? 'opacity:.5' : ''}">
+          <td><div style="font-weight:600;font-size:12px">${esc(it.descricao)}</div>
+            <div class="mono" style="font-size:10px;color:var(--text-2)">${[it.codigoFornecedor && 'ref ' + esc(it.codigoFornecedor), it.ean && 'EAN ' + it.ean].filter(Boolean).join(' · ')}</div>
+            ${it.aviso ? `<div style="font-size:11px;color:var(--baixo-text);font-weight:600">⚠ ${esc(it.aviso)}</div>` : ''}</td>
+          <td><input data-cn-qtd="${k}" inputmode="numeric" value="${it.qtd}"></td>
+          <td><input data-cn-custo="${k}" inputmode="decimal" value="${fmtNum(it.custoUnitario)}"></td>
+          <td style="font-size:12px">${rotuloDestino(it)}</td>
+          <td><button class="btn-secundario" data-cn-destino="${k}">${it.destino ? 'Alterar' : 'Escolher'}</button></td></tr>`).join('')}
+        </table></div>`;
+      const validos = itens.filter(i => i.destino && i.destino.tipo !== 'ignorar');
+      const total = round2(validos.reduce((s, i) => s + i.qtd * i.custoUnitario, 0));
+      const pecas = validos.reduce((s, i) => s + i.qtd, 0);
+      const novos = new Set(validos.filter(i => i.destino.tipo === 'novo').map(i => i.destino.nome.toLowerCase()));
+      const faltam = itens.filter(i => !i.destino).length;
+      camada.querySelector('#cn-resumo').innerHTML = `<div class="linha-total grande"><span>${pecas} peça(s)${novos.size ? ' · ' + novos.size + ' produto(s) novo(s)' : ''}</span><span>${fmt(total)}</span></div>
+        ${r.total && Math.abs(r.total - total) > 0.05 && !itens.some(i => i.destino && i.destino.tipo === 'ignorar') ? `<div class="modal-dica">Total da nota: ${fmt(r.total)} (a diferença costuma ser frete/impostos gerais da nota).</div>` : ''}
+        ${faltam ? `<div class="modal-dica valor-neg" style="font-weight:600">Falta escolher a peça de ${faltam} item(ns).</div>` : ''}`;
+      camada.querySelectorAll('[data-cn-qtd]').forEach(inp => inp.onchange = () => {
+        const q = parseNumBR(inp.value);
+        if (Number.isInteger(q) && q > 0) itens[Number(inp.dataset.cnQtd)].qtd = q; else toast('Quantidade inválida', 'erro');
+        desenhar();
+      });
+      camada.querySelectorAll('[data-cn-custo]').forEach(inp => inp.onchange = () => {
+        const c = parseNumBR(inp.value);
+        if (Number.isFinite(c) && c >= 0) itens[Number(inp.dataset.cnCusto)].custoUnitario = round2(c); else toast('Custo inválido', 'erro');
+        desenhar();
+      });
+      camada.querySelectorAll('[data-usar-codigo]').forEach(cb => cb.onchange = () => { itens[Number(cb.dataset.usarCodigo)].usarCodigo = cb.checked; });
+      camada.querySelectorAll('[data-cn-destino]').forEach(b => b.onclick = async () => {
+        const it = itens[Number(b.dataset.cnDestino)];
+        const nomesNovos = [...new Set(itens.filter(i => i.destino && i.destino.tipo === 'novo').map(i => i.destino.nome))];
+        const d = await escolherDestinoItem(it, nomesNovos, markup);
+        if (d) {
+          it.destino = d;
+          if (d.tipo === 'existente') { const v = acharVariacao(d.variacaoId).variacao; it.usarCodigo = !!it.ean && normalizarCodigo(v.codigoBarras) !== it.ean && codigoInterno(v.codigoBarras); }
+          desenhar();
+        }
+      });
+    };
+    desenhar();
+
+    camada.querySelector('#cn-aplicar-markup').onclick = () => {
+      const m = parseNumBR(camada.querySelector('#cn-markup').value);
+      if (!Number.isFinite(m) || m <= 0) { toast('Multiplicador inválido', 'erro'); return; }
+      markup = m;
+      itens.forEach(i => { if (i.destino && i.destino.tipo === 'novo') i.destino.precoVenda = round2(i.custoUnitario * m); });
+      desenhar();
+    };
+
+    camada.querySelector('#cn-confirmar').onclick = (ev) => comBotao(ev.target, 'Lançando...', async () => {
+      if (itens.some(i => !i.destino)) throw new Error('Escolha a peça de todos os itens (ou marque "não lançar").');
+      const lancar = itens.filter(i => i.destino.tipo !== 'ignorar');
+      if (!lancar.length) throw new Error('Nenhum item vai entrar no estoque.');
+      // 1) Cria os produtos/tamanhos/cores novos. Guarda o id criado no próprio item: se o
+      //    lançamento falhar depois, tentar de novo não duplica nada.
+      const produtoPorNome = {};
+      for (const it of lancar.filter(i => i.destino.tipo === 'novo')) {
+        const d = it.destino;
+        const chaveNome = d.nome.trim().toLowerCase();
+        let produto = state.produtos.find(p => p.nome.trim().toLowerCase() === chaveNome);
+        let produtoId = produto ? produto.id : produtoPorNome[chaveNome];
+        if (!produtoId) {
+          const tamanhosDoGrupo = lancar.filter(i => i.destino.tipo === 'novo' && i.destino.nome.trim().toLowerCase() === chaveNome).map(i => i.destino.tamanho);
+          const grade = state.grades.find(g => tamanhosDoGrupo.every(t => g.tamanhos.includes(t)));
+          produtoId = (await api('/produtos', { method: 'POST', body: { nome: d.nome.trim(), categoria: d.categoria, ncm: it.ncm, gradeTamanhoId: grade ? grade.id : undefined } })).id;
+          produtoPorNome[chaveNome] = produtoId;
+          await carregarProdutos();
+          produto = state.produtos.find(p => p.id === produtoId);
+        }
+        produto = produto || state.produtos.find(p => p.id === produtoId);
+        const ja = produto && produto.variacoes.find(v => v.tamanho.toLowerCase() === d.tamanho.trim().toLowerCase() && v.cor.toLowerCase() === d.cor.trim().toLowerCase());
+        let variacaoId = ja ? ja.id : null;
+        if (!variacaoId) {
+          variacaoId = (await api('/produtos/' + produtoId + '/variacoes', { method: 'POST', body: {
+            tamanho: d.tamanho.trim(), cor: d.cor.trim(), precoVenda: d.precoVenda, custoUnitario: it.custoUnitario, estoqueMinimo: 1, estoqueInicial: 0,
+            codigoBarras: it.ean && !acharPorCodigo(it.ean, true) ? it.ean : undefined } })).id;
+          await carregarProdutos();
+        }
+        it.destino = { tipo: 'existente', variacaoId, criado: true };
+      }
+      // 2) Lança a nota inteira de uma vez (estoque, custo médio, despesa e códigos).
+      const nomeForn = camada.querySelector('#cn-fornecedor').value.trim();
+      const mesmoFornecedor = r.fornecedorId && nomeForn.toLowerCase() === String(r.fornecedorCadastrado || '').toLowerCase();
+      await api('/compras', { method: 'POST', body: {
+        fornecedorId: mesmoFornecedor ? r.fornecedorId : undefined,
+        fornecedorNome: mesmoFornecedor ? undefined : (nomeForn || undefined),
+        fornecedorCnpj: mesmoFornecedor ? undefined : (r.fornecedor.cnpj || undefined),
+        numeroNota: camada.querySelector('#cn-numero').value, data: camada.querySelector('#cn-data').value,
+        chaveNfe: r.chave || undefined, origem: r.origem,
+        itens: lancar.map(i => ({ variacaoId: i.destino.variacaoId, qtd: i.qtd, custoUnitario: i.custoUnitario,
+          codigoFornecedor: i.codigoFornecedor || undefined, codigoBarras: i.usarCodigo && !i.destino.criado ? i.ean : undefined })),
+        lancarDespesa: camada.querySelector('#cn-despesa').checked, formaPagamento: camada.querySelector('#cn-forma').value,
+      } });
+      fecharModal();
+      toast('Nota lançada — ' + lancar.reduce((s, i) => s + i.qtd, 0) + ' peças no estoque');
+      await carregarProdutos();
+      carregarDadosDaView('compras');
+    }, camada.querySelector('#cn-erro'));
+  }
+
+  // Pra onde vai um item da nota: peça que já existe, produto/tamanho/cor novo, ou não lançar.
+  function escolherDestinoItem(item, nomesNovos, markup) {
+    return new Promise((resolve) => {
+      const atual = item.destino && item.destino.tipo === 'novo' ? item.destino : { nome: '', categoria: '', tamanho: '', cor: '', precoVenda: round2(item.custoUnitario * markup) };
+      let aba = item.destino && item.destino.tipo === 'novo' ? 'novo' : 'existente';
+      const camada = abrirCamada('modal-topo', `<div class="modal-card">
+        ${cabecalhoModal('Pra onde vai este item?', item.descricao)}
+        <div class="chips"><button class="chip" data-aba="existente">Peça que já existe</button><button class="chip" data-aba="novo">Produto/tamanho/cor novo</button><button class="chip" data-aba="ignorar">Não lançar</button></div>
+        <div id="de-corpo"></div></div>`, () => resolve(null));
+      const corpo = camada.querySelector('#de-corpo');
+      const desenhar = () => {
+        camada.querySelectorAll('[data-aba]').forEach(b => b.classList.toggle('ativo', b.dataset.aba === aba));
+        if (aba === 'ignorar') {
+          corpo.innerHTML = `<div class="modal-dica">O item fica fora do estoque e do valor da nota (ex.: brinde, sacola, item que veio errado).</div><button class="btn-primario" id="de-ignorar">Não lançar este item</button>`;
+          corpo.querySelector('#de-ignorar').onclick = () => { fecharCamada('modal-topo'); resolve({ tipo: 'ignorar' }); };
+        } else if (aba === 'novo') {
+          const categorias = [...new Set(state.produtos.map(p => p.categoria).filter(c => c && c !== 'Sem categoria'))];
+          const nomes = [...new Set(state.produtos.map(p => p.nome).concat(nomesNovos))];
+          corpo.innerHTML = `<div class="modal-dica">Pra um produto que já existe mas não tem esse tamanho/cor, escreva o mesmo nome.</div>
+            <label class="campo">Nome do produto (sem tamanho/cor)<input id="de-nome" list="de-nomes" value="${esc(atual.nome)}"></label>
+            <datalist id="de-nomes">${nomes.map(n => `<option value="${esc(n)}">`).join('')}</datalist>
+            <div class="linha-campos">
+              <label class="campo">Categoria<input id="de-categoria" list="de-cats" value="${esc(atual.categoria)}"></label>
+              <label class="campo">Tamanho<input id="de-tamanho" value="${esc(atual.tamanho)}"></label>
+              <label class="campo">Cor<input id="de-cor" value="${esc(atual.cor)}"></label>
+            </div>
+            <datalist id="de-cats">${categorias.map(c => `<option value="${esc(c)}">`).join('')}</datalist>
+            <label class="campo">Preço de venda (custo ${fmt(item.custoUnitario)})<input id="de-preco" inputmode="decimal" value="${fmtNum(atual.precoVenda)}"></label>
+            <div class="erro-modal" id="de-erro"></div>
+            <button class="btn-primario" id="de-salvar">Usar produto novo</button>`;
+          corpo.querySelector('#de-salvar').onclick = () => {
+            const d = { tipo: 'novo', nome: corpo.querySelector('#de-nome').value.trim(), categoria: corpo.querySelector('#de-categoria').value.trim(),
+              tamanho: corpo.querySelector('#de-tamanho').value.trim(), cor: corpo.querySelector('#de-cor').value.trim() || 'Única', precoVenda: parseNumBR(corpo.querySelector('#de-preco').value) };
+            if (!d.nome || !d.tamanho) { mostrarErro(corpo.querySelector('#de-erro'), 'Preencha o nome e o tamanho.'); return; }
+            if (!Number.isFinite(d.precoVenda) || d.precoVenda <= 0) { mostrarErro(corpo.querySelector('#de-erro'), 'Preço de venda inválido.'); return; }
+            const produto = state.produtos.find(p => p.nome.toLowerCase() === d.nome.toLowerCase());
+            const ja = produto && produto.variacoes.find(v => v.tamanho.toLowerCase() === d.tamanho.toLowerCase() && v.cor.toLowerCase() === d.cor.toLowerCase());
+            fecharCamada('modal-topo');
+            resolve(ja ? { tipo: 'existente', variacaoId: ja.id } : d);
+          };
+        } else {
+          corpo.innerHTML = `<input id="de-busca" class="input-busca" type="text" placeholder="Buscar produto" autocomplete="off"><div id="de-lista" style="max-height:240px;overflow-y:auto;margin-top:8px"></div><div id="de-grade"></div>`;
+          const listar = () => {
+            const termo = corpo.querySelector('#de-busca').value.trim().toLowerCase();
+            const vis = state.produtos.filter(p => p.variacoes.length && (!termo || p.nome.toLowerCase().includes(termo))).slice(0, 40);
+            corpo.querySelector('#de-grade').innerHTML = '';
+            corpo.querySelector('#de-lista').innerHTML = vis.length ? vis.map(p => `<button class="linha-clicavel" data-de-prod="${p.id}"><div class="produto-row-avatar" style="background:${p.swatch};width:28px;height:28px;font-size:12px">${esc(p.nome.charAt(0))}</div><div style="flex-grow:1">${esc(p.nome)}</div><span style="font-size:11px;color:var(--text-2)">${esc(p.categoria)}</span></button>`).join('')
+              : '<div class="vazio">Nenhum produto — use "Produto/tamanho/cor novo".</div>';
+            corpo.querySelectorAll('[data-de-prod]').forEach(b => b.onclick = () => {
+              const p = state.produtos.find(x => x.id === b.dataset.deProd);
+              corpo.querySelector('#de-lista').innerHTML = `<div class="linha-simples"><b style="flex-grow:1">${esc(p.nome)}</b><button class="link-btn" id="de-voltar">trocar produto</button></div>`;
+              corpo.querySelector('#de-voltar').onclick = listar;
+              corpo.querySelector('#de-grade').innerHTML = `<div class="modal-dica">Toque no tamanho/cor:</div><div style="overflow-x:auto;margin-top:8px">${gradeHtml(p, { grande: true })}</div>`;
+              corpo.querySelectorAll('#de-grade button[data-variacao]').forEach(c => c.onclick = () => { fecharCamada('modal-topo'); resolve({ tipo: 'existente', variacaoId: c.dataset.variacao }); });
+            });
+          };
+          corpo.querySelector('#de-busca').addEventListener('input', listar);
+          listar();
+        }
+      };
+      camada.querySelectorAll('[data-aba]').forEach(b => b.onclick = () => { aba = b.dataset.aba; desenhar(); });
+      desenhar();
+    });
+  }
+
   /* ================= Fluxo de caixa ================= */
   function nomeMes(ym) { const [a, m] = ym.split('-').map(Number); return MESES_NOME[m - 1] + ' ' + a; }
   function mudarMes(delta) {
@@ -2234,6 +2505,12 @@
   document.getElementById('btn-limpar-carrinho').addEventListener('click', () => { if (!state.cart.length || confirm('Limpar o carrinho?')) setState({ cart: [], pagamentos: [], cliente: null }); });
   document.getElementById('btn-novo-cliente').addEventListener('click', abrirNovoCliente);
   document.getElementById('btn-nova-compra').addEventListener('click', abrirNovaCompra);
+  document.getElementById('btn-ler-nota').addEventListener('click', () => document.getElementById('input-nota').click());
+  document.getElementById('input-nota').addEventListener('change', (e) => {
+    const arquivos = Array.from(e.target.files || []);
+    e.target.value = '';
+    if (arquivos.length) lerNotaArquivos(arquivos);
+  });
   document.getElementById('btn-novo-usuario').addEventListener('click', () => abrirUsuario(null));
   const inputVendaBusca = document.getElementById('venda-busca');
   inputVendaBusca.addEventListener('input', (e) => { state.vendaBusca = e.target.value; renderVenda(); });

@@ -25,6 +25,19 @@ Plano e decisões: `docs/plano-loja-gutto.md`. Código da API + tela: `api/`.
    ```
    Ele cria o banco, as tabelas e os usuários Pedro (PIN 1103) e Lorena (PIN 1007).
 
+## Leitura de nota (Compras → "Ler nota")
+
+- **XML da nota** (o arquivo que o fornecedor manda por e-mail junto do PDF): leitura exata,
+  sem custo e sem precisar de nada extra. Sempre que tiver o XML, use ele.
+- **PDF ou foto(s)**: lidos pela IA do Claude. Precisa de uma chave da API da Anthropic no
+  `api\.env`, numa linha `ANTHROPIC_API_KEY=...` (a mesma que o Jabá usa serve), e reiniciar
+  o servidor. Cada leitura custa alguns centavos.
+
+Nada é lançado direto: aparece a tela **Conferir nota** com cada item já apontado pra peça
+certa (pelo código de barras, pela referência que o fornecedor usou em notas anteriores ou
+por sugestão da IA). Dá pra corrigir quantidade, custo e peça, criar produto novo ali mesmo
+ou deixar um item de fora. A mesma NF-e não entra duas vezes.
+
 ## Dia a dia
 
 Na pasta `api`:

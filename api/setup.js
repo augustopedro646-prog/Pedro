@@ -14,6 +14,8 @@ function garantirEnv() {
     'DATABASE_URL=postgresql://postgres:' + PLACEHOLDER_SENHA + '@localhost:5432/loja_gutto',
     'JWT_SECRET=' + crypto.randomBytes(32).toString('hex'),
     'LOJA_ID=1',
+    '# Leitura de nota por PDF/foto (IA do Claude). Sem isso, o XML da nota continua funcionando.',
+    '# ANTHROPIC_API_KEY=',
     '',
   ].join('\n');
   fs.writeFileSync(ENV_PATH, conteudo);

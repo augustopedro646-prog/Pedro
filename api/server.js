@@ -6,6 +6,12 @@ const rateLimit = require('express-rate-limit');
 const { pool, uid } = require('./db');
 const { verificarPin, gerarToken, hashPin, lerToken } = require('./auth');
 const { gerarCodigoBarras } = require('./codigos');
+const notas = require('./notas');
+const Anthropic = require('@anthropic-ai/sdk');
+
+// Leitura de nota por PDF/foto usa a IA do Claude (mesma ideia do Jabá). Sem chave no .env,
+// o XML continua funcionando normalmente — só PDF/foto ficam indisponíveis.
+const anthropic = process.env.ANTHROPIC_API_KEY ? new Anthropic({ timeout: 5 * 60 * 1000 }) : null;
 
 // Fuso da loja (Parnamirim/RN, UTC-3 sem horário de verão). "Hoje" e "mês" são sempre
 // calculados nesse fuso no banco — com UTC, uma venda às 22h cairia no dia seguinte.
@@ -13,7 +19,9 @@ const TZ = process.env.TZ_LOJA || 'America/Fortaleza';
 
 const app = express();
 app.use(cors());
-app.use(express.json({ limit: '1mb' }));
+// Só a leitura de nota recebe arquivo grande (fotos/PDF em base64); o resto fica no limite pequeno.
+const jsonPadrao = express.json({ limit: '1mb' });
+app.use((req, res, next) => (req.path.endsWith('/compras/ler-nota') ? next() : jsonPadrao(req, res, next)));
 app.use(express.static(path.join(__dirname, 'public')));
 app.get('/', (req, res) => res.redirect('/painel-gutto.html'));
 
@@ -202,7 +210,7 @@ app.put('/api/lojas/:lojaId/equipe/:id', admin, rota(async (req, res) => {
 app.get('/api/lojas/:lojaId/config', qualquer, rota(async (req, res) => {
   const { rows } = await pool.query('SELECT nome, cashback_pct, desconto_livre_pct FROM lojas WHERE id = $1', [req.lojaId]);
   if (!rows.length) falha(404, 'loja não encontrada');
-  res.json({ nome: rows[0].nome, cashbackPct: Number(rows[0].cashback_pct), descontoLivrePct: Number(rows[0].desconto_livre_pct) });
+  res.json({ nome: rows[0].nome, cashbackPct: Number(rows[0].cashback_pct), descontoLivrePct: Number(rows[0].desconto_livre_pct), leituraIA: !!anthropic });
 }));
 
 app.put('/api/lojas/:lojaId/config', admin, rota(async (req, res) => {
@@ -968,9 +976,17 @@ app.post('/api/lojas/:lojaId/compras', admin, rota(async (req, res) => {
       variacaoId: it.variacaoId,
       qtd: numero(it.qtd, 'qtd', { minExclusivo: true, inteiro: true, max: 100000 }),
       custo: numero(it.custoUnitario, 'custoUnitario'),
+      // Vindos da leitura da nota: referência do fornecedor (aprendida pra próxima nota) e o
+      // código de barras da etiqueta, quando o Administrador escolheu passar a usá-lo na peça.
+      codigoFornecedor: texto(it.codigoFornecedor, 'codigoFornecedor', { obrigatorio: false, max: 60 }),
+      codigoBarras: soDigitos(it.codigoBarras),
     };
   }).sort((a, b) => (a.variacaoId < b.variacaoId ? -1 : 1));
   const numeroNota = texto(body.numeroNota, 'numeroNota', { obrigatorio: false, max: 30 });
+  const chaveNfe = soDigitos(body.chaveNfe);
+  if (chaveNfe && chaveNfe.length !== 44) falha(400, 'chave da NF-e deve ter 44 dígitos');
+  const fornecedorCnpj = soDigitos(body.fornecedorCnpj);
+  const origem = ['manual', 'xml', 'pdf', 'foto'].includes(body.origem) ? body.origem : 'manual';
 
   const compra = await transacao(async (c) => {
     let fornecedorId = null, fornecedorNome = null;
@@ -978,28 +994,54 @@ app.post('/api/lojas/:lojaId/compras', admin, rota(async (req, res) => {
       const { rows } = await c.query('SELECT id, nome FROM fornecedores WHERE id = $1 AND loja_id = $2', [body.fornecedorId, req.lojaId]);
       if (!rows.length) falha(404, 'fornecedor não encontrado');
       fornecedorId = rows[0].id; fornecedorNome = rows[0].nome;
-    } else if (body.fornecedorNome) {
-      fornecedorNome = texto(body.fornecedorNome, 'fornecedorNome', { max: 100 });
-      const { rows } = await c.query(
-        `INSERT INTO fornecedores (id, loja_id, nome) VALUES ($1,$2,$3)
-         ON CONFLICT (loja_id, lower(nome)) DO UPDATE SET nome = fornecedores.nome RETURNING id, nome`,
-        [uid(), req.lojaId, fornecedorNome]
-      );
-      fornecedorId = rows[0].id; fornecedorNome = rows[0].nome;
+    } else if (body.fornecedorNome || fornecedorCnpj) {
+      const existente = fornecedorCnpj ? (await c.query('SELECT id, nome FROM fornecedores WHERE loja_id = $1 AND cnpj = $2', [req.lojaId, fornecedorCnpj])).rows[0] : null;
+      if (existente) { fornecedorId = existente.id; fornecedorNome = existente.nome; }
+      else {
+        fornecedorNome = texto(body.fornecedorNome, 'fornecedorNome', { max: 100 });
+        const { rows } = await c.query(
+          `INSERT INTO fornecedores (id, loja_id, nome, cnpj) VALUES ($1,$2,$3,$4)
+           ON CONFLICT (loja_id, lower(nome)) DO UPDATE SET cnpj = COALESCE(fornecedores.cnpj, EXCLUDED.cnpj) RETURNING id, nome`,
+          [uid(), req.lojaId, fornecedorNome, fornecedorCnpj]
+        );
+        fornecedorId = rows[0].id; fornecedorNome = rows[0].nome;
+      }
     }
 
     const compraId = uid();
     const total = round2(itens.reduce((s, it) => s + it.qtd * it.custo, 0));
-    await c.query(
-      `INSERT INTO compras (id, loja_id, fornecedor_id, numero_nota, data, total, observacao, criado_por) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
-      [compraId, req.lojaId, fornecedorId, numeroNota, data, total, texto(body.observacao, 'observacao', { obrigatorio: false, max: 300 }), req.usuario.id]
-    );
+    try {
+      await c.query(
+        `INSERT INTO compras (id, loja_id, fornecedor_id, numero_nota, data, total, observacao, criado_por, chave_nfe, origem) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
+        [compraId, req.lojaId, fornecedorId, numeroNota, data, total, texto(body.observacao, 'observacao', { obrigatorio: false, max: 300 }), req.usuario.id, chaveNfe, origem]
+      );
+    } catch (e) {
+      if (e.code === '23505') falha(409, 'Essa nota já foi lançada antes (mesma chave de NF-e)', { codigo: 'nota_repetida' });
+      throw e;
+    }
     for (const it of itens) {
       await c.query('INSERT INTO compras_itens (id, compra_id, variacao_id, qtd, custo_unitario) VALUES ($1,$2,$3,$4,$5)', [uid(), compraId, it.variacaoId, it.qtd, it.custo]);
       await darEntradaEstoque(c, {
         lojaId: req.lojaId, variacaoId: it.variacaoId, quantidade: it.qtd, custo: it.custo,
         referenciaTipo: 'compra', referenciaId: compraId, usuarioId: req.usuario.id,
       });
+      if (it.codigoBarras) {
+        try {
+          await c.query('SAVEPOINT codigo');
+          await c.query('UPDATE produto_variacoes SET codigo_barras = $1 WHERE id = $2 AND loja_id = $3', [it.codigoBarras, it.variacaoId, req.lojaId]);
+          await c.query('RELEASE SAVEPOINT codigo');
+        } catch (e) {
+          if (e.code !== '23505') throw e;
+          falha(409, 'O código de barras ' + it.codigoBarras + ' já está em outra peça — desmarque "usar código da nota" nesse item');
+        }
+      }
+      if (it.codigoFornecedor && fornecedorId) {
+        await c.query(
+          `INSERT INTO fornecedor_codigos (loja_id, fornecedor_id, codigo, variacao_id) VALUES ($1,$2,$3,$4)
+           ON CONFLICT (loja_id, fornecedor_id, codigo) DO UPDATE SET variacao_id = EXCLUDED.variacao_id, atualizado_em = now()`,
+          [req.lojaId, fornecedorId, it.codigoFornecedor, it.variacaoId]
+        );
+      }
     }
     let despesaId = null;
     if (body.lancarDespesa && total > 0) {
@@ -1015,6 +1057,40 @@ app.post('/api/lojas/:lojaId/compras', admin, rota(async (req, res) => {
     return { id: compraId, total, despesaId, fornecedorId };
   });
   res.status(201).json(compra);
+}));
+
+// Lê a nota (XML exato; PDF/foto pela IA) e devolve um rascunho com cada item já casado com
+// uma peça do estoque quando possível. Não grava nada — quem confirma é o POST /compras.
+const MIDIAS_NOTA = ['application/pdf', 'image/jpeg', 'image/png', 'image/webp'];
+app.post('/api/lojas/:lojaId/compras/ler-nota', admin, express.json({ limit: '25mb' }), rota(async (req, res) => {
+  const body = req.body || {};
+  let rascunho;
+  if (typeof body.xml === 'string' && body.xml.trim()) {
+    if (body.xml.length > 5 * 1024 * 1024) falha(413, 'XML grande demais');
+    try { rascunho = notas.lerXmlNfe(body.xml); } catch (e) { falha(400, e.message); }
+  } else {
+    const arquivos = Array.isArray(body.arquivos) ? body.arquivos : [];
+    if (!arquivos.length) falha(400, 'Envie o XML, o PDF ou a(s) foto(s) da nota');
+    if (arquivos.length > 8) falha(400, 'No máximo 8 fotos por nota');
+    for (const a of arquivos) {
+      if (!a || !MIDIAS_NOTA.includes(a.mediaType) || typeof a.base64 !== 'string' || !a.base64) falha(400, 'Formato não suportado — use XML, PDF, JPG ou PNG');
+    }
+    if (!anthropic) falha(503, 'Leitura de PDF/foto não está ligada (falta a chave ANTHROPIC_API_KEY no .env do servidor). O XML da nota funciona sem ela.');
+    try {
+      rascunho = await notas.lerNotaComIA(anthropic, arquivos);
+    } catch (e) {
+      if (e instanceof Anthropic.APIError) {
+        console.error('Leitura de nota — erro da API do Claude:', e.status, e.message);
+        falha(502, e.status === 429 ? 'Leitura de nota ocupada agora — tente de novo em um minuto.' : 'Não consegui falar com a IA agora — tente de novo em instantes.');
+      }
+      falha(422, e.message);
+    }
+  }
+  if (!rascunho.itens.length) falha(422, 'Não achei nenhum item nessa nota.');
+  await notas.sugerirCasamentos(pool, anthropic, req.lojaId, rascunho);
+  const repetida = await notas.acharCompraRepetida(pool, req.lojaId, rascunho);
+  const fornecedor = await notas.acharFornecedor(pool, req.lojaId, rascunho.fornecedor);
+  res.json({ ...rascunho, fornecedorId: fornecedor ? fornecedor.id : null, fornecedorCadastrado: fornecedor ? fornecedor.nome : null, repetida });
 }));
 
 app.get('/api/lojas/:lojaId/compras', admin, rota(async (req, res) => {
