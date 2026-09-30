@@ -88,16 +88,31 @@ comissão, metas — hoje só tem produtos mais vendidos e formas de pagamento).
 6. **Migração do GDOOR** — produtos, grade, clientes, saldos — quando você conseguir a
    senha do Firebird (não bloqueia nenhuma fase anterior).
 
-## Ainda em aberto (assumi uma resposta provisória pra não travar — corrige se eu errei)
+## Decisões fechadas em 30/09/2026 (2ª rodada)
 
-1. **Cargos**: assumi 4 papéis como no GDOOR — Administrador (dono), Gerente, Vendedor,
-   Caixa (Gerente aprova desconto acima do limite, igual ao Administrador já faz no Jabá).
-   Confirma ou simplifica?
-2. **Fidelidade** (pontos/cashback): assumi que fica pra depois da fase 4 — o próprio GDOOR
-   não tinha isso ativo. Confirma?
-3. **Migração** (item 6): assumi que não bloqueia o lançamento — a loja começa com catálogo
-   cadastrado na mão e migra o histórico depois. Confirma?
+1. **Cargos**: só **Administrador** e **Caixa** têm login no sistema — bem mais simples
+   que o GDOOR. **Vendedor não é papel de login**: continua existindo como pessoa
+   cadastrada (lista de vendedores), atribuída por item na venda pra fins de
+   comissão/meta — quem opera o sistema (loga, bate ponto) é sempre Administrador ou
+   Caixa, mas registra "quem vendeu" separadamente. Sem Gerente — Administrador acumula
+   a aprovação de desconto acima do limite (mesmo modelo que o Jabá já usa).
+2. **Fidelidade**: entra **já na primeira versão** — cashback, reaproveitando a lógica
+   já validada no Jabá Club (crédito só uma vez, na confirmação da venda, nunca
+   duplicado). Passa a fazer parte da Fase 1/2, não da Fase 4.
+3. **Migração**: confirmado que **não bloqueia o lançamento** — a loja começa com
+   catálogo cadastrado na mão; histórico do GDOOR migra depois (Fase 6), quando a senha
+   do Firebird estiver disponível.
 
-Nada disso trava o início da Fase 1 — só preciso saber antes de desenhar Equipe/Permissões
-(fase 2) e Fidelidade (fase 4). Posso começar a Fase 1 (schema real + Produtos/Estoque)
-assim que você confirmar.
+## Ajuste na ordem de entrega (com as decisões acima)
+
+1. **Fundação** — banco real, login com PIN de verdade (hash), papéis Administrador/Caixa,
+   Produtos/Estoque com grade tamanho×cor, Venda rápida ligada ao banco (decremento
+   atômico de estoque), cadastro de vendedores (atribuição por item, sem login).
+2. **Operação da loja** — Fluxo de caixa real, Clientes (crédito/vale-troca + **cashback**),
+   Compras/Entrada de nota, Bater ponto.
+3. **Canal online** — Pedidos online.
+4. **Relatórios completos** — curva ABC, giro, comissão, metas, estoque baixo por grade.
+5. **Fiscal** — NFC-e via Focus NFe.
+6. **Migração do GDOOR** — produtos, grade, clientes, saldos.
+
+Plano fechado — pronto pra começar a Fase 1.
