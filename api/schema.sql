@@ -349,3 +349,72 @@ CREATE TABLE IF NOT EXISTS agenda_eventos (
   criado_em TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS agenda_eventos_loja_data_idx ON agenda_eventos(loja_id, data);
+
+-- ================= Pedidos online (site da loja) =================
+-- Configuração do site, na própria loja.
+ALTER TABLE lojas ADD COLUMN IF NOT EXISTS site_ativo BOOLEAN NOT NULL DEFAULT true;
+ALTER TABLE lojas ADD COLUMN IF NOT EXISTS aceita_entrega BOOLEAN NOT NULL DEFAULT true;
+ALTER TABLE lojas ADD COLUMN IF NOT EXISTS aceita_retirada BOOLEAN NOT NULL DEFAULT true;
+ALTER TABLE lojas ADD COLUMN IF NOT EXISTS taxa_entrega NUMERIC(12,2) NOT NULL DEFAULT 0;
+ALTER TABLE lojas ADD COLUMN IF NOT EXISTS whatsapp TEXT;
+ALTER TABLE lojas ADD COLUMN IF NOT EXISTS endereco TEXT;
+ALTER TABLE lojas ADD COLUMN IF NOT EXISTS mensagem_site TEXT;
+
+-- Produto aparece no site só se estiver ativo, publicado e com alguma variação com estoque.
+ALTER TABLE produtos ADD COLUMN IF NOT EXISTS publicado BOOLEAN NOT NULL DEFAULT true;
+
+-- Fotos no próprio banco (vão junto no backup e na mudança pra nuvem, sem pasta de arquivos à parte).
+CREATE TABLE IF NOT EXISTS produto_fotos (
+  id TEXT PRIMARY KEY,
+  loja_id INTEGER NOT NULL REFERENCES lojas(id) ON DELETE CASCADE,
+  produto_id TEXT NOT NULL REFERENCES produtos(id) ON DELETE CASCADE,
+  ordem INTEGER NOT NULL DEFAULT 0,
+  mime TEXT NOT NULL,
+  dados BYTEA NOT NULL,
+  criado_em TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS produto_fotos_produto_idx ON produto_fotos(produto_id, ordem);
+
+-- Pedido: a peça fica RESERVADA (sai do estoque) assim que o pedido chega, pra não ser vendida
+-- no balcão enquanto isso; cancelar devolve. Concluir transforma o pedido numa venda de verdade.
+-- token = link público de acompanhamento que só o cliente recebe (o id nunca vai pro site).
+CREATE TABLE IF NOT EXISTS pedidos_online (
+  id TEXT PRIMARY KEY,
+  loja_id INTEGER NOT NULL REFERENCES lojas(id) ON DELETE CASCADE,
+  numero INTEGER NOT NULL,
+  token TEXT NOT NULL UNIQUE,
+  status TEXT NOT NULL DEFAULT 'recebido' CHECK (status IN ('recebido', 'separando', 'pronto', 'saiu_entrega', 'entregue', 'cancelado')),
+  cliente_id TEXT REFERENCES clientes(id),
+  cliente_nome TEXT NOT NULL,
+  telefone TEXT NOT NULL,
+  tipo TEXT NOT NULL CHECK (tipo IN ('entrega', 'retirada')),
+  endereco TEXT,
+  pagamento TEXT NOT NULL CHECK (pagamento IN ('Pix', 'Dinheiro', 'Débito', 'Crédito')),
+  troco_para NUMERIC(12,2),
+  observacao TEXT,
+  subtotal NUMERIC(12,2) NOT NULL,
+  taxa_entrega NUMERIC(12,2) NOT NULL DEFAULT 0,
+  total NUMERIC(12,2) NOT NULL,
+  entregador TEXT,
+  venda_id TEXT REFERENCES vendas(id),
+  motivo_cancelamento TEXT,
+  criado_em TIMESTAMPTZ NOT NULL DEFAULT now(),
+  atualizado_em TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE (loja_id, numero)
+);
+CREATE INDEX IF NOT EXISTS pedidos_online_loja_status_idx ON pedidos_online(loja_id, status, criado_em);
+
+CREATE TABLE IF NOT EXISTS pedidos_online_itens (
+  id TEXT PRIMARY KEY,
+  pedido_id TEXT NOT NULL REFERENCES pedidos_online(id) ON DELETE CASCADE,
+  variacao_id TEXT NOT NULL REFERENCES produto_variacoes(id),
+  produto_nome TEXT NOT NULL,
+  tamanho TEXT NOT NULL,
+  cor TEXT NOT NULL DEFAULT '',
+  qtd INTEGER NOT NULL CHECK (qtd > 0),
+  preco_unit NUMERIC(12,2) NOT NULL
+);
+CREATE INDEX IF NOT EXISTS pedidos_online_itens_pedido_idx ON pedidos_online_itens(pedido_id);
+
+ALTER TABLE vendas ADD COLUMN IF NOT EXISTS taxa_entrega NUMERIC(12,2) NOT NULL DEFAULT 0;
+ALTER TABLE vendas ADD COLUMN IF NOT EXISTS pedido_online_id TEXT REFERENCES pedidos_online(id);

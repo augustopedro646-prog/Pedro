@@ -1,0 +1,486 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Loja Gutto</title>
+<meta name="description" content="Moda infantil Loja Gutto — escolha pelo site, retire na loja ou receba em casa.">
+<meta name="theme-color" content="#E8664A">
+<link rel="icon" href="/favicon.ico" sizes="any">
+<link rel="icon" href="/icone-192.png" type="image/png">
+<link rel="apple-touch-icon" href="/icone-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700&family=Work+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #FFF8F0; --surface: #FFFFFF; --text: #2B2B2E; --text-2: #6B6560; --border: #EAE3D9; --border-2: #F3EEE6;
+    --accent: #E8664A; --accent-2: #D4553A; --teal: #3E9C8D; --ok-bg: #EDF6F1; --ok-text: #2F6B52;
+    --aviso-bg: #FFF4E5; --aviso-text: #8A5A00; --erro: #B3261E; --shadow: rgba(43,43,46,.12);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #1E1A17; --surface: #2A2521; --text: #F3ECE3; --text-2: #B3A99C; --border: #3D3630; --border-2: #332D27;
+      --accent: #FF7A5C; --accent-2: #FF8E74; --teal: #57B8A8; --ok-bg: rgba(87,184,168,.16); --ok-text: #8FDFCB;
+      --aviso-bg: rgba(232,178,61,.16); --aviso-text: #F0C572; --erro: #FF8A80; --shadow: rgba(0,0,0,.5);
+    }
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body { margin: 0; background: var(--bg); color: var(--text); font-family: 'Work Sans', system-ui, sans-serif; font-size: 15px; }
+  button, input, select, textarea { font-family: inherit; font-size: inherit; color: inherit; }
+  button { cursor: pointer; }
+  button:disabled { cursor: not-allowed; opacity: .5; }
+  .titulo { font-family: 'Baloo 2', sans-serif; font-weight: 700; }
+  .wrap { max-width: 1120px; margin: 0 auto; padding: 0 16px; }
+
+  header { position: sticky; top: 0; z-index: 20; background: color-mix(in srgb, var(--bg) 92%, transparent); backdrop-filter: blur(8px); border-bottom: 1px solid var(--border); }
+  .topo { display: flex; align-items: center; gap: 12px; height: 62px; }
+  .marca { display: flex; align-items: center; gap: 8px; text-decoration: none; color: var(--accent); flex-grow: 1; }
+  .marca-g { width: 34px; height: 34px; border-radius: 10px; background: var(--accent); color: #fff; display: flex; align-items: center; justify-content: center; font-family: 'Baloo 2'; font-weight: 700; font-size: 18px; }
+  .marca span { font-family: 'Baloo 2'; font-weight: 700; font-size: 21px; }
+  .btn-topo { height: 40px; border-radius: 12px; border: 1px solid var(--border); background: var(--surface); display: inline-flex; align-items: center; gap: 6px; padding: 0 12px; font-weight: 600; font-size: 13px; text-decoration: none; color: var(--text); position: relative; }
+  .btn-topo svg { width: 20px; height: 20px; }
+  .bolinha { position: absolute; top: -6px; right: -6px; min-width: 20px; height: 20px; border-radius: 999px; background: var(--accent); color: #fff; font-size: 11px; font-weight: 700; display: flex; align-items: center; justify-content: center; padding: 0 5px; }
+  .aviso-topo { background: var(--accent); color: #fff; text-align: center; font-size: 13px; font-weight: 600; padding: 8px 16px; }
+
+  .hero { padding: 26px 0 8px; }
+  .hero h1 { font-size: clamp(26px, 5vw, 38px); margin: 0; line-height: 1.1; }
+  .hero p { color: var(--text-2); margin: 8px 0 0; max-width: 560px; }
+  .busca-linha { display: flex; gap: 10px; margin: 18px 0 12px; }
+  .busca { flex-grow: 1; height: 46px; border-radius: 14px; border: 1px solid var(--border); background: var(--surface); padding: 0 16px; }
+  .busca:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+  .chips { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 6px; scrollbar-width: none; }
+  .chips::-webkit-scrollbar { display: none; }
+  .chip { flex-shrink: 0; height: 36px; padding: 0 14px; border-radius: 999px; border: 1px solid var(--border); background: var(--surface); font-weight: 600; font-size: 13px; }
+  .chip.ativo { background: var(--text); color: var(--bg); border-color: var(--text); }
+
+  .grade-produtos { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 16px; padding: 12px 0 110px; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; overflow: hidden; text-align: left; padding: 0; display: flex; flex-direction: column; transition: transform .15s, box-shadow .15s; }
+  .card:hover { transform: translateY(-2px); box-shadow: 0 10px 24px var(--shadow); }
+  .card-foto { aspect-ratio: 4 / 5; background: var(--border-2) center / cover no-repeat; position: relative; display: flex; align-items: center; justify-content: center; }
+  .placeholder { font-family: 'Baloo 2'; font-weight: 700; font-size: 48px; color: #fff; width: 84px; height: 84px; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
+  .selo { position: absolute; top: 10px; left: 10px; background: var(--aviso-bg); color: var(--aviso-text); font-size: 11px; font-weight: 700; padding: 3px 9px; border-radius: 999px; }
+  .card-info { padding: 12px 14px 14px; display: flex; flex-direction: column; gap: 3px; }
+  .card-cat { font-size: 11px; color: var(--text-2); font-weight: 600; text-transform: uppercase; letter-spacing: .04em; }
+  .card-nome { font-family: 'Baloo 2'; font-weight: 600; font-size: 16px; line-height: 1.2; }
+  .card-preco { font-weight: 700; color: var(--accent); }
+  .card-tams { font-size: 12px; color: var(--text-2); }
+  .vazio { text-align: center; color: var(--text-2); padding: 50px 16px; grid-column: 1 / -1; }
+
+  .camada { position: fixed; inset: 0; background: rgba(20,18,16,.5); z-index: 40; display: none; align-items: flex-end; justify-content: center; }
+  .camada.aberta { display: flex; }
+  .folha { background: var(--surface); width: 100%; max-width: 560px; max-height: 94vh; overflow-y: auto; border-radius: 22px 22px 0 0; padding: 18px 18px calc(18px + env(safe-area-inset-bottom)); display: flex; flex-direction: column; gap: 14px; animation: sobe .2s ease; }
+  @keyframes sobe { from { transform: translateY(30px); opacity: 0; } to { transform: none; opacity: 1; } }
+  @media (min-width: 700px) { .camada { align-items: center; } .folha { border-radius: 22px; } }
+  .folha-topo { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
+  .folha-topo h2 { margin: 0; font-size: 22px; line-height: 1.15; }
+  .fechar { width: 38px; height: 38px; border-radius: 12px; border: 1px solid var(--border); background: var(--surface); font-size: 18px; flex-shrink: 0; }
+  .galeria { position: relative; border-radius: 16px; overflow: hidden; background: var(--border-2); aspect-ratio: 4 / 5; max-height: 52vh; width: 100%; }
+  .galeria-trilho { display: flex; height: 100%; overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none; }
+  .galeria-trilho::-webkit-scrollbar { display: none; }
+  .galeria-trilho img { flex: 0 0 100%; width: 100%; height: 100%; object-fit: cover; scroll-snap-align: center; }
+  .pontos { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; gap: 6px; }
+  .pontos i { width: 7px; height: 7px; border-radius: 50%; background: rgba(255,255,255,.55); }
+  .pontos i.on { background: #fff; }
+  .preco-grande { font-family: 'Baloo 2'; font-weight: 700; font-size: 26px; color: var(--accent); }
+  .desc { color: var(--text-2); font-size: 14px; line-height: 1.45; white-space: pre-line; }
+  .rotulo { font-size: 12px; font-weight: 700; color: var(--text-2); text-transform: uppercase; letter-spacing: .05em; margin-bottom: 8px; }
+  .opcoes { display: flex; gap: 8px; flex-wrap: wrap; }
+  .opcao { min-width: 48px; height: 44px; padding: 0 14px; border-radius: 12px; border: 1.5px solid var(--border); background: var(--surface); font-weight: 600; }
+  .opcao.sel { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, var(--surface)); color: var(--accent); }
+  .opcao.sem { text-decoration: line-through; opacity: .45; }
+  .qtd { display: inline-flex; align-items: center; border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+  .qtd button { width: 42px; height: 42px; border: none; background: var(--surface); font-size: 18px; }
+  .qtd span { min-width: 34px; text-align: center; font-weight: 700; }
+  .dica { font-size: 12px; color: var(--text-2); }
+  .btn { height: 52px; border-radius: 14px; border: none; background: var(--accent); color: #fff; font-weight: 700; font-size: 16px; width: 100%; }
+  .btn:hover:not(:disabled) { background: var(--accent-2); }
+  .btn-sec { height: 48px; border-radius: 14px; border: 1px solid var(--border); background: var(--surface); font-weight: 600; width: 100%; text-decoration: none; display: flex; align-items: center; justify-content: center; gap: 8px; color: var(--text); }
+  .erro { color: var(--erro); font-weight: 600; font-size: 13px; }
+
+  .linha-sacola { display: flex; gap: 12px; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--border-2); }
+  .mini { width: 58px; height: 72px; border-radius: 10px; background: var(--border-2) center / cover; flex-shrink: 0; }
+  .linha-sacola .nome { font-weight: 600; font-size: 14px; }
+  .linha-total { display: flex; justify-content: space-between; font-size: 14px; color: var(--text-2); }
+  .linha-total.grande { font-family: 'Baloo 2'; font-weight: 700; font-size: 22px; color: var(--text); }
+  .campo { display: flex; flex-direction: column; gap: 5px; font-size: 13px; font-weight: 600; color: var(--text-2); }
+  .campo input, .campo textarea { height: 46px; border-radius: 12px; border: 1px solid var(--border); background: var(--surface); padding: 0 12px; font-weight: 400; color: var(--text); font-size: 16px; }
+  .campo textarea { height: 70px; padding: 10px 12px; resize: vertical; }
+  .dupla { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .escolhas { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .escolha { border: 1.5px solid var(--border); background: var(--surface); border-radius: 14px; padding: 12px; text-align: left; }
+  .escolha b { display: block; font-size: 14px; }
+  .escolha small { color: var(--text-2); font-size: 12px; }
+  .escolha.sel { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 10%, var(--surface)); }
+
+  .barra-sacola { position: fixed; left: 12px; right: 12px; bottom: calc(12px + env(safe-area-inset-bottom)); z-index: 30; display: none; }
+  .barra-sacola button { width: 100%; max-width: 560px; margin: 0 auto; display: flex; justify-content: space-between; align-items: center; height: 58px; border-radius: 18px; border: none; background: var(--text); color: var(--bg); padding: 0 20px; font-weight: 700; font-size: 15px; box-shadow: 0 12px 30px var(--shadow); }
+  .etapas { display: flex; flex-direction: column; gap: 0; }
+  .etapa { display: flex; gap: 12px; align-items: flex-start; padding-bottom: 14px; position: relative; color: var(--text-2); }
+  .etapa::before { content: ''; position: absolute; left: 11px; top: 24px; bottom: 0; width: 2px; background: var(--border); }
+  .etapa:last-child::before { display: none; }
+  .etapa i { width: 24px; height: 24px; border-radius: 50%; border: 2px solid var(--border); background: var(--surface); flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-style: normal; font-size: 12px; color: #fff; }
+  .etapa.feita { color: var(--text); }
+  .etapa.feita i { background: var(--teal); border-color: var(--teal); }
+  .etapa.atual { color: var(--text); font-weight: 700; }
+  .etapa.atual i { border-color: var(--accent); background: var(--accent); }
+  footer { color: var(--text-2); font-size: 13px; text-align: center; padding: 20px 16px 120px; }
+  #toast { position: fixed; top: 74px; left: 50%; transform: translateX(-50%); background: var(--text); color: var(--bg); padding: 10px 16px; border-radius: 12px; font-weight: 600; font-size: 14px; z-index: 60; display: none; max-width: 92vw; text-align: center; }
+</style>
+</head>
+<body>
+<div id="aviso-topo" class="aviso-topo" style="display:none"></div>
+<header>
+  <div class="wrap topo">
+    <a class="marca" href="#" id="marca"><div class="marca-g">G</div><span>Loja Gutto</span></a>
+    <button class="btn-topo" id="btn-pedidos" style="display:none" aria-label="Meus pedidos"><svg viewBox="0 0 24 24"><path d="M5 5h14v15H5z M9 9h6M9 13h6M9 17h3" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg><span class="rot-pedidos">Meus pedidos</span></button>
+    <a class="btn-topo" id="btn-whats" target="_blank" rel="noopener" style="display:none" aria-label="WhatsApp da loja"><svg viewBox="0 0 24 24"><path d="M4 20l1.3-3.9A8 8 0 1 1 8 19z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg></a>
+    <button class="btn-topo" id="btn-sacola" aria-label="Sacola"><svg viewBox="0 0 24 24"><path d="M5 8h14l-1.2 11.2a1.8 1.8 0 0 1-1.8 1.6H8a1.8 1.8 0 0 1-1.8-1.6z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M9 10V7a3 3 0 0 1 6 0v3" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg><span class="bolinha" id="qtd-sacola" style="display:none"></span></button>
+  </div>
+</header>
+
+<main class="wrap">
+  <section class="hero">
+    <h1 class="titulo">Moda infantil que acompanha a brincadeira</h1>
+    <p id="hero-sub">Escolha o tamanho e a cor, faça o pedido aqui e retire na loja ou receba em casa.</p>
+  </section>
+  <div class="busca-linha"><input id="busca" class="busca" type="search" placeholder="Buscar peça: vestido, conjunto, body..." autocomplete="off"></div>
+  <div class="chips" id="categorias"></div>
+  <div class="grade-produtos" id="produtos"><div class="vazio">Carregando a vitrine...</div></div>
+</main>
+<footer id="rodape"></footer>
+
+<div class="barra-sacola" id="barra-sacola"><button id="barra-sacola-btn"><span id="barra-qtd"></span><span>Ver sacola · <span id="barra-total"></span></span></button></div>
+<div class="camada" id="camada"><div class="folha" id="folha"></div></div>
+<div id="toast"></div>
+
+<script>
+  const LOJA_ID = 1;
+  const API = '/api/lojas/' + LOJA_ID;
+  const CORES = ['#3E6FA8', '#E8B23D', '#D9748C', '#8B8680', '#4E8C6E', '#E8664A', '#9B7FC7', '#B79C6B', '#57A0C9', '#C97A3E'];
+  const ETAPAS = [['recebido', 'Pedido recebido'], ['separando', 'Separando as peças'], ['pronto', 'Pronto'], ['saiu_entrega', 'Saiu para entrega'], ['entregue', 'Concluído']];
+
+  const state = { config: null, produtos: [], categoria: null, busca: '', sacola: carregar('gutto-sacola', []), meusPedidos: carregar('gutto-pedidos', []), cliente: carregar('gutto-cliente', {}) };
+
+  function carregar(chave, padrao) { try { return JSON.parse(localStorage.getItem(chave)) || padrao; } catch (e) { return padrao; } }
+  function salvar(chave, valor) { try { localStorage.setItem(chave, JSON.stringify(valor)); } catch (e) {} }
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
+  function brl(v) { return 'R$ ' + Number(v || 0).toFixed(2).replace('.', ','); }
+  function round2(n) { return Math.round((n + Number.EPSILON) * 100) / 100; }
+  function corDe(s) { let h = 0; for (const ch of String(s)) h = (h * 31 + ch.charCodeAt(0)) >>> 0; return CORES[h % CORES.length]; }
+  function foto(id) { return API + '/fotos/' + id; }
+  function toast(msg) { const t = document.getElementById('toast'); t.textContent = msg; t.style.display = 'block'; clearTimeout(toast.t); toast.t = setTimeout(() => { t.style.display = 'none'; }, 3200); }
+  function telefoneBR(d) { d = String(d || '').replace(/\D/g, ''); return d.length === 11 ? '(' + d.slice(0, 2) + ') ' + d.slice(2, 7) + '-' + d.slice(7) : d.length === 10 ? '(' + d.slice(0, 2) + ') ' + d.slice(2, 6) + '-' + d.slice(6) : d; }
+  function parseValor(s) { let t = String(s || '').replace(/R\$|\s/g, ''); if (t.includes(',')) t = t.replace(/\./g, '').replace(',', '.'); return Number(t); }
+
+  async function api(caminho, opcoes) {
+    opcoes = opcoes || {};
+    let r;
+    try { r = await fetch(API + caminho, { method: opcoes.method || 'GET', headers: { 'Content-Type': 'application/json' }, body: opcoes.body ? JSON.stringify(opcoes.body) : undefined }); }
+    catch (e) { throw new Error('Sem conexão — confira sua internet e tente de novo.'); }
+    const dados = await r.json().catch(() => null);
+    if (!r.ok) { const e = new Error((dados && dados.erro) || 'Algo deu errado — tente de novo.'); e.data = dados || {}; e.status = r.status; throw e; }
+    return dados;
+  }
+
+  /* ---------- Vitrine ---------- */
+  async function carregarCatalogo() {
+    const r = await api('/loja/catalogo');
+    state.config = r.config; state.produtos = r.produtos;
+    conciliarSacola();
+    const c = r.config;
+    const aviso = document.getElementById('aviso-topo');
+    aviso.textContent = !c.ativo ? 'No momento não estamos recebendo pedidos pelo site — chame a gente no WhatsApp!' : c.mensagem;
+    aviso.style.display = !c.ativo || c.mensagem ? '' : 'none';
+    const whats = document.getElementById('btn-whats');
+    if (c.whatsapp) { whats.href = 'https://wa.me/55' + c.whatsapp; whats.style.display = ''; }
+    document.getElementById('hero-sub').textContent = 'Escolha o tamanho e a cor e faça o pedido aqui' + (c.aceitaRetirada && c.aceitaEntrega ? ': retire na loja ou receba em casa.' : c.aceitaEntrega ? ' — entregamos na sua casa.' : ' e retire na loja.');
+    document.getElementById('rodape').innerHTML = esc(c.nome ? 'Loja ' + c.nome : 'Loja Gutto') + (c.endereco ? ' · ' + esc(c.endereco) : '') + (c.whatsapp ? ' · WhatsApp ' + esc(telefoneBR(c.whatsapp)) : '');
+    renderVitrine();
+  }
+
+  function precoDe(p) { const ps = p.variacoes.filter(v => v.disponivel > 0).map(v => v.preco); return { min: Math.min(...ps), max: Math.max(...ps) }; }
+  function renderVitrine() {
+    const cats = [...new Set(state.produtos.map(p => p.categoria).filter(Boolean))].sort();
+    const chips = document.getElementById('categorias');
+    chips.innerHTML = cats.length > 1 ? [`<button class="chip ${!state.categoria ? 'ativo' : ''}" data-cat="">Tudo</button>`].concat(cats.map(c => `<button class="chip ${state.categoria === c ? 'ativo' : ''}" data-cat="${esc(c)}">${esc(c)}</button>`)).join('') : '';
+    chips.querySelectorAll('[data-cat]').forEach(b => b.onclick = () => { state.categoria = b.dataset.cat || null; renderVitrine(); });
+    const termo = state.busca.trim().toLowerCase();
+    const lista = state.produtos.filter(p => (!state.categoria || p.categoria === state.categoria) && (!termo || (p.nome + ' ' + p.categoria + ' ' + p.descricao).toLowerCase().includes(termo)));
+    const el = document.getElementById('produtos');
+    if (!state.produtos.length) { el.innerHTML = `<div class="vazio">${state.config && !state.config.ativo ? 'Vitrine fechada no momento.' : 'Nossa vitrine está sendo montada — volte daqui a pouco!'}</div>`; return; }
+    if (!lista.length) { el.innerHTML = `<div class="vazio">Nada encontrado com "${esc(state.busca)}".</div>`; return; }
+    el.innerHTML = lista.map(p => {
+      const { min, max } = precoDe(p);
+      const disp = p.variacoes.filter(v => v.disponivel > 0);
+      const tams = [...new Set(disp.map(v => v.tamanho))];
+      const ultimas = disp.reduce((s, v) => s + v.disponivel, 0) <= 2;
+      return `<button class="card" data-prod="${p.id}">
+        <div class="card-foto" style="${p.fotos.length ? `background-image:url('${foto(p.fotos[0])}')` : ''}">${p.fotos.length ? '' : `<div class="placeholder" style="background:${corDe(p.nome)}">${esc(p.nome.charAt(0))}</div>`}${ultimas ? '<span class="selo">Últimas peças</span>' : ''}</div>
+        <div class="card-info"><div class="card-cat">${esc(p.categoria)}</div><div class="card-nome">${esc(p.nome)}</div>
+          <div class="card-preco">${min === max ? brl(min) : 'a partir de ' + brl(min)}</div><div class="card-tams">Tam. ${tams.map(esc).join(' · ')}</div></div>
+      </button>`;
+    }).join('');
+    el.querySelectorAll('[data-prod]').forEach(b => b.onclick = () => abrirProduto(b.dataset.prod));
+  }
+
+  /* ---------- Camada (folha) ---------- */
+  function abrirFolha(html) {
+    const c = document.getElementById('camada');
+    document.getElementById('folha').innerHTML = html;
+    c.classList.add('aberta');
+    document.body.style.overflow = 'hidden';
+    const f = document.querySelector('#folha [data-fechar]');
+    if (f) f.onclick = fecharFolha;
+    return document.getElementById('folha');
+  }
+  function fecharFolha() {
+    document.getElementById('camada').classList.remove('aberta');
+    document.body.style.overflow = '';
+    clearInterval(timerAcompanhar);
+    if (location.hash) history.replaceState(null, '', location.pathname);
+  }
+  document.getElementById('camada').addEventListener('click', (e) => { if (e.target.id === 'camada') fecharFolha(); });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') fecharFolha(); });
+  function topoFolha(titulo, sub) { return `<div class="folha-topo"><div><h2 class="titulo">${titulo}</h2>${sub ? `<div class="dica">${sub}</div>` : ''}</div><button class="fechar" data-fechar aria-label="Fechar">✕</button></div>`; }
+
+  /* ---------- Produto ---------- */
+  function abrirProduto(id) {
+    const p = state.produtos.find(x => x.id === id);
+    if (!p) return;
+    const cores = [...new Set(p.variacoes.map(v => v.cor))];
+    let cor = cores.find(c => p.variacoes.some(v => v.cor === c && v.disponivel > 0)) || cores[0];
+    let tamanho = null, qtd = 1;
+    const desenhar = () => {
+      const daCor = p.variacoes.filter(v => v.cor === cor);
+      const v = daCor.find(x => x.tamanho === tamanho && x.disponivel > 0);
+      if (!v) tamanho = tamanho && daCor.some(x => x.tamanho === tamanho && x.disponivel > 0) ? tamanho : null;
+      const preco = v ? v.preco : precoDe(p).min;
+      const naSacola = v ? (state.sacola.find(i => i.variacaoId === v.id) || { qtd: 0 }).qtd : 0;
+      const maximo = v ? v.disponivel - naSacola : 0;
+      if (qtd > Math.max(1, maximo)) qtd = Math.max(1, maximo);
+      const folha = abrirFolha(`${topoFolha(esc(p.nome), esc(p.categoria))}
+        <div class="galeria">${p.fotos.length ? `<div class="galeria-trilho" id="trilho">${p.fotos.map(f => `<img src="${foto(f)}" alt="${esc(p.nome)}" loading="lazy">`).join('')}</div>${p.fotos.length > 1 ? `<div class="pontos">${p.fotos.map((_, i) => `<i class="${i ? '' : 'on'}"></i>`).join('')}</div>` : ''}`
+          : `<div style="height:100%;display:flex;align-items:center;justify-content:center"><div class="placeholder" style="background:${corDe(p.nome)}">${esc(p.nome.charAt(0))}</div></div>`}</div>
+        <div class="preco-grande">${brl(preco)}</div>
+        ${p.descricao ? `<div class="desc">${esc(p.descricao)}</div>` : ''}
+        ${cores.length > 1 || cores[0] ? `<div><div class="rotulo">Cor${cor ? ': ' + esc(cor) : ''}</div><div class="opcoes">${cores.map(c => { const tem = p.variacoes.some(x => x.cor === c && x.disponivel > 0); return `<button class="opcao ${c === cor ? 'sel' : ''} ${tem ? '' : 'sem'}" data-cor="${esc(c)}" ${tem ? '' : 'disabled'}>${esc(c || 'Única')}</button>`; }).join('')}</div></div>` : ''}
+        <div><div class="rotulo">Tamanho</div><div class="opcoes">${daCor.map(x => `<button class="opcao ${x.tamanho === tamanho ? 'sel' : ''} ${x.disponivel > 0 ? '' : 'sem'}" data-tam="${esc(x.tamanho)}" ${x.disponivel > 0 ? '' : 'disabled'}>${esc(x.tamanho)}</button>`).join('')}</div>
+          ${v && v.disponivel <= 2 ? `<div class="dica" style="margin-top:6px;color:var(--aviso-text);font-weight:600">Só ${v.disponivel === 1 ? 'mais 1 peça' : 'mais ' + v.disponivel + ' peças'} nesse tamanho</div>` : ''}</div>
+        <div style="display:flex;gap:12px;align-items:center">
+          <div class="qtd"><button id="menos" aria-label="Menos">−</button><span>${qtd}</span><button id="mais" aria-label="Mais">+</button></div>
+          <button class="btn" id="add" ${v && maximo > 0 && state.config.ativo ? '' : 'disabled'}>${!state.config.ativo ? 'Pedidos pausados' : !v ? 'Escolha o tamanho' : maximo <= 0 ? 'Tudo já está na sacola' : 'Pôr na sacola · ' + brl(preco * qtd)}</button>
+        </div>`);
+      const trilho = folha.querySelector('#trilho');
+      if (trilho) trilho.addEventListener('scroll', () => { const i = Math.round(trilho.scrollLeft / trilho.clientWidth); folha.querySelectorAll('.pontos i').forEach((d, k) => d.classList.toggle('on', k === i)); });
+      folha.querySelectorAll('[data-cor]').forEach(b => b.onclick = () => { cor = b.dataset.cor; qtd = 1; desenhar(); });
+      folha.querySelectorAll('[data-tam]').forEach(b => b.onclick = () => { tamanho = b.dataset.tam; qtd = 1; desenhar(); });
+      folha.querySelector('#menos').onclick = () => { if (qtd > 1) { qtd--; desenhar(); } };
+      folha.querySelector('#mais').onclick = () => { if (qtd < maximo) { qtd++; desenhar(); } };
+      folha.querySelector('#add').onclick = () => {
+        const item = state.sacola.find(i => i.variacaoId === v.id);
+        if (item) item.qtd += qtd;
+        else state.sacola.push({ variacaoId: v.id, produtoId: p.id, nome: p.nome, tamanho: v.tamanho, cor: v.cor, preco: v.preco, foto: p.fotos[0] || null, qtd });
+        salvar('gutto-sacola', state.sacola);
+        atualizarSacola();
+        fecharFolha();
+        toast(p.nome + ' · Tam ' + v.tamanho + ' na sacola');
+      };
+    };
+    desenhar();
+  }
+
+  /* ---------- Sacola ---------- */
+  function variacaoAtual(id) { for (const p of state.produtos) { const v = p.variacoes.find(x => x.id === id); if (v) return v; } return null; }
+  // Preço, estoque e disponibilidade sempre do catálogo atual (a sacola fica salva no navegador).
+  function conciliarSacola() {
+    let mudou = false;
+    state.sacola = state.sacola.filter(i => {
+      const v = variacaoAtual(i.variacaoId);
+      if (!v || v.disponivel <= 0) { mudou = true; return false; }
+      if (i.qtd > v.disponivel) { i.qtd = v.disponivel; mudou = true; }
+      if (i.preco !== v.preco) { i.preco = v.preco; mudou = true; }
+      return true;
+    });
+    salvar('gutto-sacola', state.sacola);
+    atualizarSacola();
+    return mudou;
+  }
+  function subtotal() { return round2(state.sacola.reduce((s, i) => s + i.preco * i.qtd, 0)); }
+  function atualizarSacola() {
+    const n = state.sacola.reduce((s, i) => s + i.qtd, 0);
+    const b = document.getElementById('qtd-sacola');
+    b.textContent = n; b.style.display = n ? '' : 'none';
+    document.getElementById('barra-sacola').style.display = n ? 'block' : 'none';
+    document.getElementById('barra-qtd').textContent = n + (n === 1 ? ' peça' : ' peças');
+    document.getElementById('barra-total').textContent = brl(subtotal());
+    document.getElementById('btn-pedidos').style.display = state.meusPedidos.length ? '' : 'none';
+  }
+  function abrirSacola() {
+    if (!state.sacola.length) {
+      abrirFolha(`${topoFolha('Sua sacola')}<div class="vazio" style="padding:30px 0">Sua sacola está vazia.</div><button class="btn" data-fechar>Ver a vitrine</button>`);
+      document.querySelector('#folha .btn').onclick = fecharFolha;
+      return;
+    }
+    const folha = abrirFolha(`${topoFolha('Sua sacola')}
+      <div>${state.sacola.map((i, k) => `<div class="linha-sacola">
+        <div class="mini" style="${i.foto ? `background-image:url('${foto(i.foto)}')` : `background:${corDe(i.nome)}`}"></div>
+        <div style="flex-grow:1;min-width:0"><div class="nome">${esc(i.nome)}</div><div class="dica">Tam ${esc(i.tamanho)}${i.cor ? ' · ' + esc(i.cor) : ''} · ${brl(i.preco)}</div>
+          <div class="qtd" style="margin-top:6px"><button data-menos="${k}" aria-label="Menos">−</button><span>${i.qtd}</span><button data-mais="${k}" aria-label="Mais">+</button></div></div>
+        <b>${brl(i.preco * i.qtd)}</b></div>`).join('')}</div>
+      <div class="linha-total grande"><span>Subtotal</span><span>${brl(subtotal())}</span></div>
+      <button class="btn" id="finalizar" ${state.config.ativo ? '' : 'disabled'}>${state.config.ativo ? 'Finalizar pedido' : 'Pedidos pausados'}</button>
+      <button class="btn-sec" data-fechar-2>Continuar escolhendo</button>`);
+    folha.querySelectorAll('[data-menos]').forEach(b => b.onclick = () => { const i = state.sacola[b.dataset.menos]; i.qtd--; if (i.qtd <= 0) state.sacola.splice(b.dataset.menos, 1); salvar('gutto-sacola', state.sacola); atualizarSacola(); abrirSacola(); });
+    folha.querySelectorAll('[data-mais]').forEach(b => b.onclick = () => { const i = state.sacola[b.dataset.mais]; const v = variacaoAtual(i.variacaoId); if (v && i.qtd < v.disponivel) { i.qtd++; salvar('gutto-sacola', state.sacola); atualizarSacola(); abrirSacola(); } else toast('Não temos mais peças desse tamanho'); });
+    folha.querySelector('[data-fechar-2]').onclick = fecharFolha;
+    folha.querySelector('#finalizar').onclick = abrirCheckout;
+  }
+
+  /* ---------- Checkout ---------- */
+  function abrirCheckout() {
+    const c = state.config;
+    const cli = state.cliente;
+    let tipo = cli.tipo && ((cli.tipo === 'entrega' && c.aceitaEntrega) || (cli.tipo === 'retirada' && c.aceitaRetirada)) ? cli.tipo : c.aceitaRetirada ? 'retirada' : 'entrega';
+    let pagamento = cli.pagamento || 'Pix';
+    const desenhar = () => {
+      const taxa = tipo === 'entrega' ? c.taxaEntrega : 0;
+      const total = round2(subtotal() + taxa);
+      const valores = {};
+      document.querySelectorAll('#folha [data-campo]').forEach(i => { valores[i.dataset.campo] = i.value; });
+      const v = (k, padrao) => esc(valores[k] != null ? valores[k] : padrao || '');
+      const folha = abrirFolha(`${topoFolha('Finalizar pedido', 'Você paga na ' + (tipo === 'entrega' ? 'entrega' : 'retirada') + ' — nada é cobrado agora')}
+        <div class="dupla">
+          <label class="campo">Seu nome<input data-campo="nome" autocomplete="name" value="${v('nome', cli.nome)}"></label>
+          <label class="campo">WhatsApp<input data-campo="telefone" type="tel" inputmode="numeric" autocomplete="tel" placeholder="(84) 99999-8888" value="${v('telefone', cli.telefone ? telefoneBR(cli.telefone) : '')}"></label>
+        </div>
+        <div><div class="rotulo">Como quer receber?</div><div class="escolhas">
+          ${c.aceitaRetirada ? `<button class="escolha ${tipo === 'retirada' ? 'sel' : ''}" data-tipo="retirada"><b>Retirar na loja</b><small>${c.endereco ? esc(c.endereco) : 'Sem taxa'}</small></button>` : ''}
+          ${c.aceitaEntrega ? `<button class="escolha ${tipo === 'entrega' ? 'sel' : ''}" data-tipo="entrega"><b>Receber em casa</b><small>${c.taxaEntrega ? 'Taxa ' + brl(c.taxaEntrega) : 'Entrega grátis'}</small></button>` : ''}
+        </div></div>
+        ${tipo === 'entrega' ? `<div class="dupla">
+          <label class="campo" style="grid-column:1/-1">Rua<input data-campo="rua" autocomplete="address-line1" value="${v('rua', cli.rua)}"></label>
+          <label class="campo">Número<input data-campo="numero" value="${v('numero', cli.numero)}"></label>
+          <label class="campo">Bairro<input data-campo="bairro" value="${v('bairro', cli.bairro)}"></label>
+          <label class="campo" style="grid-column:1/-1">Complemento / ponto de referência<input data-campo="complemento" value="${v('complemento', cli.complemento)}"></label>
+        </div>` : ''}
+        <div><div class="rotulo">Pagamento na ${tipo === 'entrega' ? 'entrega' : 'retirada'}</div><div class="opcoes">
+          ${['Pix', 'Crédito', 'Débito', 'Dinheiro'].map(f => `<button class="opcao ${pagamento === f ? 'sel' : ''}" data-pag="${f}">${f === 'Crédito' ? 'Cartão de crédito' : f === 'Débito' ? 'Cartão de débito' : f}</button>`).join('')}
+        </div></div>
+        ${pagamento === 'Dinheiro' ? `<label class="campo">Troco para quanto? (deixe vazio se não precisar)<input data-campo="troco" inputmode="decimal" placeholder="Ex.: 100,00" value="${v('troco')}"></label>` : ''}
+        <label class="campo">Observação (opcional)<textarea data-campo="obs" maxlength="300" placeholder="Ex.: é presente, pode embalar?">${v('obs')}</textarea></label>
+        <div>
+          <div class="linha-total"><span>${state.sacola.reduce((s, i) => s + i.qtd, 0)} peça(s)</span><span>${brl(subtotal())}</span></div>
+          ${tipo === 'entrega' ? `<div class="linha-total"><span>Entrega</span><span>${taxa ? brl(taxa) : 'grátis'}</span></div>` : ''}
+          <div class="linha-total grande"><span>Total</span><span>${brl(total)}</span></div>
+        </div>
+        <div class="erro" id="erro"></div>
+        <button class="btn" id="enviar">Enviar pedido</button>
+        <button class="btn-sec" id="voltar">Voltar pra sacola</button>`);
+      folha.querySelectorAll('[data-tipo]').forEach(b => b.onclick = () => { tipo = b.dataset.tipo; desenhar(); });
+      folha.querySelectorAll('[data-pag]').forEach(b => b.onclick = () => { pagamento = b.dataset.pag; desenhar(); });
+      folha.querySelector('#voltar').onclick = abrirSacola;
+      folha.querySelector('#enviar').onclick = () => enviarPedido(tipo, pagamento, total);
+    };
+    desenhar();
+  }
+
+  async function enviarPedido(tipo, pagamento, total) {
+    const campo = (k) => { const el = document.querySelector('#folha [data-campo="' + k + '"]'); return el ? el.value.trim() : ''; };
+    const erro = document.getElementById('erro');
+    const mostrar = (m) => { erro.textContent = m; };
+    const nome = campo('nome'), telefone = campo('telefone').replace(/\D/g, '');
+    if (!nome) return mostrar('Digite seu nome.');
+    if (telefone.length < 10 || telefone.length > 11) return mostrar('Digite o WhatsApp com DDD (ex.: 84 99999-8888).');
+    let endereco = null;
+    if (tipo === 'entrega') {
+      if (!campo('rua') || !campo('numero') || !campo('bairro')) return mostrar('Preencha rua, número e bairro pra entrega.');
+      endereco = campo('rua') + ', ' + campo('numero') + ' - ' + campo('bairro') + (campo('complemento') ? ' (' + campo('complemento') + ')' : '');
+    }
+    let trocoPara = null;
+    if (pagamento === 'Dinheiro' && campo('troco')) {
+      trocoPara = parseValor(campo('troco'));
+      if (!Number.isFinite(trocoPara) || trocoPara < total) return mostrar('O troco precisa ser pra um valor maior que o total (' + brl(total) + ').');
+    }
+    const btn = document.getElementById('enviar');
+    btn.disabled = true; btn.textContent = 'Enviando...';
+    state.cliente = { nome, telefone, tipo, pagamento, rua: campo('rua'), numero: campo('numero'), bairro: campo('bairro'), complemento: campo('complemento') };
+    salvar('gutto-cliente', state.cliente);
+    try {
+      const r = await api('/loja/pedidos', { method: 'POST', body: { nome, telefone, tipo, endereco, pagamento, trocoPara, observacao: campo('obs') || null,
+        itens: state.sacola.map(i => ({ variacaoId: i.variacaoId, qtd: i.qtd })) } });
+      const resumo = state.sacola.map(i => i.qtd + 'x ' + i.nome + ' Tam ' + i.tamanho + (i.cor ? ' ' + i.cor : '')).join(', ');
+      state.meusPedidos = [{ token: r.token, numero: r.numero, criado: Date.now() }].concat(state.meusPedidos).slice(0, 10);
+      salvar('gutto-pedidos', state.meusPedidos);
+      state.sacola = []; salvar('gutto-sacola', state.sacola); atualizarSacola();
+      mostrarConfirmacao(r, resumo, nome);
+      carregarCatalogo().catch(() => {});
+    } catch (e) {
+      btn.disabled = false; btn.textContent = 'Enviar pedido';
+      if (e.data && (e.data.codigo === 'estoque_insuficiente' || e.data.codigo === 'peca_indisponivel')) {
+        await carregarCatalogo().catch(() => {});
+        mostrar(e.message + '. Atualizamos sua sacola — confira e envie de novo.');
+        return;
+      }
+      mostrar(e.message);
+    }
+  }
+
+  function mostrarConfirmacao(r, resumo, nome) {
+    const c = state.config;
+    const msg = 'Oi! Acabei de fazer o pedido #' + r.numero + ' no site (' + resumo + ') — total ' + brl(r.total) + '. Meu nome é ' + nome + '.';
+    const folha = abrirFolha(`${topoFolha('Pedido #' + r.numero + ' recebido! 🎉')}
+      <div class="desc" style="color:var(--text)">Obrigado! As peças já estão separadas pra você. Vamos avisar pelo WhatsApp a cada passo.</div>
+      <div class="linha-total grande"><span>Total</span><span>${brl(r.total)}</span></div>
+      ${c.whatsapp ? `<a class="btn" style="display:flex;align-items:center;justify-content:center;text-decoration:none" href="https://wa.me/55${esc(c.whatsapp)}?text=${encodeURIComponent(msg)}" target="_blank" rel="noopener">Mandar o pedido no WhatsApp da loja</a>` : ''}
+      <button class="btn-sec" id="acompanhar">Acompanhar o pedido</button>
+      <button class="btn-sec" id="continuar">Continuar comprando</button>`);
+    folha.querySelector('#acompanhar').onclick = () => abrirAcompanhamento(r.token);
+    folha.querySelector('#continuar').onclick = fecharFolha;
+  }
+
+  /* ---------- Acompanhar ---------- */
+  let timerAcompanhar = null;
+  async function abrirAcompanhamento(token) {
+    history.replaceState(null, '', '#pedido=' + token);
+    let p;
+    try { p = await api('/loja/pedidos/' + encodeURIComponent(token)); }
+    catch (e) { abrirFolha(`${topoFolha('Pedido')}<div class="vazio">${esc(e.message)}</div>`); return; }
+    const cancelado = p.status === 'cancelado';
+    const etapas = ETAPAS.filter(([s]) => s !== 'saiu_entrega' || p.tipo === 'entrega');
+    const idx = etapas.findIndex(([s]) => s === p.status);
+    abrirFolha(`${topoFolha('Pedido #' + p.numero, 'Feito em ' + new Date(p.criadoEm).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }))}
+      ${cancelado ? `<div class="desc" style="color:var(--erro);font-weight:700">Este pedido foi cancelado. Qualquer dúvida, chame a loja no WhatsApp.</div>`
+        : `<div class="etapas">${etapas.map(([s, rot], k) => `<div class="etapa ${k < idx || p.status === 'entregue' ? 'feita' : k === idx ? 'atual' : ''}"><i>${k < idx || p.status === 'entregue' ? '✓' : ''}</i><div>${rot}${s === 'pronto' && p.tipo === 'retirada' ? ' — pode vir buscar' : ''}</div></div>`).join('')}</div>`}
+      <div>${p.itens.map(i => `<div class="linha-total" style="color:var(--text)"><span>${i.qtd}× ${esc(i.produtoNome)} · Tam ${esc(i.tamanho)}${i.cor ? ' · ' + esc(i.cor) : ''}</span><span>${brl(i.precoUnit * i.qtd)}</span></div>`).join('')}
+        ${p.taxaEntrega ? `<div class="linha-total"><span>Entrega</span><span>${brl(p.taxaEntrega)}</span></div>` : ''}
+        <div class="linha-total grande"><span>Total</span><span>${brl(p.total)}</span></div>
+        <div class="dica">${p.tipo === 'entrega' ? 'Entrega' : 'Retirada na loja'} · pagamento em ${esc(p.pagamento)}</div></div>
+      ${state.config && state.config.whatsapp ? `<a class="btn-sec" href="https://wa.me/55${esc(state.config.whatsapp)}?text=${encodeURIComponent('Oi! Queria saber do meu pedido #' + p.numero + '.')}" target="_blank" rel="noopener">Falar com a loja</a>` : ''}`);
+    clearInterval(timerAcompanhar);
+    if (!cancelado && p.status !== 'entregue') timerAcompanhar = setInterval(async () => {
+      try { const n = await api('/loja/pedidos/' + encodeURIComponent(token)); if (n.status !== p.status) abrirAcompanhamento(token); } catch (e) {}
+    }, 20000);
+  }
+  function abrirMeusPedidos() {
+    if (state.meusPedidos.length === 1) { abrirAcompanhamento(state.meusPedidos[0].token); return; }
+    const folha = abrirFolha(`${topoFolha('Meus pedidos', 'Feitos neste aparelho')}
+      ${state.meusPedidos.map(p => `<button class="btn-sec" data-tok="${esc(p.token)}">Pedido #${p.numero} · ${new Date(p.criado).toLocaleDateString('pt-BR')}</button>`).join('')}`);
+    folha.querySelectorAll('[data-tok]').forEach(b => b.onclick = () => abrirAcompanhamento(b.dataset.tok));
+  }
+
+  /* ---------- Ligações ---------- */
+  document.getElementById('busca').addEventListener('input', (e) => { state.busca = e.target.value; renderVitrine(); });
+  document.getElementById('btn-sacola').onclick = abrirSacola;
+  document.getElementById('barra-sacola-btn').onclick = abrirSacola;
+  document.getElementById('btn-pedidos').onclick = abrirMeusPedidos;
+  document.getElementById('marca').onclick = (e) => { e.preventDefault(); fecharFolha(); window.scrollTo({ top: 0, behavior: 'smooth' }); };
+
+  carregarCatalogo().then(() => {
+    const m = location.hash.match(/^#pedido=([A-Za-z0-9_-]+)$/);
+    if (m) abrirAcompanhamento(m[1]);
+  }).catch((e) => { document.getElementById('produtos').innerHTML = `<div class="vazio">${esc(e.message)}</div>`; });
+  atualizarSacola();
+</script>
+</body>
+</html>

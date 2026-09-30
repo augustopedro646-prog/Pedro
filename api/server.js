@@ -8,6 +8,7 @@ const { verificarPin, gerarToken, hashPin, lerToken } = require('./auth');
 const { gerarCodigoBarras } = require('./codigos');
 const notas = require('./notas');
 const Anthropic = require('@anthropic-ai/sdk');
+const crypto = require('crypto');
 
 // Leitura de nota por PDF/foto usa a IA do Claude (mesma ideia do Jabá). Sem chave no .env,
 // o XML continua funcionando normalmente — só PDF/foto ficam indisponíveis.
@@ -21,9 +22,10 @@ const app = express();
 app.use(cors());
 // Só a leitura de nota recebe arquivo grande (fotos/PDF em base64); o resto fica no limite pequeno.
 const jsonPadrao = express.json({ limit: '1mb' });
-app.use((req, res, next) => (req.path.endsWith('/compras/ler-nota') ? next() : jsonPadrao(req, res, next)));
+app.use((req, res, next) => (req.path.endsWith('/compras/ler-nota') || /\/produtos\/[^/]+\/fotos$/.test(req.path) ? next() : jsonPadrao(req, res, next)));
 app.use(express.static(path.join(__dirname, 'public')));
 app.get('/', (req, res) => res.redirect('/painel-gutto.html'));
+app.get('/loja', (req, res) => res.redirect('/loja-gutto.html'));
 
 // Limite geral generoso; login e PIN de ponto têm limite apertado à parte (força bruta).
 app.use('/api/', rateLimit({ windowMs: 60 * 1000, max: 600 }));
@@ -208,9 +210,12 @@ app.put('/api/lojas/:lojaId/equipe/:id', admin, rota(async (req, res) => {
 /* ---------- Configuração da loja ---------- */
 
 app.get('/api/lojas/:lojaId/config', qualquer, rota(async (req, res) => {
-  const { rows } = await pool.query('SELECT nome, cashback_pct, desconto_livre_pct FROM lojas WHERE id = $1', [req.lojaId]);
+  const { rows } = await pool.query('SELECT * FROM lojas WHERE id = $1', [req.lojaId]);
   if (!rows.length) falha(404, 'loja não encontrada');
-  res.json({ nome: rows[0].nome, cashbackPct: Number(rows[0].cashback_pct), descontoLivrePct: Number(rows[0].desconto_livre_pct), leituraIA: !!anthropic });
+  const l = rows[0];
+  res.json({ nome: l.nome, cashbackPct: Number(l.cashback_pct), descontoLivrePct: Number(l.desconto_livre_pct), leituraIA: !!anthropic,
+    site: { ativo: l.site_ativo, aceitaEntrega: l.aceita_entrega, aceitaRetirada: l.aceita_retirada, taxaEntrega: Number(l.taxa_entrega),
+      whatsapp: l.whatsapp || '', endereco: l.endereco || '', mensagem: l.mensagem_site || '' } });
 }));
 
 app.put('/api/lojas/:lojaId/config', admin, rota(async (req, res) => {
@@ -221,6 +226,21 @@ app.put('/api/lojas/:lojaId/config', admin, rota(async (req, res) => {
     'UPDATE lojas SET cashback_pct = COALESCE($1, cashback_pct), desconto_livre_pct = COALESCE($2, desconto_livre_pct) WHERE id = $3',
     [cashback, desconto, req.lojaId]
   );
+  const site = body.site;
+  if (site && typeof site === 'object') {
+    const bool = (v) => (typeof v === 'boolean' ? v : null);
+    const whatsapp = site.whatsapp != null ? (soDigitos(site.whatsapp) || '') : null;
+    if (whatsapp && (whatsapp.length < 10 || whatsapp.length > 13)) falha(400, 'WhatsApp da loja: use DDD + número (ex.: 84999998888)');
+    await pool.query(
+      `UPDATE lojas SET site_ativo = COALESCE($1, site_ativo), aceita_entrega = COALESCE($2, aceita_entrega), aceita_retirada = COALESCE($3, aceita_retirada),
+         taxa_entrega = COALESCE($4, taxa_entrega), whatsapp = COALESCE($5, whatsapp), endereco = COALESCE($6, endereco), mensagem_site = COALESCE($7, mensagem_site)
+       WHERE id = $8`,
+      [bool(site.ativo), bool(site.aceitaEntrega), bool(site.aceitaRetirada),
+        site.taxaEntrega != null ? numero(site.taxaEntrega, 'taxa de entrega', { max: 1000 }) : null, whatsapp,
+        site.endereco != null ? (texto(site.endereco, 'endereço', { obrigatorio: false, max: 200 }) || '') : null,
+        site.mensagem != null ? (texto(site.mensagem, 'mensagem do site', { obrigatorio: false, max: 300 }) || '') : null, req.lojaId]
+    );
+  }
   res.json({ ok: true });
 }));
 
@@ -273,7 +293,7 @@ app.put('/api/lojas/:lojaId/grades-tamanho/:id', admin, rota(async (req, res) =>
 
 app.get('/api/lojas/:lojaId/produtos', qualquer, rota(async (req, res) => {
   const { rows: produtos } = await pool.query(
-    `SELECT p.id, p.nome, p.categoria, p.descricao, p.ncm, p.foto_url, p.ativo,
+    `SELECT p.id, p.nome, p.categoria, p.descricao, p.ncm, p.foto_url, p.ativo, p.publicado,
             g.id AS grade_id, g.nome AS grade_nome, g.tamanhos AS grade_tamanhos
      FROM produtos p LEFT JOIN grades_tamanho g ON g.id = p.grade_tamanho_id
      WHERE p.loja_id = $1 ORDER BY p.nome`,
@@ -288,10 +308,12 @@ app.get('/api/lojas/:lojaId/produtos', qualquer, rota(async (req, res) => {
   );
   const porProduto = {};
   variacoes.forEach((v) => { (porProduto[v.produto_id] = porProduto[v.produto_id] || []).push(v); });
+  const fotosPorProduto = await fotosDosProdutos(req.lojaId);
   res.json(produtos.map((p) => ({
     ...p,
     grade: p.grade_id ? { id: p.grade_id, nome: p.grade_nome, tamanhos: p.grade_tamanhos } : null,
     variacoes: porProduto[p.id] || [],
+    fotos: fotosPorProduto[p.id] || [],
   })));
 }));
 
@@ -312,12 +334,13 @@ app.put('/api/lojas/:lojaId/produtos/:id', admin, rota(async (req, res) => {
   const body = req.body || {};
   const { rowCount } = await pool.query(
     `UPDATE produtos SET nome = COALESCE($1, nome), categoria = COALESCE($2, categoria),
-       descricao = COALESCE($3, descricao), ncm = COALESCE($4, ncm), ativo = COALESCE($5, ativo)
+       descricao = COALESCE($3, descricao), ncm = COALESCE($4, ncm), ativo = COALESCE($5, ativo), publicado = COALESCE($8, publicado)
      WHERE id = $6 AND loja_id = $7`,
     [body.nome != null ? texto(body.nome, 'nome do produto') : null,
       texto(body.categoria, 'categoria', { obrigatorio: false, max: 60 }),
-      texto(body.descricao, 'descricao', { obrigatorio: false, max: 500 }),
-      soDigitos(body.ncm), typeof body.ativo === 'boolean' ? body.ativo : null, req.params.id, req.lojaId]
+      body.descricao != null ? (texto(body.descricao, 'descricao', { obrigatorio: false, max: 1000 }) || '') : null,
+      soDigitos(body.ncm), typeof body.ativo === 'boolean' ? body.ativo : null, req.params.id, req.lojaId,
+      typeof body.publicado === 'boolean' ? body.publicado : null]
   );
   if (!rowCount) falha(404, 'produto não encontrado');
   res.json({ ok: true });
@@ -1257,6 +1280,303 @@ app.post('/api/lojas/:lojaId/pontos', pinLimiter, qualquer, rota(async (req, res
     return { nome: pessoa.nome, tipo, registradoEm: novo[0].registrado_em };
   });
   res.status(201).json(r);
+}));
+
+/* ---------- Fotos dos produtos ---------- */
+
+async function fotosDosProdutos(lojaId) {
+  const { rows } = await pool.query('SELECT id, produto_id FROM produto_fotos WHERE loja_id = $1 ORDER BY ordem, criado_em', [lojaId]);
+  const mapa = {};
+  rows.forEach((f) => { (mapa[f.produto_id] = mapa[f.produto_id] || []).push(f.id); });
+  return mapa;
+}
+
+const MIDIAS_FOTO = ['image/jpeg', 'image/png', 'image/webp'];
+app.post('/api/lojas/:lojaId/produtos/:id/fotos', admin, express.json({ limit: '6mb' }), rota(async (req, res) => {
+  const body = req.body || {};
+  if (!MIDIAS_FOTO.includes(body.mediaType) || typeof body.base64 !== 'string') falha(400, 'Foto inválida — use JPG, PNG ou WEBP');
+  const dados = Buffer.from(body.base64, 'base64');
+  if (!dados.length || dados.length > 3 * 1024 * 1024) falha(413, 'Foto grande demais (máx. 3 MB)');
+  const { rows } = await pool.query(
+    `SELECT p.id, (SELECT COUNT(*)::int FROM produto_fotos f WHERE f.produto_id = p.id) AS n,
+            (SELECT COALESCE(MAX(ordem), -1) FROM produto_fotos f WHERE f.produto_id = p.id) AS ultima
+     FROM produtos p WHERE p.id = $1 AND p.loja_id = $2`, [req.params.id, req.lojaId]);
+  if (!rows.length) falha(404, 'produto não encontrado');
+  if (rows[0].n >= 8) falha(400, 'Máximo de 8 fotos por produto');
+  const id = uid();
+  await pool.query('INSERT INTO produto_fotos (id, loja_id, produto_id, ordem, mime, dados) VALUES ($1,$2,$3,$4,$5,$6)',
+    [id, req.lojaId, req.params.id, rows[0].ultima + 1, body.mediaType, dados]);
+  res.status(201).json({ id });
+}));
+
+// Primeira da lista = capa no site.
+app.put('/api/lojas/:lojaId/fotos/:id/capa', admin, rota(async (req, res) => {
+  const { rows } = await pool.query('SELECT produto_id FROM produto_fotos WHERE id = $1 AND loja_id = $2', [req.params.id, req.lojaId]);
+  if (!rows.length) falha(404, 'foto não encontrada');
+  await pool.query('UPDATE produto_fotos SET ordem = CASE WHEN id = $1 THEN -1 ELSE ordem + 1 END WHERE produto_id = $2', [req.params.id, rows[0].produto_id]);
+  res.json({ ok: true });
+}));
+
+app.delete('/api/lojas/:lojaId/fotos/:id', admin, rota(async (req, res) => {
+  const { rowCount } = await pool.query('DELETE FROM produto_fotos WHERE id = $1 AND loja_id = $2', [req.params.id, req.lojaId]);
+  if (!rowCount) falha(404, 'foto não encontrada');
+  res.json({ ok: true });
+}));
+
+// Pública (o site mostra as fotos). O id é aleatório e a foto nunca muda depois de enviada:
+// pode ficar em cache por muito tempo.
+app.get('/api/lojas/:lojaId/fotos/:id', rota(async (req, res) => {
+  const { rows } = await pool.query('SELECT mime, dados FROM produto_fotos WHERE id = $1 AND loja_id = $2', [req.params.id, req.lojaId]);
+  if (!rows.length) return res.status(404).end();
+  res.set('Content-Type', rows[0].mime).set('Cache-Control', 'public, max-age=31536000, immutable').send(rows[0].dados);
+}));
+
+/* ---------- Site da loja (público, sem login) ---------- */
+
+const limitePedidoSite = rateLimit({ windowMs: 15 * 60 * 1000, max: 15, message: { erro: 'Muitos pedidos seguidos — aguarde alguns minutos ou chame a loja no WhatsApp.' } });
+
+async function configSite(db, lojaId) {
+  const { rows } = await db.query('SELECT nome, site_ativo, aceita_entrega, aceita_retirada, taxa_entrega, whatsapp, endereco, mensagem_site FROM lojas WHERE id = $1', [lojaId]);
+  if (!rows.length) falha(404, 'loja não encontrada');
+  const l = rows[0];
+  return { nome: l.nome, ativo: l.site_ativo, aceitaEntrega: l.aceita_entrega, aceitaRetirada: l.aceita_retirada, taxaEntrega: Number(l.taxa_entrega),
+    whatsapp: l.whatsapp || '', endereco: l.endereco || '', mensagem: l.mensagem_site || '' };
+}
+
+// Catálogo do site: só produto ativo + publicado. Estoque aparece limitado a 10 (o cliente só
+// precisa saber se tem e se são as últimas peças) e custo nunca sai daqui.
+app.get('/api/lojas/:lojaId/loja/catalogo', rota(async (req, res) => {
+  const config = await configSite(pool, req.lojaId);
+  if (!config.ativo) return res.json({ config, produtos: [] });
+  const { rows: produtos } = await pool.query(
+    `SELECT p.id, p.nome, p.categoria, p.descricao, g.tamanhos AS grade_tamanhos
+     FROM produtos p LEFT JOIN grades_tamanho g ON g.id = p.grade_tamanho_id
+     WHERE p.loja_id = $1 AND p.ativo AND p.publicado ORDER BY p.criado_em DESC`, [req.lojaId]);
+  const { rows: variacoes } = await pool.query(
+    `SELECT v.id, v.produto_id, v.tamanho, v.cor, v.preco_venda, LEAST(GREATEST(v.estoque, 0), 10)::int AS disponivel
+     FROM produto_variacoes v JOIN produtos p ON p.id = v.produto_id
+     WHERE v.loja_id = $1 AND v.ativo AND p.ativo AND p.publicado AND v.preco_venda > 0`, [req.lojaId]);
+  const fotos = await fotosDosProdutos(req.lojaId);
+  const porProduto = {};
+  variacoes.forEach((v) => { (porProduto[v.produto_id] = porProduto[v.produto_id] || []).push({ id: v.id, tamanho: v.tamanho, cor: v.cor, preco: Number(v.preco_venda), disponivel: v.disponivel }); });
+  res.set('Cache-Control', 'no-store');
+  res.json({
+    config,
+    produtos: produtos.map((p) => {
+      const vs = porProduto[p.id] || [];
+      const ordem = p.grade_tamanhos || [];
+      vs.sort((a, b) => ((ordem.indexOf(a.tamanho) + 1 || 999) - (ordem.indexOf(b.tamanho) + 1 || 999)) || a.cor.localeCompare(b.cor));
+      return { id: p.id, nome: p.nome, categoria: p.categoria || '', descricao: p.descricao || '', fotos: fotos[p.id] || [], variacoes: vs };
+    }).filter((p) => p.variacoes.some((v) => v.disponivel > 0)),
+  });
+}));
+
+const STATUS_LABEL = { recebido: 'Recebido', separando: 'Separando as peças', pronto: 'Pronto', saiu_entrega: 'Saiu para entrega', entregue: 'Concluído', cancelado: 'Cancelado' };
+
+// Pedido do site. Preço e total SEMPRE calculados aqui (nunca confiados do navegador) e as peças
+// ficam reservadas na hora. Telefone vira (ou encontra) o cadastro do cliente — ganha cashback.
+app.post('/api/lojas/:lojaId/loja/pedidos', limitePedidoSite, rota(async (req, res) => {
+  const body = req.body || {};
+  const nome = texto(body.nome, 'Seu nome', { max: 100 });
+  const telefone = soDigitos(body.telefone) || '';
+  if (telefone.length < 10 || telefone.length > 11) falha(400, 'Telefone com DDD, só números (ex.: 84 99999-8888)');
+  if (!['entrega', 'retirada'].includes(body.tipo)) falha(400, 'Escolha entrega ou retirada');
+  if (!['Pix', 'Dinheiro', 'Débito', 'Crédito'].includes(body.pagamento)) falha(400, 'Escolha a forma de pagamento');
+  const endereco = body.tipo === 'entrega' ? texto(body.endereco, 'Endereço de entrega', { max: 300 }) : null;
+  const observacao = texto(body.observacao, 'Observação', { obrigatorio: false, max: 300 });
+  if (!Array.isArray(body.itens) || !body.itens.length || body.itens.length > 30) falha(400, 'Sacola vazia');
+  const porVariacao = new Map();
+  for (const it of body.itens) {
+    if (!it || typeof it.variacaoId !== 'string' || it.variacaoId.length > 40) falha(400, 'Item inválido');
+    const qtd = numero(it.qtd, 'quantidade', { minExclusivo: true, inteiro: true, max: 20 });
+    porVariacao.set(it.variacaoId, (porVariacao.get(it.variacaoId) || 0) + qtd);
+  }
+  const itens = [...porVariacao].map(([variacaoId, qtd]) => ({ variacaoId, qtd })).sort((a, b) => (a.variacaoId < b.variacaoId ? -1 : 1));
+
+  const r = await transacao(async (c) => {
+    const config = await configSite(c, req.lojaId);
+    if (!config.ativo) falha(403, 'A loja não está recebendo pedidos pelo site agora');
+    if (body.tipo === 'entrega' && !config.aceitaEntrega) falha(400, 'A loja não está fazendo entregas agora');
+    if (body.tipo === 'retirada' && !config.aceitaRetirada) falha(400, 'Retirada na loja indisponível agora');
+    let subtotal = 0;
+    const gravar = [];
+    for (const it of itens) {
+      const { rows } = await c.query(
+        `SELECT v.id, v.tamanho, v.cor, v.estoque, v.preco_venda, v.custo_unitario, p.nome AS produto_nome
+         FROM produto_variacoes v JOIN produtos p ON p.id = v.produto_id
+         WHERE v.id = $1 AND v.loja_id = $2 AND v.ativo AND p.ativo AND p.publicado AND v.preco_venda > 0 FOR UPDATE OF v`,
+        [it.variacaoId, req.lojaId]);
+      const v = rows[0];
+      if (!v) falha(409, 'Uma das peças não está mais disponível — atualize a página', { codigo: 'peca_indisponivel', variacaoId: it.variacaoId });
+      if (Number(v.estoque) < it.qtd) {
+        falha(409, 'Só temos ' + Math.max(0, Number(v.estoque)) + ' de ' + v.produto_nome + ' ' + v.tamanho + (v.cor ? ' ' + v.cor : ''),
+          { codigo: 'estoque_insuficiente', variacaoId: v.id, disponivel: Math.max(0, Number(v.estoque)) });
+      }
+      const preco = Number(v.preco_venda);
+      subtotal = round2(subtotal + preco * it.qtd);
+      gravar.push({ ...it, preco, custo: Number(v.custo_unitario), produtoNome: v.produto_nome, tamanho: v.tamanho, cor: v.cor });
+    }
+    const taxa = body.tipo === 'entrega' ? config.taxaEntrega : 0;
+    const total = round2(subtotal + taxa);
+    let trocoPara = null;
+    if (body.pagamento === 'Dinheiro' && body.trocoPara != null && body.trocoPara !== '') {
+      trocoPara = numero(body.trocoPara, 'Troco para', { max: 100000 });
+      if (trocoPara < total) falha(400, 'O valor pra troco precisa ser maior que o total (R$ ' + total.toFixed(2).replace('.', ',') + ')');
+    }
+
+    // Cliente pelo telefone (mesmo cadastro da loja física: cashback vale nos dois).
+    let clienteId;
+    const { rows: cli } = await c.query('SELECT id FROM clientes WHERE loja_id = $1 AND telefone = $2', [req.lojaId, telefone]);
+    if (cli.length) clienteId = cli[0].id;
+    else {
+      clienteId = uid();
+      await c.query('INSERT INTO clientes (id, loja_id, nome, telefone, observacao) VALUES ($1,$2,$3,$4,$5)', [clienteId, req.lojaId, nome, telefone, 'Cadastrado por pedido no site']);
+    }
+
+    await c.query('SELECT pg_advisory_xact_lock(hashtext($1))', ['pedido_online_numero_' + req.lojaId]);
+    const { rows: ult } = await c.query('SELECT COALESCE(MAX(numero), 0) + 1 AS n FROM pedidos_online WHERE loja_id = $1', [req.lojaId]);
+    const id = uid(), numeroPedido = ult[0].n, token = crypto.randomBytes(18).toString('base64url');
+    await c.query(
+      `INSERT INTO pedidos_online (id, loja_id, numero, token, cliente_id, cliente_nome, telefone, tipo, endereco, pagamento, troco_para, observacao, subtotal, taxa_entrega, total)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)`,
+      [id, req.lojaId, numeroPedido, token, clienteId, nome, telefone, body.tipo, endereco, body.pagamento, trocoPara, observacao, subtotal, taxa, total]);
+    for (const it of gravar) {
+      await c.query('INSERT INTO pedidos_online_itens (id, pedido_id, variacao_id, produto_nome, tamanho, cor, qtd, preco_unit) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)',
+        [uid(), id, it.variacaoId, it.produtoNome, it.tamanho, it.cor, it.qtd, it.preco]);
+      await c.query('UPDATE produto_variacoes SET estoque = estoque - $1 WHERE id = $2', [it.qtd, it.variacaoId]);
+      await c.query(
+        `INSERT INTO movimentos_estoque_produto (id, loja_id, variacao_id, tipo, quantidade, custo_unitario, valor_total, referencia_tipo, referencia_id, observacao)
+         VALUES ($1,$2,$3,'venda',$4,$5,$6,'pedido_online',$7,'Reservado pelo pedido online')`,
+        [uid(), req.lojaId, it.variacaoId, -it.qtd, it.custo, round2(it.custo * it.qtd), id]);
+    }
+    return { id, numero: numeroPedido, token, total, telefone };
+  });
+  notificarBot(req.lojaId, r.id, 'recebido');
+  res.status(201).json({ numero: r.numero, token: r.token, total: r.total });
+}));
+
+async function detalhePedido(db, where, params) {
+  const { rows } = await db.query(`SELECT * FROM pedidos_online WHERE ${where}`, params);
+  if (!rows.length) return null;
+  const p = rows[0];
+  const { rows: itens } = await db.query('SELECT variacao_id, produto_nome, tamanho, cor, qtd, preco_unit FROM pedidos_online_itens WHERE pedido_id = $1 ORDER BY produto_nome, tamanho', [p.id]);
+  return { ...p, subtotal: Number(p.subtotal), taxa_entrega: Number(p.taxa_entrega), total: Number(p.total), troco_para: p.troco_para == null ? null : Number(p.troco_para),
+    itens: itens.map((i) => ({ ...i, preco_unit: Number(i.preco_unit) })) };
+}
+
+// Acompanhamento pelo link que o cliente recebe (token aleatório; sem telefone/endereço na resposta).
+app.get('/api/lojas/:lojaId/loja/pedidos/:token', rota(async (req, res) => {
+  if (!/^[A-Za-z0-9_-]{10,60}$/.test(req.params.token)) falha(404, 'Pedido não encontrado');
+  const p = await detalhePedido(pool, 'token = $1 AND loja_id = $2', [req.params.token, req.lojaId]);
+  if (!p) falha(404, 'Pedido não encontrado');
+  res.set('Cache-Control', 'no-store');
+  res.json({ numero: p.numero, status: p.status, statusLabel: STATUS_LABEL[p.status], tipo: p.tipo, pagamento: p.pagamento, clienteNome: p.cliente_nome.split(' ')[0],
+    itens: p.itens.map((i) => ({ produtoNome: i.produto_nome, tamanho: i.tamanho, cor: i.cor, qtd: i.qtd, precoUnit: i.preco_unit })),
+    subtotal: p.subtotal, taxaEntrega: p.taxa_entrega, total: p.total, criadoEm: p.criado_em, atualizadoEm: p.atualizado_em });
+}));
+
+/* ---------- Pedidos online (painel) ---------- */
+
+// Avisa o atendente de WhatsApp (quando existir) que o status mudou — nunca atrasa o painel.
+function notificarBot(lojaId, pedidoId, status) {
+  const url = process.env.BOT_WEBHOOK_URL;
+  if (!url) return;
+  fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Bot-Webhook-Secret': process.env.BOT_WEBHOOK_SECRET || '' },
+    body: JSON.stringify({ lojaId, pedidoId, status }) }).catch((e) => console.error('Falha ao avisar o bot:', e.message));
+}
+
+app.get('/api/lojas/:lojaId/pedidos-online', qualquer, rota(async (req, res) => {
+  const { rows } = await pool.query(
+    `SELECT id FROM pedidos_online WHERE loja_id = $1 AND (status NOT IN ('entregue', 'cancelado') OR atualizado_em > now() - interval '2 days')
+     ORDER BY criado_em DESC LIMIT 100`, [req.lojaId]);
+  const lista = [];
+  for (const r of rows) lista.push(await detalhePedido(pool, 'id = $1', [r.id]));
+  res.json(lista.map(({ token, ...p }) => p));
+}));
+
+app.get('/api/lojas/:lojaId/pedidos-online/contagem', qualquer, rota(async (req, res) => {
+  const { rows } = await pool.query(
+    `SELECT COUNT(*) FILTER (WHERE status = 'recebido')::int AS novos, COUNT(*) FILTER (WHERE status NOT IN ('entregue', 'cancelado'))::int AS abertos,
+            MAX(numero) AS ultimo FROM pedidos_online WHERE loja_id = $1`, [req.lojaId]);
+  res.json(rows[0]);
+}));
+
+const PROXIMO_STATUS = { recebido: ['separando', 'pronto'], separando: ['pronto'], pronto: ['saiu_entrega'] };
+app.put('/api/lojas/:lojaId/pedidos-online/:id/status', qualquer, rota(async (req, res) => {
+  const body = req.body || {};
+  const r = await transacao(async (c) => {
+    const { rows } = await c.query('SELECT status, tipo FROM pedidos_online WHERE id = $1 AND loja_id = $2 FOR UPDATE', [req.params.id, req.lojaId]);
+    if (!rows.length) falha(404, 'pedido não encontrado');
+    const atual = rows[0];
+    if (!(PROXIMO_STATUS[atual.status] || []).includes(body.status)) falha(409, 'Esse pedido está "' + STATUS_LABEL[atual.status] + '" — não dá pra mudar pra esse status');
+    if (body.status === 'saiu_entrega' && atual.tipo !== 'entrega') falha(400, 'Pedido é de retirada na loja');
+    const entregador = body.status === 'saiu_entrega' ? texto(body.entregador, 'entregador', { obrigatorio: false, max: 60 }) : null;
+    await c.query('UPDATE pedidos_online SET status = $1, entregador = COALESCE($2, entregador), atualizado_em = now() WHERE id = $3', [body.status, entregador, req.params.id]);
+    return { status: body.status };
+  });
+  notificarBot(req.lojaId, req.params.id, r.status);
+  res.json(r);
+}));
+
+// Concluir = o cliente recebeu e pagou: vira uma venda do caixa aberto (entra no Livro caixa,
+// relatórios e cashback). As peças já tinham saído do estoque na reserva.
+app.post('/api/lojas/:lojaId/pedidos-online/:id/concluir', qualquer, rota(async (req, res) => {
+  const r = await transacao(async (c) => {
+    const { rows } = await c.query('SELECT id FROM pedidos_online WHERE id = $1 AND loja_id = $2 FOR UPDATE', [req.params.id, req.lojaId]);
+    if (!rows.length) falha(404, 'pedido não encontrado');
+    const p = await detalhePedido(c, 'id = $1', [req.params.id]);
+    if (['entregue', 'cancelado'].includes(p.status)) falha(409, 'Esse pedido já está ' + STATUS_LABEL[p.status].toLowerCase());
+    const sessao = await sessaoAberta(c, req.lojaId, 'SHARE');
+    if (!sessao) falha(409, 'Caixa fechado — abra o caixa no Início pra concluir o pedido', { codigo: 'caixa_fechado' });
+    const vendaId = uid();
+    await c.query(
+      `INSERT INTO vendas (id, loja_id, usuario_id, canal, subtotal, desconto, total, forma_pagamento, caixa_sessao_id, cliente_id, taxa_entrega, pedido_online_id)
+       VALUES ($1,$2,$3,'online',$4,0,$5,$6,$7,$8,$9,$10)`,
+      [vendaId, req.lojaId, req.usuario.id, p.subtotal, p.total, p.pagamento, sessao.id, p.cliente_id, p.taxa_entrega, p.id]);
+    for (const it of p.itens) {
+      await c.query(
+        `INSERT INTO vendas_itens (id, venda_id, variacao_id, produto_nome, tamanho, cor, qtd, preco_unit, desconto_item) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,0)`,
+        [uid(), vendaId, it.variacao_id, it.produto_nome, it.tamanho, it.cor, it.qtd, it.preco_unit]);
+    }
+    await c.query('INSERT INTO venda_pagamentos (id, venda_id, forma, valor) VALUES ($1,$2,$3,$4)', [uid(), vendaId, p.pagamento, p.total]);
+    const { rows: loja } = await c.query('SELECT cashback_pct FROM lojas WHERE id = $1', [req.lojaId]);
+    let cashback = 0;
+    if (p.cliente_id && Number(loja[0].cashback_pct) > 0) {
+      cashback = round2(p.subtotal * Number(loja[0].cashback_pct) / 100);
+      if (cashback > 0) {
+        await c.query(
+          `INSERT INTO cliente_creditos (id, loja_id, cliente_id, tipo, valor, origem, referencia_id, criado_por) VALUES ($1,$2,$3,'cashback',$4,'venda',$5,$6)`,
+          [uid(), req.lojaId, p.cliente_id, cashback, vendaId, req.usuario.id]);
+        await c.query('UPDATE vendas SET cashback_gerado = $1 WHERE id = $2', [cashback, vendaId]);
+      }
+    }
+    await c.query("UPDATE pedidos_online SET status = 'entregue', venda_id = $1, atualizado_em = now() WHERE id = $2", [vendaId, p.id]);
+    return { vendaId, total: p.total, cashbackGerado: cashback };
+  });
+  notificarBot(req.lojaId, req.params.id, 'entregue');
+  res.json(r);
+}));
+
+// Cancelar devolve as peças reservadas pro estoque.
+app.post('/api/lojas/:lojaId/pedidos-online/:id/cancelar', admin, rota(async (req, res) => {
+  const motivo = texto((req.body || {}).motivo, 'motivo', { obrigatorio: false, max: 200 });
+  await transacao(async (c) => {
+    const { rows } = await c.query('SELECT id FROM pedidos_online WHERE id = $1 AND loja_id = $2 FOR UPDATE', [req.params.id, req.lojaId]);
+    if (!rows.length) falha(404, 'pedido não encontrado');
+    const p = await detalhePedido(c, 'id = $1', [req.params.id]);
+    if (['entregue', 'cancelado'].includes(p.status)) falha(409, 'Esse pedido já está ' + STATUS_LABEL[p.status].toLowerCase() + (p.status === 'entregue' ? ' — use Troca/devolução na Venda rápida' : ''));
+    for (const it of [...p.itens].sort((a, b) => (a.variacao_id < b.variacao_id ? -1 : 1))) {
+      const { rows: v } = await c.query('SELECT custo_unitario FROM produto_variacoes WHERE id = $1 FOR UPDATE', [it.variacao_id]);
+      await c.query('UPDATE produto_variacoes SET estoque = estoque + $1 WHERE id = $2', [it.qtd, it.variacao_id]);
+      await c.query(
+        `INSERT INTO movimentos_estoque_produto (id, loja_id, variacao_id, tipo, quantidade, custo_unitario, valor_total, referencia_tipo, referencia_id, observacao, criado_por)
+         VALUES ($1,$2,$3,'devolucao',$4,$5,$6,'pedido_online',$7,'Pedido online cancelado',$8)`,
+        [uid(), req.lojaId, it.variacao_id, it.qtd, Number(v[0].custo_unitario), round2(Number(v[0].custo_unitario) * it.qtd), p.id, req.usuario.id]);
+    }
+    await c.query("UPDATE pedidos_online SET status = 'cancelado', motivo_cancelamento = $1, atualizado_em = now() WHERE id = $2", [motivo, p.id]);
+  });
+  notificarBot(req.lojaId, req.params.id, 'cancelado');
+  res.json({ ok: true });
 }));
 
 /* ---------- Erros ---------- */
