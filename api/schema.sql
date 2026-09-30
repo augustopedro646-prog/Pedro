@@ -332,3 +332,20 @@ CREATE TABLE IF NOT EXISTS pontos (
   registrado_em TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS pontos_loja_usuario_idx ON pontos(loja_id, usuario_id, registrado_em);
+
+-- Calendário (mesmo modelo do Jabá): eventos da loja e escala da equipe. Todo mundo vê, só o
+-- Administrador cria/edita. Horário é texto HH:MM (opcional).
+CREATE TABLE IF NOT EXISTS agenda_eventos (
+  id TEXT PRIMARY KEY,
+  loja_id INTEGER NOT NULL REFERENCES lojas(id) ON DELETE CASCADE,
+  tipo TEXT NOT NULL CHECK (tipo IN ('evento', 'escala')),
+  data DATE NOT NULL,
+  hora_inicio TEXT,
+  hora_fim TEXT,
+  titulo TEXT NOT NULL,
+  usuario_id TEXT REFERENCES usuarios(id) ON DELETE CASCADE,
+  observacao TEXT,
+  criado_por TEXT REFERENCES usuarios(id),
+  criado_em TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS agenda_eventos_loja_data_idx ON agenda_eventos(loja_id, data);

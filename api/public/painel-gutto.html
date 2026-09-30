@@ -174,6 +174,23 @@
   .vazio { font-size: 13px; color: var(--text-2); text-align: center; padding: 20px 0; }
   .carregando { font-size: 13px; color: var(--text-2); padding: 20px 0; text-align: center; }
 
+  /* ---------- Calendário ---------- */
+  .cal-legenda { display: flex; gap: 14px; flex-wrap: wrap; font-size: 12px; color: var(--text-2); margin-bottom: 10px; }
+  .cal-legenda i { display: inline-block; width: 11px; height: 11px; border-radius: 3px; border: 1px solid; margin-right: 5px; vertical-align: -1px; }
+  .cal-grid-head { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; margin-bottom: 6px; text-align: center; font-size: 11px; font-weight: 600; text-transform: uppercase; color: var(--text-2); }
+  .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; }
+  .cal-cell { min-height: 92px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); padding: 6px; text-align: left; display: flex; flex-direction: column; gap: 3px; overflow: hidden; color: var(--text); font-size: 12px; }
+  .cal-cell:hover { border-color: var(--accent); }
+  .cal-cell-vazia { border: none; background: transparent; }
+  .cal-cell-vazia:hover { border: none; }
+  .cal-cell-hoje { border: 2px solid var(--accent); }
+  .cal-cell-num { font-weight: 700; font-size: 13px; display: flex; justify-content: space-between; }
+  .cal-chip { font-size: 10.5px; border-radius: 6px; padding: 1px 5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; border: 1px solid; }
+  .cal-chip-evento { background: var(--baixo-bg); color: var(--baixo-text); border-color: var(--baixo-border); font-weight: 600; }
+  .cal-chip-escala { background: var(--ok-bg); color: var(--ok-text); border-color: var(--ok-border); }
+  .cal-mais { font-size: 10px; color: var(--text-2); }
+  @media (max-width: 860px) { .cal-cell { min-height: 58px; padding: 4px; } .cal-chip { font-size: 9px; padding: 0 3px; } .cal-grid, .cal-grid-head { gap: 3px; } }
+
   /* ---------- Venda rápida ---------- */
   #view-venda { flex-direction: row; }
   .col-produtos { flex-grow: 1; padding: 20px 24px; overflow-y: auto; }
@@ -410,6 +427,24 @@
       <div class="painel" style="margin-top:16px"><div class="painel-titulo">Configurações da loja</div><div id="config-loja"></div></div>
     </div>
 
+    <div class="view page" id="view-calendario">
+      <div class="page-topo">
+        <div><h1 class="titulo">Calendário</h1><p class="sub">Eventos da loja, escala da equipe, ponto e aniversariantes</p></div>
+        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+          <div class="mes-seletor">
+            <button id="cal-anterior" class="icon-btn" aria-label="Mês anterior">‹</button>
+            <span id="cal-mes" class="mes-label"></span>
+            <button id="cal-proximo" class="icon-btn" aria-label="Próximo mês">›</button>
+          </div>
+          <button class="btn-primario" id="btn-novo-evento">+ Novo evento</button>
+          <button class="btn-secundario" id="btn-escalar">+ Escalar alguém</button>
+        </div>
+      </div>
+      <div class="cal-legenda"><span><i style="background:var(--baixo-bg);border-color:var(--baixo-border)"></i>Evento</span><span><i style="background:var(--ok-bg);border-color:var(--ok-border)"></i>Escala</span><span><b style="color:var(--teal)">●</b> Teve ponto</span><span>🎂 Aniversário de cliente</span></div>
+      <div class="cal-grid-head"><div>Dom</div><div>Seg</div><div>Ter</div><div>Qua</div><div>Qui</div><div>Sex</div><div>Sáb</div></div>
+      <div class="cal-grid" id="cal-grid"></div>
+    </div>
+
     <div class="view page" id="view-ponto">
       <h1 class="titulo">Bater ponto</h1>
       <p class="sub">Pela câmera (reconhecimento facial) ou pelo botão com o PIN da própria pessoa</p>
@@ -461,6 +496,7 @@
     users: '<circle cx="9" cy="9" r="3" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M3.3 19c0-3 2.6-5.2 5.7-5.2s5.7 2.2 5.7 5.2" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><circle cx="17.3" cy="9.8" r="2.3" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M15.6 13.8c2.3.4 3.9 2.2 3.9 4.6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>',
     clock: '<circle cx="12" cy="12" r="8.5" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M12 7.3V12l3 2" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>',
     chart: '<path d="M4 20V10M10 20V4M16 20v-7M3 20h18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>',
+    calendar: '<rect x="3.5" y="5" width="17" height="15.5" rx="2.2" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M3.5 10h17M8 3v4M16 3v4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>',
     menu: '<path d="M4 6h16M4 12h16M4 18h16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>',
     sun: '<circle cx="12" cy="12" r="4.2" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M12 2.5v2.6M12 18.9v2.6M4.2 4.2l1.9 1.9M17.9 17.9l1.9 1.9M2.5 12h2.6M18.9 12h2.6M4.2 19.8l1.9-1.9M17.9 6.1l1.9-1.9" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>',
     moon: '<path d="M20 14.5A8.5 8.5 0 1 1 9.5 4a7 7 0 0 0 10.5 10.5z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>',
@@ -476,6 +512,7 @@
     { id: 'compras', label: 'Compras', icon: 'truck', papeis: ['administrador'] },
     { id: 'fluxo', label: 'Fluxo de caixa', icon: 'cash', papeis: ['administrador'] },
     { id: 'equipe', label: 'Equipe', icon: 'users', papeis: ['administrador'] },
+    { id: 'calendario', label: 'Calendário', icon: 'calendar', papeis: ['administrador', 'caixa'] },
     { id: 'ponto', label: 'Bater ponto', icon: 'clock', papeis: ['administrador', 'caixa'] },
     { id: 'relatorios', label: 'Relatórios', icon: 'chart', papeis: ['administrador'] },
   ];
@@ -573,6 +610,7 @@
     estoqueSelecionadoId: null, busca: '', filtroCategoria: null,
     vendasHoje: null, pontos: null, clientes: null, clientesBusca: '', compras: null,
     fluxo: null, mesFluxo: hojeLocal().slice(0, 7), equipe: null, caixaSessoes: null,
+    calMes: hojeLocal().slice(0, 7), calAgenda: null, calPontos: [], calAniversarios: [],
     tema: temaInicial, sidebarCollapsed: false,
     rostos: carregarRostos(),
   };
@@ -662,6 +700,12 @@
       } else if (view === 'equipe') {
         const [equipe] = await Promise.all([api('/equipe'), carregarConfig()]);
         state.equipe = equipe;
+      } else if (view === 'calendario') {
+        const { inicio, fim } = limitesMes(state.calMes);
+        const mesCarregado = state.calMes;
+        const [agenda, pontos, aniversarios] = await Promise.all([api('/agenda?inicio=' + inicio + '&fim=' + fim), api('/pontos?inicio=' + inicio + '&fim=' + fim),
+          api('/clientes-aniversarios?mes=' + Number(state.calMes.slice(5, 7)))]);
+        if (mesCarregado === state.calMes) Object.assign(state, { calAgenda: agenda, calPontos: pontos, calAniversarios: aniversarios });
       } else if (view === 'ponto') {
         state.pontos = await api('/pontos');
       }
@@ -717,6 +761,8 @@
       if (window.matchMedia('(max-width: 860px)').matches) document.getElementById('sidebar').classList.remove('mobile-open');
     }));
     document.getElementById('btn-novo-produto').style.display = ehAdmin() ? '' : 'none';
+    document.getElementById('btn-novo-evento').style.display = ehAdmin() ? '' : 'none';
+    document.getElementById('btn-escalar').style.display = ehAdmin() ? '' : 'none';
   }
 
   function render() {
@@ -738,7 +784,7 @@
     if (state.view !== 'ponto') desligarCameraPonto();
 
     const renders = { inicio: renderInicio, venda: renderVenda, clientes: renderClientes, estoque: renderEstoque,
-      compras: renderCompras, fluxo: renderFluxo, equipe: renderEquipe, ponto: renderPonto, relatorios: renderRelatorios };
+      compras: renderCompras, fluxo: renderFluxo, equipe: renderEquipe, ponto: renderPonto, calendario: renderCalendario, relatorios: renderRelatorios };
     (renders[state.view] || renderInicio)();
   }
 
@@ -758,6 +804,7 @@
     pararStream(cadastroStream); cadastroStream = null;
     limparSessao();
     fecharModal(); fecharCamada('modal-topo');
+    document.getElementById('livro-caixa').innerHTML = '';
     Object.assign(state, { logado: null, token: null, loginStep: 'cargo', loginCargo: null, loginPessoaId: null, loginPin: '',
       cart: [], cliente: null, pagamentos: [], view: 'inicio' });
     render();
@@ -1130,7 +1177,9 @@
   function ehCampoTexto(el) { return el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') && !['checkbox', 'radio', 'button', 'submit'].includes(el.type); }
   function onTeclaLeitor(e) {
     if (!state.logado || e.ctrlKey || e.altKey || e.metaKey) return;
-    const agora = performance.now();
+    // Hora em que a tecla chegou (não a hora em que a tela conseguiu processar): se o computador
+    // travar um instante no meio do bip, o código continua sendo reconhecido como leitor.
+    const agora = e.timeStamp || performance.now();
     if (/^\d$/.test(e.key)) {
       if (agora - leitor.ultimo > 80) {
         leitor.buffer = ''; leitor.inicio = agora; leitor.alvo = e.target;
@@ -1142,7 +1191,7 @@
     if (e.key !== 'Enter' && e.key !== 'Tab') { leitor.buffer = ''; return; }
     const codigo = leitor.buffer;
     leitor.buffer = '';
-    const rapido = codigo.length >= 6 && agora - leitor.ultimo < 80 && (leitor.ultimo - leitor.inicio) / (codigo.length - 1) < 40;
+    const rapido = codigo.length >= 6 && agora - leitor.ultimo < 80 && (leitor.ultimo - leitor.inicio) / (codigo.length - 1) < 50;
     if (!rapido) return;
     // Campos feitos pra receber código (busca da venda, busca do estoque, código na edição) tratam sozinhos.
     if (e.target && e.target.hasAttribute && e.target.hasAttribute('data-leitor')) return;
@@ -1436,12 +1485,13 @@
     if (!cx) { el.innerHTML = '<div class="carregando">Carregando caixa...</div>'; return; }
 
     if (!cx.sessao) {
-      // A tela redesenha quando os dados chegam do servidor — não perder o que já foi digitado.
-      const digitado = document.getElementById('cx-inicial') ? document.getElementById('cx-inicial').value : '';
+      // Formulário já na tela: não redesenha (quem está digitando o troco perderia o campo/foco
+      // quando os dados chegam do servidor).
+      if (document.getElementById('cx-inicial')) return;
       el.innerHTML = `
         <div class="painel-titulo-linha"><div><div class="painel-titulo">Livro caixa</div><div class="modal-sub"><span class="tag aviso">Fechado</span> — abra o caixa pra começar a vender</div></div></div>
         <div class="linha-campos" style="max-width:460px;align-items:flex-end">
-          <label class="campo">Dinheiro inicial na gaveta (troco)<input id="cx-inicial" type="text" inputmode="decimal" placeholder="0,00" value="${esc(digitado)}"></label>
+          <label class="campo">Dinheiro inicial na gaveta (troco)<input id="cx-inicial" type="text" inputmode="decimal" placeholder="0,00"></label>
           <button class="btn-primario btn-grande" id="cx-abrir" style="flex:0 0 auto">Abrir caixa</button>
         </div>
         <div class="erro-modal" id="cx-erro" style="margin-top:8px"></div>`;
@@ -2344,6 +2394,124 @@
     }, camada.querySelector('#us-erro'));
   }
 
+  /* ================= Calendário (mesmo modelo do Jabá) ================= */
+  function limitesMes(ym) {
+    const [a, m] = ym.split('-').map(Number);
+    const ultimo = new Date(Date.UTC(a, m, 0)).getUTCDate();
+    return { inicio: ym + '-01', fim: ym + '-' + String(ultimo).padStart(2, '0'), ultimo };
+  }
+  function mudarMesCalendario(delta) {
+    const [a, m] = state.calMes.split('-').map(Number);
+    const d = new Date(Date.UTC(a, m - 1 + delta, 1));
+    state.calMes = d.getUTCFullYear() + '-' + String(d.getUTCMonth() + 1).padStart(2, '0');
+    state.calAgenda = null; render(); carregarDadosDaView('calendario');
+  }
+  function renderCalendario() {
+    document.getElementById('cal-mes').textContent = nomeMes(state.calMes);
+    const grid = document.getElementById('cal-grid');
+    if (!state.calAgenda) { grid.innerHTML = '<div class="carregando" style="grid-column:1/-1">Carregando...</div>'; return; }
+    const { ultimo } = limitesMes(state.calMes);
+    const [a, m] = state.calMes.split('-').map(Number);
+    const primeiroDiaSemana = new Date(Date.UTC(a, m - 1, 1)).getUTCDay();
+    const hoje = hojeLocal();
+    const celulas = [];
+    for (let i = 0; i < primeiroDiaSemana; i++) celulas.push('<div class="cal-cell cal-cell-vazia"></div>');
+    for (let dia = 1; dia <= ultimo; dia++) {
+      const data = state.calMes + '-' + String(dia).padStart(2, '0');
+      const doDia = state.calAgenda.filter(e => e.data === data);
+      const eventos = doDia.filter(e => e.tipo === 'evento'), escalas = doDia.filter(e => e.tipo === 'escala');
+      const temPonto = state.calPontos.some(p => p.dia === data);
+      const aniv = state.calAniversarios.filter(c => c.dia === dia);
+      const chips = eventos.map(e => `<div class="cal-chip cal-chip-evento">${esc(e.titulo)}</div>`)
+        .concat(escalas.map(e => `<div class="cal-chip cal-chip-escala">${esc(e.usuario_nome || e.titulo)}${e.hora_inicio ? ' ' + esc(e.hora_inicio) : ''}</div>`));
+      celulas.push(`<button class="cal-cell ${data === hoje ? 'cal-cell-hoje' : ''}" data-cal-dia="${data}">
+        <div class="cal-cell-num"><span>${dia}${temPonto ? ' <span style="color:var(--teal);font-size:10px" title="teve ponto">●</span>' : ''}</span>${aniv.length ? `<span title="${aniv.length} aniversário(s)">🎂${aniv.length > 1 ? aniv.length : ''}</span>` : ''}</div>
+        ${chips.slice(0, 3).join('')}${chips.length > 3 ? `<div class="cal-mais">+ ${chips.length - 3}</div>` : ''}
+      </button>`);
+    }
+    while (celulas.length % 7) celulas.push('<div class="cal-cell cal-cell-vazia"></div>');
+    grid.innerHTML = celulas.join('');
+    grid.querySelectorAll('[data-cal-dia]').forEach(b => b.onclick = () => abrirDiaCalendario(b.dataset.calDia));
+  }
+
+  function faixaHorario(e) { return e.hora_inicio ? e.hora_inicio + (e.hora_fim ? '–' + e.hora_fim : '') : ''; }
+  function abrirDiaCalendario(data) {
+    const doDia = state.calAgenda.filter(e => e.data === data);
+    const eventos = doDia.filter(e => e.tipo === 'evento'), escalas = doDia.filter(e => e.tipo === 'escala');
+    const pontos = state.calPontos.filter(p => p.dia === data);
+    const pontosDe = (uid) => pontos.filter(p => p.usuario_id === uid).map(p => (p.tipo === 'entrada' ? 'entrou ' : 'saiu ') + hora(p.registrado_em));
+    const semEscala = [...new Set(pontos.map(p => p.usuario_id))].filter(uid => !escalas.some(e => e.usuario_id === uid));
+    const aniv = state.calAniversarios.filter(c => c.dia === Number(data.slice(8, 10)));
+    const acoes = (e) => ehAdmin() ? `<button class="btn-secundario" data-cal-editar="${e.id}">Editar</button><button class="link-btn" data-cal-remover="${e.id}" style="color:var(--zero-text)">remover</button>` : '';
+    const camada = abrirModal(`<div class="modal-card">${cabecalhoModal(dataBR(data), new Date(data + 'T12:00:00').toLocaleDateString('pt-BR', { weekday: 'long' }))}
+      <div class="painel-titulo" style="margin:0">Eventos</div>
+      ${eventos.length ? eventos.map(e => `<div class="linha-simples"><div style="flex-grow:1"><b>${esc(e.titulo)}</b>${faixaHorario(e) ? ' · ' + faixaHorario(e) : ''}${e.observacao ? `<div style="font-size:11px;color:var(--text-2)">${esc(e.observacao)}</div>` : ''}</div>${acoes(e)}</div>`).join('') : '<div class="modal-dica">Nenhum evento.</div>'}
+      <div class="painel-titulo" style="margin:6px 0 0">Escala da equipe</div>
+      ${escalas.length ? escalas.map(e => { const pt = pontosDe(e.usuario_id); return `<div class="linha-simples"><div style="flex-grow:1"><b>${esc(e.usuario_nome || e.titulo)}</b> · ${faixaHorario(e) || 'horário livre'}
+        <div style="font-size:11px;color:${pt.length ? 'var(--ok-text)' : 'var(--text-2)'}">${pt.length ? 'Ponto: ' + pt.join(', ') : (data < hojeLocal() ? 'Não bateu ponto' : 'Ponto ainda não batido')}${e.observacao ? ' · ' + esc(e.observacao) : ''}</div></div>${acoes(e)}</div>`; }).join('') : '<div class="modal-dica">Ninguém escalado.</div>'}
+      ${semEscala.length ? `<div class="painel-titulo" style="margin:6px 0 0">Bateu ponto sem estar escalado</div>${semEscala.map(uid => `<div class="linha-simples"><b style="flex-grow:1">${esc((pontos.find(p => p.usuario_id === uid) || {}).nome)}</b><span style="font-size:12px">${pontosDe(uid).join(', ')}</span></div>`).join('')}` : ''}
+      ${aniv.length ? `<div class="painel-titulo" style="margin:6px 0 0">🎂 Aniversário de cliente</div>${aniv.map(c => `<div class="linha-simples"><b style="flex-grow:1">${esc(c.nome)}</b>${c.telefone ? `<a class="link-btn" target="_blank" rel="noopener" href="https://wa.me/55${esc(c.telefone)}?text=${encodeURIComponent('Oi, ' + c.nome.split(' ')[0] + '! A Loja Gutto deseja um feliz aniversário! 🎉')}">mandar parabéns no WhatsApp</a>` : ''}</div>`).join('')}` : ''}
+      ${ehAdmin() ? `<div class="modal-acoes" style="justify-content:flex-start"><button class="btn-primario" id="cal-dia-evento">+ Evento neste dia</button><button class="btn-secundario" id="cal-dia-escalar">+ Escalar neste dia</button></div>` : ''}
+    </div>`);
+    if (!ehAdmin()) return;
+    camada.querySelector('#cal-dia-evento').onclick = () => abrirFormAgenda('evento', null, data);
+    camada.querySelector('#cal-dia-escalar').onclick = () => abrirFormAgenda('escala', null, data);
+    camada.querySelectorAll('[data-cal-editar]').forEach(b => b.onclick = () => abrirFormAgenda(null, state.calAgenda.find(e => e.id === b.dataset.calEditar), data));
+    camada.querySelectorAll('[data-cal-remover]').forEach(b => b.onclick = async () => {
+      const e = state.calAgenda.find(x => x.id === b.dataset.calRemover);
+      if (!confirm('Remover "' + (e.usuario_nome || e.titulo) + '" de ' + dataBR(data) + '?')) return;
+      try { await api('/agenda/' + e.id, { method: 'DELETE' }); await carregarDadosDaView('calendario'); abrirDiaCalendario(data); toast('Removido'); }
+      catch (err) { toast(err.message, 'erro'); }
+    });
+  }
+
+  // Novo evento, nova escala, ou edição de um dos dois (tipo vem do próprio item).
+  function abrirFormAgenda(tipo, item, dataPadrao) {
+    tipo = item ? item.tipo : tipo;
+    const escala = tipo === 'escala';
+    const pessoas = state.usuarios;
+    const camada = abrirModal(`<div class="modal-card estreito">${cabecalhoModal(item ? 'Editar ' + (escala ? 'escala' : 'evento') : escala ? 'Escalar alguém' : 'Novo evento', escala ? 'Quem trabalha e em que horário' : 'Liquidação, chegada de coleção, datas comemorativas...')}
+      ${escala ? (item ? `<div><b>${esc(item.usuario_nome || item.titulo)}</b></div>` : `<label class="campo">Quem<select id="ag-usuario"><option value="">— escolha —</option>${pessoas.map(u => `<option value="${u.id}">${esc(u.nome)}</option>`).join('')}</select></label>`)
+        : `<label class="campo">Título<input id="ag-titulo" type="text" maxlength="120" value="${esc(item ? item.titulo : '')}" placeholder="Ex.: Liquidação de inverno"></label>`}
+      <label class="campo">Data<input id="ag-data" type="date" value="${item ? item.data : dataPadrao || hojeLocal()}"></label>
+      <div class="linha-campos">
+        <label class="campo">${escala ? 'Entrada' : 'Início'} (opcional)<input id="ag-inicio" type="time" value="${item && item.hora_inicio ? item.hora_inicio : escala && !item ? '08:00' : ''}"></label>
+        <label class="campo">${escala ? 'Saída' : 'Fim'} (opcional)<input id="ag-fim" type="time" value="${item && item.hora_fim ? item.hora_fim : escala && !item ? '18:00' : ''}"></label>
+      </div>
+      <label class="campo">Observação (opcional)<input id="ag-obs" type="text" maxlength="300" value="${esc(item && item.observacao ? item.observacao : '')}"></label>
+      ${escala && !item ? `<label style="display:flex;gap:8px;align-items:center;font-size:13px"><input type="checkbox" id="ag-repetir"> Repetir toda semana, nesse mesmo dia, até o fim do mês</label>` : ''}
+      <div class="erro-modal" id="ag-erro"></div>
+      <button class="btn-primario btn-grande" id="ag-salvar">Salvar</button></div>`);
+    camada.querySelector('#ag-salvar').onclick = (ev) => comBotao(ev.target, 'Salvando...', async () => {
+      const corpo = { data: camada.querySelector('#ag-data').value, horaInicio: camada.querySelector('#ag-inicio').value, horaFim: camada.querySelector('#ag-fim').value,
+        observacao: camada.querySelector('#ag-obs').value };
+      if (!corpo.data) throw new Error('Escolha a data');
+      if (!escala) corpo.titulo = camada.querySelector('#ag-titulo').value;
+      if (item) await api('/agenda/' + item.id, { method: 'PUT', body: corpo });
+      else if (!escala) await api('/agenda', { method: 'POST', body: Object.assign({ tipo: 'evento' }, corpo) });
+      else {
+        const usuarioId = camada.querySelector('#ag-usuario').value;
+        if (!usuarioId) throw new Error('Escolha quem vai ser escalado');
+        const datas = [corpo.data];
+        if (camada.querySelector('#ag-repetir').checked) {
+          const fimMes = limitesMes(corpo.data.slice(0, 7)).fim;
+          const d = new Date(corpo.data + 'T12:00:00Z');
+          for (d.setUTCDate(d.getUTCDate() + 7); d.toISOString().slice(0, 10) <= fimMes; d.setUTCDate(d.getUTCDate() + 7)) datas.push(d.toISOString().slice(0, 10));
+        }
+        let pulados = 0;
+        for (const data of datas) {
+          try { await api('/agenda', { method: 'POST', body: Object.assign({ tipo: 'escala', usuarioId }, corpo, { data }) }); }
+          catch (e) { if (e.status === 409 && datas.length > 1) pulados++; else throw e; }
+        }
+        if (pulados) toast(pulados + ' dia(s) já tinham essa pessoa escalada — mantidos como estavam');
+      }
+      fecharModal();
+      state.calMes = corpo.data.slice(0, 7);
+      await carregarDadosDaView('calendario');
+      toast(item ? 'Alterado' : escala ? 'Escala salva' : 'Evento criado');
+    }, camada.querySelector('#ag-erro'));
+  }
+
   /* ================= Bater ponto ================= */
   const MODEL_URL = 'https://cdn.jsdelivr.net/gh/justadudewhohacks/face-api.js@master/weights';
   const LIMIAR_RECONHECIMENTO = 0.5;
@@ -2499,6 +2667,10 @@
   document.getElementById('busca').addEventListener('input', (e) => setState({ busca: e.target.value }));
   document.getElementById('mes-anterior').addEventListener('click', () => mudarMes(-1));
   document.getElementById('mes-proximo').addEventListener('click', () => mudarMes(1));
+  document.getElementById('cal-anterior').addEventListener('click', () => mudarMesCalendario(-1));
+  document.getElementById('cal-proximo').addEventListener('click', () => mudarMesCalendario(1));
+  document.getElementById('btn-novo-evento').addEventListener('click', () => abrirFormAgenda('evento'));
+  document.getElementById('btn-escalar').addEventListener('click', () => abrirFormAgenda('escala'));
   document.getElementById('confirmar').addEventListener('click', () => confirmarVenda());
   document.getElementById('btn-novo-produto').addEventListener('click', abrirNovoProduto);
   document.getElementById('btn-troca').addEventListener('click', abrirTroca);

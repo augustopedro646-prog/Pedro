@@ -1122,13 +1122,114 @@ app.get('/api/lojas/:lojaId/compras/:id', admin, rota(async (req, res) => {
 
 /* ---------- Bater ponto ---------- */
 
+// Sem período: pontos de hoje (tela Bater ponto). Com inicio/fim (Calendário): o Administrador vê
+// todo mundo; o Caixa vê só os próprios.
 app.get('/api/lojas/:lojaId/pontos', qualquer, rota(async (req, res) => {
+  const comPeriodo = req.query.inicio || req.query.fim;
+  const inicio = comPeriodo ? dataISO(req.query.inicio, 'inicio') : null;
+  const fim = comPeriodo ? dataISO(req.query.fim, 'fim') : null;
+  const soDoUsuario = comPeriodo && req.usuario.papel !== 'administrador' ? req.usuario.id : null;
   const { rows } = await pool.query(
-    `SELECT p.id, p.usuario_id, u.nome, p.tipo, p.metodo, p.registrado_em
+    `SELECT p.id, p.usuario_id, u.nome, p.tipo, p.metodo, p.registrado_em,
+            to_char(p.registrado_em AT TIME ZONE $2, 'YYYY-MM-DD') AS dia
      FROM pontos p JOIN usuarios u ON u.id = p.usuario_id
-     WHERE p.loja_id = $1 AND (p.registrado_em AT TIME ZONE $2)::date = (now() AT TIME ZONE $2)::date
+     WHERE p.loja_id = $1
+       AND ${comPeriodo ? '(p.registrado_em AT TIME ZONE $2)::date BETWEEN $3 AND $4' : '(p.registrado_em AT TIME ZONE $2)::date = (now() AT TIME ZONE $2)::date'}
+       ${soDoUsuario ? 'AND p.usuario_id = $5' : ''}
      ORDER BY p.registrado_em`,
-    [req.lojaId, TZ]
+    comPeriodo ? (soDoUsuario ? [req.lojaId, TZ, inicio, fim, soDoUsuario] : [req.lojaId, TZ, inicio, fim]) : [req.lojaId, TZ]
+  );
+  res.json(rows);
+}));
+
+/* ---------- Calendário: eventos, escala e aniversariantes ---------- */
+
+function horaHHMM(valor, campo) {
+  if (valor == null || valor === '') return null;
+  if (typeof valor !== 'string' || !/^([01]\d|2[0-3]):[0-5]\d$/.test(valor)) falha(400, campo + ' inválida (use HH:MM)');
+  return valor;
+}
+
+app.get('/api/lojas/:lojaId/agenda', qualquer, rota(async (req, res) => {
+  const inicio = dataISO(req.query.inicio, 'inicio');
+  const fim = dataISO(req.query.fim, 'fim');
+  const { rows } = await pool.query(
+    `SELECT a.id, a.tipo, to_char(a.data, 'YYYY-MM-DD') AS data, a.hora_inicio, a.hora_fim, a.titulo, a.usuario_id,
+            u.nome AS usuario_nome, a.observacao
+     FROM agenda_eventos a LEFT JOIN usuarios u ON u.id = a.usuario_id
+     WHERE a.loja_id = $1 AND a.data BETWEEN $2 AND $3
+     ORDER BY a.data, a.tipo, a.hora_inicio NULLS LAST, a.criado_em`,
+    [req.lojaId, inicio, fim]
+  );
+  res.json(rows);
+}));
+
+function lerAgenda(body, parcial) {
+  const d = {};
+  if (!parcial || body.data !== undefined) d.data = dataISO(body.data, 'data');
+  if (!parcial || body.horaInicio !== undefined) d.horaInicio = horaHHMM(body.horaInicio, 'hora de início');
+  if (!parcial || body.horaFim !== undefined) d.horaFim = horaHHMM(body.horaFim, 'hora de fim');
+  if (!parcial || body.observacao !== undefined) d.observacao = texto(body.observacao, 'observacao', { obrigatorio: false, max: 300 });
+  if (d.horaInicio && d.horaFim && d.horaFim <= d.horaInicio) falha(400, 'A hora de fim precisa ser depois da de início');
+  return d;
+}
+
+app.post('/api/lojas/:lojaId/agenda', admin, rota(async (req, res) => {
+  const body = req.body || {};
+  if (!['evento', 'escala'].includes(body.tipo)) falha(400, 'tipo deve ser evento ou escala');
+  const d = lerAgenda(body);
+  let titulo, usuarioId = null;
+  if (body.tipo === 'escala') {
+    const { rows } = await pool.query('SELECT id, nome FROM usuarios WHERE id = $1 AND loja_id = $2', [body.usuarioId, req.lojaId]);
+    if (!rows.length) falha(400, 'Escolha quem vai ser escalado');
+    usuarioId = rows[0].id; titulo = rows[0].nome;
+    const { rowCount } = await pool.query('SELECT 1 FROM agenda_eventos WHERE loja_id = $1 AND tipo = $2 AND usuario_id = $3 AND data = $4', [req.lojaId, 'escala', usuarioId, d.data]);
+    if (rowCount) falha(409, rows[0].nome + ' já está escalado(a) nesse dia — edite o horário em vez de escalar de novo');
+  } else {
+    titulo = texto(body.titulo, 'título do evento', { max: 120 });
+  }
+  const id = uid();
+  await pool.query(
+    `INSERT INTO agenda_eventos (id, loja_id, tipo, data, hora_inicio, hora_fim, titulo, usuario_id, observacao, criado_por)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
+    [id, req.lojaId, body.tipo, d.data, d.horaInicio, d.horaFim, titulo, usuarioId, d.observacao, req.usuario.id]
+  );
+  res.status(201).json({ id });
+}));
+
+app.put('/api/lojas/:lojaId/agenda/:id', admin, rota(async (req, res) => {
+  const body = req.body || {};
+  const { rows } = await pool.query('SELECT tipo, hora_inicio, hora_fim FROM agenda_eventos WHERE id = $1 AND loja_id = $2', [req.params.id, req.lojaId]);
+  if (!rows.length) falha(404, 'item do calendário não encontrado');
+  const d = lerAgenda(body, true);
+  const inicio = d.horaInicio !== undefined ? d.horaInicio : rows[0].hora_inicio;
+  const fim = d.horaFim !== undefined ? d.horaFim : rows[0].hora_fim;
+  if (inicio && fim && fim <= inicio) falha(400, 'A hora de fim precisa ser depois da de início');
+  const titulo = rows[0].tipo === 'evento' && body.titulo !== undefined ? texto(body.titulo, 'título do evento', { max: 120 }) : null;
+  await pool.query(
+    `UPDATE agenda_eventos SET data = COALESCE($1, data), hora_inicio = $2, hora_fim = $3,
+       observacao = CASE WHEN $4 THEN $5 ELSE observacao END, titulo = COALESCE($6, titulo)
+     WHERE id = $7 AND loja_id = $8`,
+    [d.data || null, inicio, fim, d.observacao !== undefined, d.observacao === undefined ? null : d.observacao, titulo, req.params.id, req.lojaId]
+  );
+  res.json({ ok: true });
+}));
+
+app.delete('/api/lojas/:lojaId/agenda/:id', admin, rota(async (req, res) => {
+  const { rowCount } = await pool.query('DELETE FROM agenda_eventos WHERE id = $1 AND loja_id = $2', [req.params.id, req.lojaId]);
+  if (!rowCount) falha(404, 'item do calendário não encontrado');
+  res.json({ ok: true });
+}));
+
+// Aniversariantes do mês (dia/mês do cadastro do cliente) — pra lembrar de mandar parabéns/cupom.
+app.get('/api/lojas/:lojaId/clientes-aniversarios', qualquer, rota(async (req, res) => {
+  const mes = Number(req.query.mes);
+  if (!Number.isInteger(mes) || mes < 1 || mes > 12) falha(400, 'mes inválido (1 a 12)');
+  const { rows } = await pool.query(
+    `SELECT id, nome, telefone, EXTRACT(DAY FROM nascimento)::int AS dia
+     FROM clientes WHERE loja_id = $1 AND nascimento IS NOT NULL AND EXTRACT(MONTH FROM nascimento) = $2
+     ORDER BY dia, nome`,
+    [req.lojaId, mes]
   );
   res.json(rows);
 }));
