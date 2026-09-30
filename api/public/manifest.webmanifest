@@ -1,0 +1,16 @@
+{
+  "name": "Loja Gutto",
+  "short_name": "Loja Gutto",
+  "description": "Sistema de gestão da Loja Gutto",
+  "lang": "pt-BR",
+  "start_url": "/painel-gutto.html",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#FFF8F0",
+  "theme_color": "#E8664A",
+  "icons": [
+    { "src": "/icone-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/icone-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "/icone-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

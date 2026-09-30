@@ -133,3 +133,10 @@ for (const size of tamanhos) {
 fs.writeFileSync(path.join(buildDir, 'icon.png'), pngs[256]);
 fs.writeFileSync(path.join(buildDir, 'icon.ico'), paraICO(pngs));
 console.log('Gerado: build/icon.png e build/icon.ico');
+
+// Mesmo ícone pro sistema aberto no navegador / instalado como aplicativo (Edge ou Chrome)
+const publicDir = path.join(__dirname, '..', 'api', 'public');
+fs.writeFileSync(path.join(publicDir, 'icone-192.png'), paraPNG(renderizar(192), 192));
+fs.writeFileSync(path.join(publicDir, 'icone-512.png'), paraPNG(renderizar(512), 512));
+fs.writeFileSync(path.join(publicDir, 'favicon.ico'), paraICO({ 16: pngs[16], 32: pngs[32], 48: pngs[48] }));
+console.log('Gerado: api/public/icone-192.png, icone-512.png e favicon.ico');

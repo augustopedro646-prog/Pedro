@@ -34,7 +34,20 @@ npm start
 e abra **http://localhost:3000** no navegador. Pra parar, feche a janela do Prompt
 (ou Ctrl+C).
 
-## App Loja Gutto.exe (janela própria, sem navegador)
+## Abrir como aplicativo (janela própria, sem barra do navegador)
+
+**Jeito recomendado — instalar pelo Edge/Chrome**: abra http://localhost:3000 no Edge,
+menu **⋯ → Aplicativos → Instalar este site como aplicativo** (no Chrome: ícone de
+instalar na barra de endereço). Vira um app "Loja Gutto" com ícone "G" na Área de
+Trabalho, menu Iniciar e barra de tarefas, abrindo numa janela só dele. Funciona mesmo com
+o **Controle Inteligente de Aplicativos** do Windows 11 ligado.
+
+## App Loja Gutto.exe (alternativa)
+
+⚠ O `.exe` não tem assinatura digital, então o Windows 11 com **Controle Inteligente de
+Aplicativos** ligado bloqueia ("Uma política de Controle de Aplicativo bloqueou este
+arquivo"). Desligar essa proteção não tem volta sem reinstalar o Windows — por isso, nesses
+PCs, use o jeito acima.
 
 Mesmo modelo do `Jaba PDV.exe`: um `.exe` portátil (feito com Electron, código em
 `desktop/`) que abre o sistema numa janela só dele, maximizada, com o ícone laranja "G".
