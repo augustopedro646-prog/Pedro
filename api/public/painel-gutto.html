@@ -386,6 +386,7 @@
     <div class="view page" id="view-inicio">
       <h1 class="titulo">Início</h1>
       <p class="sub" id="inicio-ola">Resumo de hoje</p>
+      <div id="aviso-backup"></div>
       <div class="painel" id="livro-caixa"></div>
       <div class="stats-row" id="inicio-stats" style="margin-top:20px"></div>
       <div class="paineis-duas-colunas">
@@ -481,6 +482,7 @@
       </div>
       <div class="painel"><div id="equipe-lista"></div></div>
       <div class="painel" style="margin-top:16px"><div class="painel-titulo">Configurações da loja</div><div id="config-loja"></div></div>
+      <div class="painel" style="margin-top:16px"><div class="painel-titulo-linha"><div class="painel-titulo">Backup do banco</div><button class="btn-secundario" id="btn-backup-agora">Fazer backup agora</button></div><div id="backup-info"></div></div>
     </div>
 
     <div class="view page" id="view-whatsapp">
@@ -688,6 +690,7 @@
     calMes: hojeLocal().slice(0, 7), calAgenda: null, calPontos: [], calAniversarios: [],
     pedidosOnline: null, onlineNovos: 0, ultimoPedidoVisto: null,
     wa: { status: null, conversas: null, sel: null, detalhe: null, erro: null },
+    backup: null,
     tema: temaInicial, sidebarCollapsed: false,
     rostos: carregarRostos(),
   };
@@ -765,6 +768,7 @@
       if (view === 'inicio') {
         const [vendas, pontos, sessoes] = await Promise.all([api('/vendas?periodo=hoje'), api('/pontos'), ehAdmin() ? api('/caixa/sessoes') : null, carregarCaixa(), carregarProdutos()]);
         state.vendasHoje = vendas; state.pontos = pontos; state.caixaSessoes = sessoes;
+        if (ehAdmin()) api('/backup').then(b => { state.backup = b; if (state.view === 'inicio') renderAvisoBackup(); }).catch(() => {});
       } else if (view === 'venda') {
         await Promise.all([carregarProdutos(), carregarCaixa(), carregarConfig()]);
       } else if (view === 'clientes') {
@@ -776,8 +780,8 @@
       } else if (view === 'fluxo') {
         state.fluxo = await api('/fluxo?mes=' + state.mesFluxo);
       } else if (view === 'equipe') {
-        const [equipe] = await Promise.all([api('/equipe'), carregarConfig()]);
-        state.equipe = equipe;
+        const [equipe, bkp] = await Promise.all([api('/equipe'), api('/backup'), carregarConfig()]);
+        state.equipe = equipe; state.backup = bkp;
       } else if (view === 'whatsapp') {
         await carregarWhatsApp(true);
       } else if (view === 'online') {
@@ -1065,6 +1069,7 @@
       <div class="stat-card"><div class="stat-label">Ticket médio</div><div class="stat-valor">${fmt(ticket)}</div></div>
       <div class="stat-card"><div class="stat-label">Peças vendidas</div><div class="stat-valor">${pecas}</div></div>`;
 
+    renderAvisoBackup();
     document.getElementById('inicio-ola').textContent = 'Olá, ' + state.logado.nome.split(' ')[0] + ' — resumo de hoje';
     renderLivroCaixa();
 
@@ -2638,6 +2643,7 @@
         <span class="modal-dica">Link do site: <a class="link-btn" href="/loja-gutto.html" target="_blank" rel="noopener">${esc(location.origin)}/loja</a></span>
       </div>
       <div class="erro-modal" id="cfg-erro" style="margin-top:8px"></div>`;
+    renderBackup();
     document.getElementById('cfg-salvar').onclick = (ev) => comBotao(ev.target, 'Salvando...', async () => {
       const cashbackPct = parseNumBR(document.getElementById('cfg-cashback').value), descontoLivrePct = parseNumBR(document.getElementById('cfg-desconto').value);
       if (!Number.isFinite(cashbackPct) || !Number.isFinite(descontoLivrePct)) throw new Error('Valores inválidos');
@@ -2649,6 +2655,39 @@
         endereco: document.getElementById('cfg-site-endereco').value, mensagem: document.getElementById('cfg-site-msg').value } } });
       await carregarConfig(); toast('Configurações salvas');
     }, document.getElementById('cfg-erro'));
+  }
+
+  /* ---------- Backup ---------- */
+  function problemaBackup(b) {
+    if (!b) return null;
+    const s = b.status;
+    if (!s) return 'Ainda não foi feito nenhum backup do banco.';
+    const ultimoOk = s.ultimoOk ? new Date(s.ultimoOk) : null;
+    if (!s.ok) return 'O último backup falhou: ' + s.erro;
+    if (!ultimoOk || Date.now() - ultimoOk.getTime() > 3 * 3600e3) return 'O último backup foi há mais de 3 horas.';
+    if (s.copia && !s.copia.ok) return 'O backup foi feito, mas a cópia pra fora do computador falhou: ' + s.copia.erro;
+    return null;
+  }
+  function renderAvisoBackup() {
+    const el = document.getElementById('aviso-backup');
+    const p = ehAdmin() && state.backup && state.backup.status !== undefined ? problemaBackup(state.backup) : null;
+    // Na primeira hora depois de instalar ainda não há backup — não assusta à toa.
+    el.innerHTML = p && !(state.backup.status === null) ? `<div class="aviso-caixa" style="background:var(--zero-bg);color:var(--zero-text);border-color:var(--zero-border)"><span>⚠ Backup: ${esc(p)}</span><button class="btn-secundario" onclick="irPara('equipe')">Ver backup</button></div>` : '';
+  }
+  function tamanho(bytes) { return bytes > 1048576 ? (bytes / 1048576).toFixed(1).replace('.', ',') + ' MB' : Math.max(1, Math.round(bytes / 1024)) + ' KB'; }
+  function renderBackup() {
+    const el = document.getElementById('backup-info');
+    const b = state.backup;
+    if (!b) { el.innerHTML = '<div class="carregando">Carregando...</div>'; return; }
+    const s = b.status, p = problemaBackup(b);
+    el.innerHTML = `
+      <div style="font-size:13px;line-height:1.7">
+        ${s ? `<div>${p ? '<span class="tag aviso" style="background:var(--zero-bg);color:var(--zero-text);border-color:var(--zero-border)">atenção</span> ' + esc(p) : '<span class="tag ok">ok</span> Último backup: <b>' + dataHora(s.quando) + '</b>' + (s.tamanhoBytes ? ' (' + tamanho(s.tamanhoBytes) + ')' : '')}</div>` : '<div>Nenhum backup ainda — o primeiro sai 2 minutos depois do servidor ligar (ou clique em "Fazer backup agora").</div>'}
+        <div style="color:var(--text-2)">Automático de hora em hora. Fica em <span class="mono">${esc(b.pasta)}</span>: tudo das últimas 48h e um por dia até 30 dias.</div>
+        <div style="color:var(--text-2)">${b.copia ? 'Cópia diária fora do computador em <span class="mono">' + esc(b.copia) + '</span>' + (s && s.copia ? (s.copia.ok ? ' — ok' : ' — <b class="valor-neg">falhou</b>') : '') : '⚠ Sem cópia fora deste computador: se o HD der problema, o backup vai junto. Peça pra configurar <span class="mono">BACKUP_COPIA</span> (uma pasta do OneDrive/Google Drive ou um HD externo).'}</div>
+      </div>
+      ${b.recentes.length ? `<details style="margin-top:8px"><summary style="cursor:pointer;font-size:13px;font-weight:600">Backups guardados (${b.recentes.length}${b.recentes.length === 10 ? '+' : ''})</summary>
+        ${b.recentes.map(r => `<div class="linha-simples mono" style="font-size:11px"><span style="flex-grow:1">${esc(r.arquivo)}</span><span>${tamanho(r.tamanhoBytes)}</span></div>`).join('')}</details>` : ''}`;
   }
 
   function abrirUsuario(u) {
@@ -3095,6 +3134,10 @@
     if (arquivos.length) lerNotaArquivos(arquivos);
   });
   document.getElementById('btn-novo-usuario').addEventListener('click', () => abrirUsuario(null));
+  document.getElementById('btn-backup-agora').addEventListener('click', (ev) => comBotao(ev.target, 'Fazendo backup...', async () => {
+    await api('/backup', { method: 'POST' });
+    state.backup = await api('/backup'); renderBackup(); toast('Backup feito');
+  }));
   const inputVendaBusca = document.getElementById('venda-busca');
   inputVendaBusca.addEventListener('input', (e) => { state.vendaBusca = e.target.value; renderVenda(); });
   // Alguns bipadores terminam com Tab em vez de Enter.

@@ -64,6 +64,28 @@ Também avisa o cliente a cada mudança de status dos pedidos (do site e do What
   atendente escreve em ritmo humano e mostra no painel o "aquecimento" de número novo — divulgue
   o número aos poucos nos primeiros dias.
 
+## Backup do banco
+
+Automático, de hora em hora, feito pelo próprio servidor (não precisa configurar nada no Windows).
+Fica em `C:\LojaGutto\backups`: tudo das últimas 48h e um por dia até 30 dias. Cada backup é
+conferido depois de criado. O painel mostra o último backup (Equipe → Backup do banco, com botão
+"Fazer backup agora") e o Início avisa se ele parar de funcionar.
+
+**Cópia fora do computador (importante):** no `api\.env`, uma linha
+`BACKUP_COPIA=C:\Users\SEU_USUARIO\OneDrive\LojaGutto-backups` (ou uma pasta do Google Drive
+pra computador, ou um HD externo). Recebe um arquivo por dia; guarda 30 dias. Sem isso, se o HD
+do computador der problema, o backup vai junto.
+
+**Restaurar** (⚠ substitui todos os dados atuais pelos do backup — antes, o script guarda o estado
+atual, então dá pra desfazer). PowerShell como Administrador:
+```
+Stop-Service LojaGuttoAPI
+cd C:\LojaGutto\api
+node restaurar.js                       (lista os backups)
+node restaurar.js loja_gutto_AAAA-MM-DD_HH-mm-ss.dump
+Start-Service LojaGuttoAPI
+```
+
 ## Dia a dia
 
 Na pasta `api`:

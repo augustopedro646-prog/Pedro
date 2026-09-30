@@ -7,6 +7,7 @@ const { pool, uid } = require('./db');
 const { verificarPin, gerarToken, hashPin, lerToken } = require('./auth');
 const { gerarCodigoBarras } = require('./codigos');
 const notas = require('./notas');
+const backup = require('./backup');
 const Anthropic = require('@anthropic-ai/sdk');
 const crypto = require('crypto');
 
@@ -1615,6 +1616,16 @@ app.put('/api/lojas/:lojaId/bot/instrucoes', admin, rota(async (req, res) => {
   res.json({ ok: true });
 }));
 
+/* ---------- Backup ---------- */
+
+app.get('/api/lojas/:lojaId/backup', admin, rota(async (req, res) => {
+  res.json({ status: backup.lerStatus(), recentes: backup.listarBackups().slice(0, 10), pasta: backup.PASTA, copia: process.env.BACKUP_COPIA || null });
+}));
+app.post('/api/lojas/:lojaId/backup', admin, rota(async (req, res) => {
+  const status = await backup.fazerBackup('pelo painel (' + req.usuario.nome + ')');
+  res.status(status.ok ? 200 : 500).json(status.ok ? status : { ...status, erro: 'Backup falhou: ' + status.erro });
+}));
+
 /* ---------- Erros ---------- */
 
 app.use((err, req, res, next) => {
@@ -1625,4 +1636,7 @@ app.use((err, req, res, next) => {
 });
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log('API da Loja Gutto rodando na porta ' + PORT));
+app.listen(PORT, () => {
+  console.log('API da Loja Gutto rodando na porta ' + PORT);
+  backup.agendar();
+});
