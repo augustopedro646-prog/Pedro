@@ -33,3 +33,33 @@ npm start
 ```
 e abra **http://localhost:3000** no navegador. Pra parar, feche a janela do Prompt
 (ou Ctrl+C).
+
+## App Loja Gutto.exe (janela própria, sem navegador)
+
+Mesmo modelo do `Jaba PDV.exe`: um `.exe` portátil (feito com Electron, código em
+`desktop/`) que abre o sistema numa janela só dele, maximizada, com o ícone laranja "G".
+Não precisa instalar, é só dar dois cliques. Ele **só abre a tela**: quem guarda os dados
+continua sendo a API (`api/`), que precisa estar rodando.
+
+**Servidor como serviço do Windows** (recomendado, igual ao Jabá): a API roda como o
+serviço `LojaGuttoAPI` (via NSSM), liga sozinha quando o computador liga e reinicia
+sozinha se cair — ninguém precisa abrir Prompt nem `npm start`.
+
+**Gerar o .exe** (no Windows, PowerShell **como Administrador** na primeira vez — o
+electron-builder cria links simbólicos e sem isso falha com "Cannot create symbolic link"):
+```
+cd desktop
+npm install
+npm run build
+```
+O arquivo sai em `desktop\dist\Loja Gutto.exe`. Pra trocar o ícone: edite `gen-icon.js`
+e rode `npm run icone` antes do build.
+
+**Pra onde o .exe aponta**: sem configuração, `http://localhost:3000` (o PC da loja, onde a
+API roda). Pra usar em outro computador, crie um arquivo `servidor.txt` na pasta
+**Documentos** desse computador com uma linha só:
+- `192.168.0.10:3000` — outro PC na mesma rede da loja (IP do PC principal); ou
+- `https://sistema.seudominio.com.br` — pela internet, depois que o domínio estiver ligado.
+
+Se não conseguir conectar, o próprio app mostra onde procurou o `servidor.txt` e o que
+conferir.

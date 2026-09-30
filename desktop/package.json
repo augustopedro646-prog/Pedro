@@ -1,0 +1,36 @@
+{
+  "name": "loja-gutto-desktop",
+  "version": "1.0.0",
+  "private": true,
+  "description": "App desktop (janela própria, sem navegador) da Loja Gutto — abre o painel servido pela API",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "icone": "node gen-icon.js",
+    "build": "electron-builder --win portable"
+  },
+  "devDependencies": {
+    "electron": "^44.5.1",
+    "electron-builder": "^26.15.3"
+  },
+  "build": {
+    "appId": "com.lojagutto.pdv",
+    "productName": "Loja Gutto",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "main.js",
+      "build/icon.ico",
+      "build/icon.png"
+    ],
+    "win": {
+      "target": "portable",
+      "icon": "build/icon.ico"
+    },
+    "portable": {
+      "artifactName": "Loja Gutto.exe"
+    },
+    "publish": null
+  }
+}
