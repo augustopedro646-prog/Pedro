@@ -9,6 +9,7 @@ const { gerarCodigoBarras } = require('./codigos');
 const notas = require('./notas');
 const backup = require('./backup');
 const relatorios = require('./relatorios');
+const fiscal = require('./fiscal');
 const Anthropic = require('@anthropic-ai/sdk');
 const crypto = require('crypto');
 
@@ -219,6 +220,9 @@ app.get('/api/lojas/:lojaId/config', qualquer, rota(async (req, res) => {
   const l = rows[0];
   res.json({ nome: l.nome, cashbackPct: Number(l.cashback_pct), descontoLivrePct: Number(l.desconto_livre_pct), comissaoPct: Number(l.comissao_pct), leituraIA: !!anthropic,
     cupomRodape: l.cupom_rodape || '',
+    fiscal: { cfop: l.fiscal_cfop || '', csosn: l.fiscal_csosn || '', origem: l.fiscal_origem || '0', automatica: !!l.nfce_automatica,
+      ambiente: fiscal.ambiente(), faltandoNoServidor: fiscal.faltandoNoServidor(),
+      pronto: !fiscal.faltandoNoServidor().length && /^\d{4}$/.test(l.fiscal_cfop || '') && /^\d{3}$/.test(l.fiscal_csosn || '') },
     site: { ativo: l.site_ativo, aceitaEntrega: l.aceita_entrega, aceitaRetirada: l.aceita_retirada, taxaEntrega: Number(l.taxa_entrega),
       whatsapp: l.whatsapp || '', endereco: l.endereco || '', mensagem: l.mensagem_site || '' } });
 }));
@@ -233,6 +237,19 @@ app.put('/api/lojas/:lojaId/config', admin, rota(async (req, res) => {
   );
   if (body.comissaoPct != null) {
     await pool.query('UPDATE lojas SET comissao_pct = $1 WHERE id = $2', [numero(body.comissaoPct, 'comissão', { max: 50 }), req.lojaId]);
+  }
+  const fis = body.fiscal;
+  if (fis && typeof fis === 'object') {
+    const cfop = fis.cfop != null ? String(fis.cfop).replace(/\D/g, '') : null;
+    const csosn = fis.csosn != null ? String(fis.csosn).replace(/\D/g, '') : null;
+    if (cfop && !/^5\d{3}$/.test(cfop)) falha(400, 'CFOP de venda no estado tem 4 números e começa com 5 (ex.: 5102)');
+    if (csosn && !['101', '102', '103', '201', '202', '203', '300', '400', '500', '900'].includes(csosn)) falha(400, 'CSOSN inválido (ex.: 102)');
+    if (fis.origem != null && !/^[0-8]$/.test(String(fis.origem))) falha(400, 'Origem da mercadoria inválida (0 a 8)');
+    await pool.query(
+      `UPDATE lojas SET fiscal_cfop = COALESCE($1, fiscal_cfop), fiscal_csosn = COALESCE($2, fiscal_csosn),
+         fiscal_origem = COALESCE($3, fiscal_origem), nfce_automatica = COALESCE($4, nfce_automatica) WHERE id = $5`,
+      [cfop === '' ? null : cfop, csosn === '' ? null : csosn, fis.origem != null ? String(fis.origem) : null,
+        typeof fis.automatica === 'boolean' ? fis.automatica : null, req.lojaId]);
   }
   if (body.cupomRodape != null) {
     await pool.query('UPDATE lojas SET cupom_rodape = $1 WHERE id = $2', [texto(body.cupomRodape, 'rodapé do cupom', { obrigatorio: false, max: 300 }) || '', req.lojaId]);
@@ -826,8 +843,10 @@ app.get('/api/lojas/:lojaId/vendas', qualquer, rota(async (req, res) => {
     `SELECT v.id, v.usuario_id, u.nome AS usuario_nome, v.canal, v.subtotal, v.desconto, v.total, v.forma_pagamento,
             v.cancelada, v.motivo_cancelamento, v.cashback_gerado, v.criado_em, v.cliente_id, c.nome AS cliente_nome, v.pedido_online_id,
             (SELECT COALESCE(SUM(qtd),0) FROM vendas_itens vi WHERE vi.venda_id = v.id) AS qtd_itens,
-            (SELECT count(*) FROM devolucoes d WHERE d.venda_id = v.id)::int AS devolucoes
+            (SELECT count(*) FROM devolucoes d WHERE d.venda_id = v.id)::int AS devolucoes,
+            nf.status AS nfce_status, nf.url_danfe AS nfce_danfe, nf.numero AS nfce_numero
      FROM vendas v JOIN usuarios u ON u.id = v.usuario_id LEFT JOIN clientes c ON c.id = v.cliente_id
+     LEFT JOIN notas_fiscais nf ON nf.venda_id = v.id
      WHERE v.loja_id = $1 ${hoje ? "AND (v.criado_em AT TIME ZONE $2)::date = (now() AT TIME ZONE $2)::date" : ''}
      ORDER BY v.criado_em DESC LIMIT 200`,
     hoje ? [req.lojaId, TZ] : [req.lojaId]
@@ -850,7 +869,8 @@ app.get('/api/lojas/:lojaId/vendas/:id', qualquer, rota(async (req, res) => {
   );
   const { rows: pagamentos } = await pool.query('SELECT forma, valor FROM venda_pagamentos WHERE venda_id = $1', [req.params.id]);
   const { rows: devolucoes } = await pool.query('SELECT id, valor_total, criado_em FROM devolucoes WHERE venda_id = $1 ORDER BY criado_em', [req.params.id]);
-  res.json({ ...rows[0], itens, pagamentos, devolucoes });
+  const { rows: nota } = await pool.query(SQL_NOTA + ' WHERE venda_id = $1', [req.params.id]);
+  res.json({ ...rows[0], itens, pagamentos, devolucoes, nfce: nota[0] || null });
 }));
 
 /* ---------- Cancelar venda (só Administrador) ---------- */
@@ -920,7 +940,55 @@ app.post('/api/lojas/:lojaId/vendas/:id/cancelar', admin, rota(async (req, res) 
       saldosCliente: saldosCli,
     };
   });
+  // NFC-e autorizada: cancela na SEFAZ também (fora da transação — a venda já está cancelada aqui;
+  // se a SEFAZ recusar, p.ex. passou do prazo, o painel avisa pra resolver com a contadora).
+  try {
+    const nota = await fiscal.cancelar(req.lojaId, req.params.id, motivo);
+    if (nota) r.nfce = { cancelada: nota.status === 'cancelada', numero: nota.numero, erro: nota.erroCancelamento || null };
+  } catch (e) {
+    r.nfce = { cancelada: false, erro: 'Sem resposta da Focus NFe (' + e.message + ')' };
+  }
   res.json(r);
+}));
+
+/* ---------- NFC-e (Focus NFe) ---------- */
+
+const SQL_NOTA = `SELECT id, venda_id, status, ambiente, cpf, status_sefaz, mensagem_sefaz, chave_acesso, numero, serie,
+  url_danfe, url_consulta, tentativas, criado_em, atualizado_em FROM notas_fiscais`;
+function notaPublica(n) {
+  if (!n) return null;
+  const { resposta_bruta, status_antes, loja_id, ref, ...resto } = n;
+  return resto;
+}
+
+// Emite (ou reemite, se foi rejeitada) a NFC-e da venda. Corpo: { cpf? }.
+app.post('/api/lojas/:lojaId/vendas/:id/nfce', qualquer, rota(async (req, res) => {
+  const cpf = soDigitos((req.body || {}).cpf);
+  const nota = await fiscal.emitir(req.lojaId, req.params.id, cpf);
+  res.json(notaPublica(nota));
+}));
+
+// Produtos sem NCM, por categoria (pra preencher de uma vez).
+app.get('/api/lojas/:lojaId/fiscal/ncm', admin, rota(async (req, res) => {
+  const { rows } = await pool.query(
+    `SELECT COALESCE(NULLIF(categoria, ''), 'Sem categoria') AS categoria, count(*)::int AS produtos,
+            count(*) FILTER (WHERE ncm IS NULL OR ncm !~ '^[0-9]{8}$')::int AS sem_ncm,
+            (array_agg(ncm ORDER BY ncm) FILTER (WHERE ncm ~ '^[0-9]{8}$'))[1] AS exemplo_ncm
+     FROM produtos WHERE loja_id = $1 AND ativo GROUP BY 1 ORDER BY sem_ncm DESC, 1`, [req.lojaId]);
+  res.json(rows);
+}));
+
+// Aplica um NCM aos produtos de uma categoria (só nos que estão sem, a não ser que `todos`).
+app.put('/api/lojas/:lojaId/fiscal/ncm', admin, rota(async (req, res) => {
+  const body = req.body || {};
+  const ncm = soDigitos(body.ncm);
+  if (!ncm || ncm.length !== 8) falha(400, 'NCM tem 8 números');
+  const categoria = texto(body.categoria, 'categoria', { max: 60 });
+  const { rowCount } = await pool.query(
+    `UPDATE produtos SET ncm = $1 WHERE loja_id = $2 AND ativo AND COALESCE(NULLIF(categoria, ''), 'Sem categoria') = $3
+       AND ($4 OR ncm IS NULL OR ncm !~ '^[0-9]{8}$')`,
+    [ncm, req.lojaId, categoria, body.todos === true]);
+  res.json({ atualizados: rowCount });
 }));
 
 /* ---------- Troca / devolução → vale-troca ---------- */
@@ -1725,6 +1793,7 @@ app.post('/api/lojas/:lojaId/backup', admin, rota(async (req, res) => {
 
 app.use((err, req, res, next) => {
   if (err instanceof ErroApi) return res.status(err.status).json({ erro: err.message, ...(err.extra || {}) });
+  if (err instanceof fiscal.ErroFiscal) return res.status(err.status).json({ erro: err.message, codigo: 'fiscal' });
   if (err.type === 'entity.parse.failed') return res.status(400).json({ erro: 'JSON inválido' });
   console.error(err);
   res.status(500).json({ erro: 'Erro interno — tente de novo' });

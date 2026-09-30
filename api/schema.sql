@@ -452,3 +452,31 @@ ALTER TABLE lojas ADD COLUMN IF NOT EXISTS cupom_rodape TEXT;
 -- Relatórios (Fase 4): meta de vendas do mês por pessoa e % de comissão da loja.
 ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS meta_mensal NUMERIC(12,2) NOT NULL DEFAULT 0;
 ALTER TABLE lojas ADD COLUMN IF NOT EXISTS comissao_pct NUMERIC NOT NULL DEFAULT 0;
+
+-- NFC-e (Fase 5) via Focus NFe. Uma nota por venda; `ref` é a referência na Focus (muda só quando
+-- a SEFAZ rejeita e a nota é reenviada). CFOP/CSOSN da loja: confirmados pela contadora.
+CREATE TABLE IF NOT EXISTS notas_fiscais (
+  id TEXT PRIMARY KEY,
+  loja_id INTEGER NOT NULL REFERENCES lojas(id) ON DELETE CASCADE,
+  venda_id TEXT NOT NULL UNIQUE REFERENCES vendas(id),
+  ref TEXT NOT NULL UNIQUE,
+  ambiente TEXT NOT NULL CHECK (ambiente IN ('homologacao', 'producao')),
+  status TEXT NOT NULL DEFAULT 'pendente' CHECK (status IN ('pendente', 'autorizada', 'rejeitada', 'erro', 'cancelada')),
+  tentativas INTEGER NOT NULL DEFAULT 1,
+  cpf TEXT,
+  status_sefaz TEXT,
+  mensagem_sefaz TEXT,
+  chave_acesso TEXT,
+  numero TEXT,
+  serie TEXT,
+  url_danfe TEXT,
+  url_consulta TEXT,
+  resposta_bruta JSONB,
+  criado_em TIMESTAMPTZ NOT NULL DEFAULT now(),
+  atualizado_em TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS notas_fiscais_loja_idx ON notas_fiscais(loja_id, criado_em);
+ALTER TABLE lojas ADD COLUMN IF NOT EXISTS fiscal_cfop TEXT;
+ALTER TABLE lojas ADD COLUMN IF NOT EXISTS fiscal_csosn TEXT;
+ALTER TABLE lojas ADD COLUMN IF NOT EXISTS fiscal_origem TEXT NOT NULL DEFAULT '0';
+ALTER TABLE lojas ADD COLUMN IF NOT EXISTS nfce_automatica BOOLEAN NOT NULL DEFAULT false;

@@ -156,5 +156,20 @@ Plano fechado — pronto pra começar a Fase 1.
   anterior), vendido por dia, mais vendidos com curva ABC e giro (dias de estoque), vendas por
   pessoa com comissão e meta do mês, formas de pagamento, horários de pico, parados no estoque,
   reposição, e planilha de cada bloco.
-- **Próximas**: Fase 5 (NFC-e), domínio (Cloudflare Tunnel, como o Jabá), Fase 6 (migração
-  do GDOOR).
+- **Fase 5 — NFC-e: código pronto (30/09/2026), falta ligar.**
+  - Emissão via Focus NFe, no mesmo desenho do Jabá. A tela tem:
+    - Emitir no recibo, com CPF opcional ou emissão automática.
+    - Status da nota na lista de vendas.
+    - Reenvio depois de rejeição.
+    - Proteção contra nota duplicada quando a internet cai.
+    - Cancelamento junto com a venda.
+    - NCM por categoria.
+  - Testado contra um servidor que imita a Focus NFe, ainda não com a SEFAZ.
+  - Falta, do lado do Pedro e da contadora:
+    - Certificado A1 e os CSC de homologação e produção.
+    - Empresa cadastrada na Focus e os tokens no `.env`.
+    - CFOP, CSOSN e origem confirmados.
+    - NCM dos produtos.
+    - Notas de teste em homologação antes de passar pra produção.
+- **Próximas**: ligar a NFC-e (acima), domínio (Cloudflare Tunnel, como o Jabá), Fase 6
+  (migração do GDOOR — traz o NCM dos produtos junto).

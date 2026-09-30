@@ -115,6 +115,10 @@
   #conteudo { flex-grow: 1; height: 100vh; overflow-y: auto; }
   .view { display: none; }
   .page { padding: 28px 32px; max-width: 1100px; }
+  .nfce-box { border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; font-size: 13px; display: flex; flex-direction: column; gap: 8px; align-items: center; }
+  .nfce-box.ok { background: var(--ok-bg); border-color: var(--ok-border); color: var(--ok-text); font-weight: 600; }
+  .nfce-box.erro { background: var(--zero-bg); border-color: var(--zero-border); color: var(--zero-text); }
+  .nfce-box .campo input { width: 160px; }
   /* ---------- Relatórios ---------- */
   /* Cor da série e rampa sequencial (azul) — validadas contra o fundo claro e o escuro. */
   :root { --serie: #2a78d6; --heat-1: #cde2fb; --heat-2: #9ec5f4; --heat-3: #6da7ec; --heat-4: #3987e5; --heat-5: #256abf; --heat-6: #184f95; --heat-7: #0d366b; }
@@ -826,8 +830,8 @@
       } else if (view === 'fluxo') {
         state.fluxo = await api('/fluxo?mes=' + state.mesFluxo);
       } else if (view === 'equipe') {
-        const [equipe, bkp] = await Promise.all([api('/equipe'), api('/backup'), carregarConfig()]);
-        state.equipe = equipe; state.backup = bkp;
+        const [equipe, bkp, ncm] = await Promise.all([api('/equipe'), api('/backup'), api('/fiscal/ncm'), carregarConfig()]);
+        state.equipe = equipe; state.backup = bkp; state.fiscalNcm = ncm;
       } else if (view === 'whatsapp') {
         await carregarWhatsApp(true);
       } else if (view === 'online') {
@@ -1508,6 +1512,7 @@
       const r = await api('/vendas', { method: 'POST', body: corpo });
       const troco = pag.troco;
       r.clienteNome = state.cliente ? state.cliente.nome : null;
+      r.clienteCpf = state.cliente ? (state.cliente.cpf || '') : '';
       Object.assign(state, { cart: [], pagamentos: [], cliente: null });
       await Promise.all([carregarProdutos(), carregarCaixa()]);
       render();
@@ -1539,6 +1544,7 @@
         <div style="font-size:13px;color:var(--text-2)">${venda.pagamentos.map(p => esc(p.forma) + ' ' + fmt(p.valor)).join(' + ')}</div>
         ${troco > 0.005 ? `<div class="stat-valor" style="color:var(--ok-text)">Troco: ${fmt(troco)}</div>` : ''}
         ${venda.cashbackGerado ? `<div style="font-size:13px">Cliente ganhou <b>${fmt(venda.cashbackGerado)}</b> de cashback (saldo ${fmt(venda.saldosCliente.cashback)})</div>` : ''}
+        ${fiscalPronto() ? '<div id="nfce-area"></div>' : ''}
         <div style="display:flex;gap:8px"><button class="btn-secundario" id="btn-cupom" style="flex:1">🖨 Imprimir cupom</button><button class="btn-primario btn-grande" id="btn-nova-venda" style="flex:2">Nova venda</button></div>
         <label style="font-size:12px;color:var(--text-2);display:flex;gap:6px;align-items:center;justify-content:center"><input type="checkbox" id="cupom-auto" ${cfg.auto ? 'checked' : ''}> Imprimir cupom automaticamente em toda venda (neste computador)</label>
       </div>`, () => document.getElementById('venda-busca').focus());
@@ -1548,6 +1554,51 @@
     document.getElementById('btn-cupom').onclick = () => imprimirCupom(cupom);
     document.getElementById('cupom-auto').onchange = (e) => salvarConfigCupom(Object.assign(configCupom(), { auto: e.target.checked }));
     if (cfg.auto) imprimirCupom(cupom);
+    if (fiscalPronto()) areaNfce(document.getElementById('nfce-area'), venda.id, venda.clienteCpf, null, state.config.fiscal.automatica);
+  }
+
+  /* ---------- NFC-e (nota fiscal do consumidor, via Focus NFe) ---------- */
+  function fiscalPronto() { return !!(state.config.fiscal && state.config.fiscal.pronto); }
+  function mascaraCpf(c) { const d = String(c || '').replace(/\D/g, ''); return d.length === 11 ? d.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4') : String(c || ''); }
+  function abrirDanfe(url) { if (!window.open(url, '_blank')) toast('O navegador bloqueou a janela da nota: permita pop-ups deste endereço', 'erro'); }
+  // Emite, mostra o resultado (autorizada / motivo da recusa) e imprime. `auto`: já emite ao abrir.
+  function areaNfce(el, vendaId, cpfInicial, nota, auto) {
+    let cpfAtual = cpfInicial || (nota && nota.cpf) || '';
+    const teste = state.config.fiscal && state.config.fiscal.ambiente === 'homologacao';
+    const desenhar = (n, erro) => {
+      if (n && n.status === 'autorizada') {
+        el.innerHTML = `<div class="nfce-box ok" data-nfce-status="autorizada"><div>✓ NFC-e nº ${esc(n.numero)} autorizada${n.cpf ? ' · CPF ' + esc(mascaraCpf(n.cpf)) : ''}${teste ? ' <span class="tag aviso">teste, sem valor fiscal</span>' : ''}</div>
+          ${n.url_danfe ? '<button class="btn-secundario" data-nfce-imprimir>🧾 Imprimir NFC-e</button>' : ''}</div>`;
+        const b = el.querySelector('[data-nfce-imprimir]');
+        if (b) b.onclick = () => abrirDanfe(n.url_danfe);
+        return;
+      }
+      if (n && n.status === 'cancelada') { el.innerHTML = `<div class="nfce-box" data-nfce-status="cancelada">NFC-e nº ${esc(n.numero)} cancelada</div>`; return; }
+      const msg = erro || (n && n.status === 'rejeitada' ? 'A SEFAZ recusou a nota: ' + (n.mensagem_sefaz || 'sem motivo') : (n && n.mensagem_sefaz) || '');
+      el.innerHTML = `<div class="nfce-box ${msg ? 'erro' : ''}" data-nfce-status="${msg ? 'erro' : 'nova'}">
+        ${msg ? `<div style="font-weight:600">⚠ ${esc(msg)}</div>` : ''}
+        <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;justify-content:center">
+          <label class="campo" style="text-align:left">CPF na nota (opcional)<input data-nfce-cpf inputmode="numeric" maxlength="14" value="${esc(mascaraCpf(cpfAtual))}" placeholder="000.000.000-00"></label>
+          <button class="btn-primario" data-nfce-emitir>${msg ? 'Tentar de novo' : 'Emitir NFC-e'}</button></div></div>`;
+      el.querySelector('[data-nfce-emitir]').onclick = (ev) => emitir(ev.target);
+    };
+    const emitir = async (botao) => {
+      const campo = el.querySelector('[data-nfce-cpf]');
+      if (campo) cpfAtual = campo.value;
+      if (botao) { botao.disabled = true; botao.textContent = 'Emitindo...'; }
+      else el.innerHTML = '<div class="nfce-box">Emitindo NFC-e...</div>';
+      try { desenhar(await api('/vendas/' + vendaId + '/nfce', { method: 'POST', body: { cpf: cpfAtual } })); }
+      catch (e) { desenhar(null, e.message); }
+    };
+    if (auto) emitir(null); else desenhar(nota);
+  }
+  async function abrirNfceDaVenda(vendaId, todas) {
+    let v;
+    try { v = await api('/vendas/' + vendaId); } catch (e) { toast(e.message, 'erro'); return; }
+    const camada = abrirModal(`<div class="modal-card estreito" style="text-align:center">${cabecalhoModal('Nota fiscal (NFC-e)', dataHora(v.criado_em) + ' · ' + fmt(v.total) + (v.cliente_nome ? ' · ' + v.cliente_nome : ''))}
+      <div id="nfce-venda"></div><button class="btn-secundario" id="nfce-voltar">Voltar pra lista</button></div>`);
+    areaNfce(camada.querySelector('#nfce-venda'), v.id, '', v.nfce, false);
+    camada.querySelector('#nfce-voltar').onclick = () => abrirTroca(todas);
   }
 
   /* ---------- Cupom (não fiscal) na impressora térmica ---------- */
@@ -1632,10 +1683,11 @@
           <td style="text-align:right">${v.cancelada ? '<s>' + fmt(v.total) + '</s>' : fmt(v.total)}</td>
           <td style="white-space:nowrap">${v.cancelada ? `<span class="tag cinza" title="${esc(v.motivo_cancelamento || '')}">cancelada</span>`
             : `<button class="btn-secundario" data-venda="${v.id}">Troca</button>${ehAdmin() && !v.devolucoes ? ` <button class="link-btn" style="color:var(--zero-text)" data-cancelar="${v.id}">cancelar</button>` : ''}`}
-            <button class="link-btn" data-cupom="${v.id}" title="Reimprimir cupom">cupom</button></td></tr>`).join('')}</table></div>`
+            <button class="link-btn" data-cupom="${v.id}" title="Reimprimir cupom">cupom</button>${!v.cancelada && (fiscalPronto() || v.nfce_status) ? ` <button class="link-btn" data-nfce="${v.id}">${v.nfce_status === 'autorizada' ? 'NFC-e ' + esc(v.nfce_numero) : v.nfce_status === 'rejeitada' || v.nfce_status === 'erro' ? '⚠ NFC-e' : 'emitir NFC-e'}</button>` : ''}</td></tr>`).join('')}</table></div>`
         : '<div class="vazio">Nenhuma venda ' + (todas ? 'registrada ainda.' : 'hoje.') + '</div>';
       corpo.querySelectorAll('[data-venda]').forEach(b => b.addEventListener('click', () => abrirTrocaDaVenda(b.dataset.venda)));
       corpo.querySelectorAll('[data-cancelar]').forEach(b => b.addEventListener('click', () => abrirCancelarVenda(vendas.find(v => v.id === b.dataset.cancelar), todas)));
+      corpo.querySelectorAll('[data-nfce]').forEach(b => b.addEventListener('click', () => abrirNfceDaVenda(b.dataset.nfce, todas)));
       corpo.querySelectorAll('[data-cupom]').forEach(b => b.addEventListener('click', async () => {
         try { imprimirCupom(cupomDaVendaSalva(await api('/vendas/' + b.dataset.cupom))); } catch (e) { toast(e.message, 'erro'); }
       }));
@@ -1663,6 +1715,8 @@
         ${r.dinheiroDevolvido ? `<div class="stat-valor" style="color:var(--zero-text)">Devolver ${fmt(r.dinheiroDevolvido)} em dinheiro</div><div class="modal-dica" style="margin:0">${r.doCaixaAberto ? 'Já saiu da conta do caixa de hoje.' : 'Registrado como saída no caixa de hoje.'}</div>` : ''}
         ${r.estornarFora.length ? `<div style="font-size:13px"><b>Estornar fora do sistema:</b> ${r.estornarFora.map(x => esc(x.forma) + ' ' + fmt(x.valor)).join(' + ')}</div>` : ''}
         ${r.saldosCliente ? `<div class="modal-dica" style="margin:0">Cliente agora tem cashback ${fmt(r.saldosCliente.cashback)} e vale-troca ${fmt(r.saldosCliente.vale_troca)}.</div>` : ''}
+        ${r.nfce ? (r.nfce.cancelada ? `<div class="nfce-box ok">NFC-e nº ${esc(r.nfce.numero)} cancelada na SEFAZ.</div>`
+          : `<div class="nfce-box erro"><div><b>A NFC-e não foi cancelada:</b> ${esc(r.nfce.erro || '')}</div><div style="font-size:12px">A venda foi cancelada no sistema. Passe essa nota pra contadora resolver (depois do prazo, a correção é feita por nota de devolução).</div></div>`) : ''}
         <button class="btn-primario" id="cv-fim">Ok</button></div>`);
       document.getElementById('cv-fim').onclick = () => abrirTroca(todas);
     }, camada.querySelector('#cv-erro'));
@@ -2978,6 +3032,8 @@
         <label class="campo" style="flex:3">Rodapé do cupom (ex.: política de troca)<input id="cfg-cupom-rodape" maxlength="300" value="${esc(cfg.cupomRodape || '')}" placeholder="Trocas em até 30 dias com a etiqueta e o cupom."></label>
         <label class="campo">Papel (neste computador)<select id="cfg-cupom-largura"><option value="80" ${configCupom().largura == 80 ? 'selected' : ''}>80 mm</option><option value="58" ${configCupom().largura == 58 ? 'selected' : ''}>58 mm</option></select></label>
       </div>
+      <div class="painel-titulo" style="margin:18px 0 8px;font-size:14px">Nota fiscal (NFC-e)</div>
+      ${htmlConfigFiscal(cfg.fiscal)}
       <div class="painel-titulo" style="margin:18px 0 8px;font-size:14px">Site da loja (pedidos online)</div>
       <div style="display:flex;gap:16px;flex-wrap:wrap;font-size:13px;margin-bottom:10px">
         <label style="display:flex;gap:6px;align-items:center"><input type="checkbox" id="cfg-site-ativo" ${cfg.site && cfg.site.ativo ? 'checked' : ''}> Site recebendo pedidos</label>
@@ -3005,12 +3061,52 @@
       const taxa = parseNumBR(document.getElementById('cfg-site-taxa').value || '0');
       if (!Number.isFinite(taxa) || taxa < 0) throw new Error('Taxa de entrega inválida');
       salvarConfigCupom(Object.assign(configCupom(), { largura: Number(document.getElementById('cfg-cupom-largura').value) }));
-      await api('/config', { method: 'PUT', body: { cashbackPct, descontoLivrePct, comissaoPct, cupomRodape: document.getElementById('cfg-cupom-rodape').value, site: {
+      const fiscalCorpo = document.getElementById('cfg-cfop') ? { cfop: document.getElementById('cfg-cfop').value, csosn: document.getElementById('cfg-csosn').value,
+        origem: document.getElementById('cfg-origem').value, automatica: document.getElementById('cfg-nfce-auto').checked } : undefined;
+      await api('/config', { method: 'PUT', body: { cashbackPct, descontoLivrePct, comissaoPct, fiscal: fiscalCorpo, cupomRodape: document.getElementById('cfg-cupom-rodape').value, site: {
         ativo: document.getElementById('cfg-site-ativo').checked, aceitaRetirada: document.getElementById('cfg-site-retirada').checked,
         aceitaEntrega: document.getElementById('cfg-site-entrega').checked, taxaEntrega: taxa, whatsapp: document.getElementById('cfg-site-whats').value,
         endereco: document.getElementById('cfg-site-endereco').value, mensagem: document.getElementById('cfg-site-msg').value } } });
       await carregarConfig(); toast('Configurações salvas');
+      renderEquipe();
     }, document.getElementById('cfg-erro'));
+    ligarNcmCategorias();
+  }
+
+  const ORIGENS = [['0', '0 — Nacional'], ['1', '1 — Estrangeira, importação direta'], ['2', '2 — Estrangeira, comprada no Brasil'], ['3', '3 — Nacional, mais de 40% importado'],
+    ['4', '4 — Nacional, processo produtivo básico'], ['5', '5 — Nacional, até 40% importado'], ['6', '6 — Estrangeira direta, sem similar'], ['7', '7 — Estrangeira no Brasil, sem similar'], ['8', '8 — Nacional, mais de 70% importado']];
+  function htmlConfigFiscal(f) {
+    if (!f) return '';
+    const falta = f.faltandoNoServidor || [];
+    const status = falta.length
+      ? `<div class="aviso-caixa" style="margin:0 0 10px">⚠ Falta ligar o servidor à Focus NFe: ${falta.map(x => '<span class="mono">' + esc(x) + '</span>').join(', ')} no <span class="mono">api\\.env</span> (ver README).</div>`
+      : `<div class="modal-dica" style="margin:0 0 10px">Ligado à Focus NFe — ambiente: <b>${f.ambiente === 'producao' ? 'Produção (vale de verdade)' : 'Homologação (teste, sem valor fiscal)'}</b>.${f.pronto ? '' : ' Falta preencher CFOP e CSOSN.'}</div>`;
+    const ncm = state.fiscalNcm || [];
+    const sem = ncm.filter(c => c.sem_ncm > 0);
+    return status + `
+      <div class="linha-campos" style="max-width:720px;align-items:flex-end">
+        <label class="campo">CFOP<input id="cfg-cfop" inputmode="numeric" maxlength="4" value="${esc(f.cfop)}" placeholder="Ex.: 5102"></label>
+        <label class="campo">CSOSN (Simples Nacional)<input id="cfg-csosn" inputmode="numeric" maxlength="3" value="${esc(f.csosn)}" placeholder="Ex.: 102"></label>
+        <label class="campo" style="flex:2">Origem da mercadoria<select id="cfg-origem">${ORIGENS.map(([v, r]) => `<option value="${v}" ${f.origem === v ? 'selected' : ''}>${r}</option>`).join('')}</select></label>
+      </div>
+      <div class="modal-dica" style="margin:6px 0 0">Confirme CFOP, CSOSN e origem com a contadora antes de emitir (numa loja de roupa do Simples costuma ser 5102 e 102).</div>
+      <label style="display:flex;gap:6px;align-items:center;font-size:13px;margin-top:10px"><input type="checkbox" id="cfg-nfce-auto" ${f.automatica ? 'checked' : ''} ${f.pronto ? '' : 'disabled'}> Emitir a NFC-e automaticamente em toda venda (sem isso, fica o botão "Emitir NFC-e" depois da venda)</label>
+      <div style="margin-top:12px;font-size:13px;font-weight:600">NCM dos produtos</div>
+      ${sem.length ? `<div class="modal-dica" style="margin:2px 0 6px">Todo produto precisa do NCM (8 números) pra sair na nota. Dá pra preencher por categoria aqui, ou um por um no Estoque. Na entrada de nota por XML, o NCM do fornecedor já vem sozinho.</div>
+        ${sem.map(c => `<div class="linha-simples" style="gap:8px;flex-wrap:wrap"><span style="flex:1;min-width:140px;font-size:13px">${esc(c.categoria)} <span style="color:var(--text-2);font-size:12px">${c.sem_ncm} de ${c.produtos} sem NCM</span></span>
+          <input data-ncm-cat="${esc(c.categoria)}" inputmode="numeric" maxlength="10" style="width:120px;padding:7px 9px;border-radius:8px;border:1px solid var(--border)" placeholder="${c.exemplo_ncm ? esc(c.exemplo_ncm) : '8 números'}" value="${c.exemplo_ncm ? esc(c.exemplo_ncm) : ''}">
+          <button class="btn-secundario" data-ncm-aplicar="${esc(c.categoria)}">Aplicar nos sem NCM</button></div>`).join('')}`
+        : `<div class="modal-dica" style="margin:2px 0 0">${ncm.length ? '✓ Todos os produtos têm NCM.' : ''}</div>`}`;
+  }
+  function ligarNcmCategorias() {
+    document.querySelectorAll('[data-ncm-aplicar]').forEach(b => b.onclick = (ev) => comBotao(ev.target, 'Aplicando...', async () => {
+      const cat = b.dataset.ncmAplicar;
+      const input = Array.from(document.querySelectorAll('[data-ncm-cat]')).find(i => i.dataset.ncmCat === cat);
+      const r = await api('/fiscal/ncm', { method: 'PUT', body: { categoria: cat, ncm: input.value } });
+      state.fiscalNcm = await api('/fiscal/ncm');
+      toast('NCM aplicado em ' + r.atualizados + ' produto' + (r.atualizados === 1 ? '' : 's'));
+      renderEquipe();
+    }));
   }
 
   /* ---------- Backup ---------- */

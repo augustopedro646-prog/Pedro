@@ -87,6 +87,54 @@ imprimir sem a janela, dá pra pôr `--kiosk-printing` no atalho do Edge — aí
 impressora padrão do Windows, inclusive as etiquetas; só vale a pena se as etiquetas forem
 impressas em outro computador.
 
+## Nota fiscal do consumidor (NFC-e)
+
+Emitida pela **Focus NFe** (o mesmo serviço do Jabá), que conversa com a SEFAZ. O cupom da venda
+continua sendo "não fiscal"; a NFC-e é a nota de verdade.
+
+**Antes de ligar (uma vez só):**
+1. **Certificado digital e-CNPJ A1** da Loja Gutto (arquivo `.pfx` + senha). Quem providencia é a
+   contadora ou uma certificadora.
+2. **CSC da NFC-e** no site da SEFAZ-RN. São dois: um pra homologação e outro pra produção, e são
+   diferentes. A contadora gera os dois.
+3. No **painel da Focus NFe** (dá pra usar a mesma conta do Jabá): cadastrar a empresa da Gutto com
+   CNPJ, Inscrição Estadual, regime Simples Nacional, certificado e os dois CSC. Copie os **tokens
+   da empresa** (homologação e produção).
+4. No `api\.env`, acrescente:
+   ```
+   FOCUS_NFE_AMBIENTE=homologacao
+   FOCUS_NFE_CNPJ_EMITENTE=cnpj da Gutto, só números
+   FOCUS_NFE_TOKEN_HOMOLOGACAO=token de homologação da empresa
+   FOCUS_NFE_TOKEN_PRODUCAO=token de produção da empresa
+   ```
+   Depois reinicie o serviço: `Restart-Service LojaGuttoAPI`.
+5. Em **Equipe → Configurações da loja → Nota fiscal**:
+   - Preencha **CFOP**, **CSOSN** e **origem**. Confirme esses três com a contadora; numa loja de
+     roupa do Simples costuma ser 5102 / 102 / 0.
+   - Preencha o **NCM** dos produtos. Dá pra fazer por categoria ali mesmo, ou um por um no
+     Estoque. Nas compras lançadas pelo XML, o NCM já vem do fornecedor.
+
+**Testar** (homologação, sem valor fiscal): faça uma venda e clique em **Emitir NFC-e**. A nota sai
+marcada "teste". Só depois de algumas notas autorizadas em teste troque para
+`FOCUS_NFE_AMBIENTE=producao` e reinicie. No Jabá, o primeiro teste parou em "CNPJ emitente não
+cadastrado", porque a SEFAZ exige credenciamento separado para homologação. Se aparecer isso, é
+com a contadora.
+
+**No dia a dia:**
+- Depois da venda aparece **Emitir NFC-e**, com o **CPF na nota** opcional. Se a cliente está
+  identificada e tem CPF no cadastro, ele já vem preenchido.
+- Pra emitir sozinho em toda venda, marque **Emitir automaticamente**.
+- **Imprimir NFC-e** abre a nota pronta pra impressora térmica.
+- Se a SEFAZ recusar, aparece o motivo (ex.: NCM errado): corrija e clique em **Tentar de novo**.
+  Se a internet cair no meio, clique de novo; o sistema confere antes de reenviar, então nunca sai
+  nota duplicada.
+- Em **Vendas / troca**, cada venda mostra a nota (ou "emitir NFC-e", pra emitir depois).
+- **Cancelar a venda** cancela a NFC-e também. A SEFAZ só aceita cancelamento logo depois da
+  emissão (30 minutos na maioria dos estados). Depois disso o painel avisa e a correção é com a
+  contadora (nota de devolução).
+- Troca/devolução não mexe na NFC-e original. O vale-troca é controle interno da loja; se a
+  contadora pedir nota de devolução pra isso, é à parte.
+
 ## Relatórios (só Administrador)
 
 Tudo sai das vendas reais. Um filtro de período no topo (Hoje, 7 dias, 30 dias, Este mês, Mês
