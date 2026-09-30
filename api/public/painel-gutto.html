@@ -119,6 +119,8 @@
   .page-topo h1 { margin: 0; }
   .page-topo .sub { margin: 2px 0 0; }
 
+  .metricas-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+  @media (max-width: 1000px) { .metricas-4 { grid-template-columns: repeat(2, 1fr); } }
   .stats-row { display: flex; gap: 14px; margin-bottom: 8px; flex-wrap: wrap; }
   .stat-card { flex: 1; min-width: 150px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 14px; }
   .stat-label { font-size: 11px; color: var(--text-2); }
@@ -318,20 +320,21 @@
   <main id="conteudo">
     <div class="view page" id="view-inicio">
       <h1 class="titulo">Início</h1>
-      <p class="sub">Resumo de hoje</p>
-      <div class="stats-row" id="inicio-stats"></div>
+      <p class="sub" id="inicio-ola">Resumo de hoje</p>
+      <div class="painel" id="livro-caixa"></div>
+      <div class="stats-row" id="inicio-stats" style="margin-top:20px"></div>
       <div class="paineis-duas-colunas">
-        <div class="painel"><div class="painel-titulo">Caixa</div><div id="inicio-caixa"></div></div>
         <div class="painel"><div class="painel-titulo">Estoque baixo</div><div id="inicio-estoque-baixo"></div></div>
         <div class="painel"><div class="painel-titulo">Ponto hoje</div><div id="inicio-ponto"></div></div>
       </div>
+      <div id="caixa-historico"></div>
     </div>
 
     <div class="view" id="view-venda">
       <div class="col-produtos">
         <h1 class="titulo">Venda rápida</h1>
         <div class="venda-topo">
-          <input id="venda-busca" type="text" autocomplete="off" placeholder="Leia o código de barras ou digite o nome da peça">
+          <input id="venda-busca" data-leitor type="text" autocomplete="off" placeholder="Leia o código de barras ou digite o nome da peça">
           <button class="btn-secundario" id="btn-troca">Troca / devolução</button>
         </div>
         <div id="venda-aviso-caixa"></div>
@@ -350,11 +353,6 @@
       </div>
     </div>
 
-    <div class="view page" id="view-caixa">
-      <div class="page-topo"><div><h1 class="titulo">Caixa</h1><p class="sub">Abertura, suprimento, sangria e fechamento do turno</p></div></div>
-      <div id="caixa-conteudo"></div>
-    </div>
-
     <div class="view page" id="view-clientes">
       <div class="page-topo">
         <div><h1 class="titulo">Clientes</h1><p class="sub">Cadastro, cashback e vale-troca</p></div>
@@ -371,7 +369,7 @@
             <h2 class="titulo">Produtos</h2>
             <button class="btn-primario" id="btn-novo-produto">+ Novo produto</button>
           </div>
-          <input id="busca" class="input-busca" type="text" placeholder="Buscar produto ou código de barras...">
+          <input id="busca" data-leitor class="input-busca" type="text" placeholder="Buscar produto ou código de barras...">
           <div class="chips" id="categorias-chips"></div>
         </div>
         <div class="lista-scroll" id="produtos-lista"></div>
@@ -465,11 +463,10 @@
   };
   function svgIcon(name, size) { size = size || 20; return '<svg width="' + size + '" height="' + size + '" viewBox="0 0 24 24">' + ICONS[name] + '</svg>'; }
 
-  // papeis: quem vê a aba. Caixa vende, cuida do caixa, clientes, consulta estoque e bate ponto.
+  // papeis: quem vê a aba. Caixa vende, cuida do caixa (no Início), clientes, consulta estoque e bate ponto.
   const NAV = [
     { id: 'inicio', label: 'Início', icon: 'home', papeis: ['administrador', 'caixa'] },
     { id: 'venda', label: 'Venda rápida', icon: 'cart', papeis: ['administrador', 'caixa'] },
-    { id: 'caixa', label: 'Caixa', icon: 'register', papeis: ['administrador', 'caixa'] },
     { id: 'clientes', label: 'Clientes', icon: 'person', papeis: ['administrador', 'caixa'] },
     { id: 'estoque', label: 'Estoque', icon: 'box', papeis: ['administrador', 'caixa'] },
     { id: 'compras', label: 'Compras', icon: 'truck', papeis: ['administrador'] },
@@ -646,13 +643,10 @@
   async function carregarDadosDaView(view) {
     try {
       if (view === 'inicio') {
-        const [vendas, pontos] = await Promise.all([api('/vendas?periodo=hoje'), api('/pontos'), carregarCaixa(), carregarProdutos()]);
-        state.vendasHoje = vendas; state.pontos = pontos;
+        const [vendas, pontos, sessoes] = await Promise.all([api('/vendas?periodo=hoje'), api('/pontos'), ehAdmin() ? api('/caixa/sessoes') : null, carregarCaixa(), carregarProdutos()]);
+        state.vendasHoje = vendas; state.pontos = pontos; state.caixaSessoes = sessoes;
       } else if (view === 'venda') {
         await Promise.all([carregarProdutos(), carregarCaixa(), carregarConfig()]);
-      } else if (view === 'caixa') {
-        await carregarCaixa();
-        if (ehAdmin()) state.caixaSessoes = await api('/caixa/sessoes');
       } else if (view === 'clientes') {
         state.clientes = await api('/clientes?busca=' + encodeURIComponent(state.clientesBusca));
       } else if (view === 'estoque') {
@@ -739,7 +733,7 @@
     });
     if (state.view !== 'ponto') desligarCameraPonto();
 
-    const renders = { inicio: renderInicio, venda: renderVenda, caixa: renderCaixa, clientes: renderClientes, estoque: renderEstoque,
+    const renders = { inicio: renderInicio, venda: renderVenda, clientes: renderClientes, estoque: renderEstoque,
       compras: renderCompras, fluxo: renderFluxo, equipe: renderEquipe, ponto: renderPonto, relatorios: renderRelatorios };
     (renders[state.view] || renderInicio)();
   }
@@ -935,14 +929,8 @@
       <div class="stat-card"><div class="stat-label">Ticket médio</div><div class="stat-valor">${fmt(ticket)}</div></div>
       <div class="stat-card"><div class="stat-label">Peças vendidas</div><div class="stat-valor">${pecas}</div></div>`;
 
-    const cx = state.caixa;
-    document.getElementById('inicio-caixa').innerHTML = !cx ? '<div class="carregando">...</div>' : cx.sessao ? `
-      <div style="font-size:13px"><span class="tag ok">Aberto</span> por ${esc(cx.sessao.aberto_por_nome)} às ${hora(cx.sessao.aberto_em)}</div>
-      <div style="font-size:13px;margin-top:8px;color:var(--text-2)">${cx.resumo.vendas} venda(s) · ${fmt(cx.resumo.totalVendas)}</div>
-      <div style="font-size:13px;margin-top:4px;color:var(--text-2)">Dinheiro na gaveta (esperado): <b style="color:var(--text)">${fmt(cx.resumo.dinheiroEsperado)}</b></div>
-      <button class="btn-secundario" style="margin-top:10px" onclick="irPara('caixa')">Ver caixa</button>` : `
-      <div style="font-size:13px"><span class="tag aviso">Fechado</span> — abra o caixa pra começar a vender.</div>
-      <button class="btn-primario" style="margin-top:10px" onclick="irPara('caixa')">Abrir caixa</button>`;
+    document.getElementById('inicio-ola').textContent = 'Olá, ' + state.logado.nome.split(' ')[0] + ' — resumo de hoje';
+    renderLivroCaixa();
 
     const todas = state.produtos.flatMap(p => p.variacoes.filter(v => v.ativo).map(v => Object.assign({}, v, { produtoNome: p.nome })));
     const zero = todas.filter(v => v.estoque <= 0);
@@ -997,7 +985,7 @@
   function renderVenda() {
     const cx = state.caixa;
     document.getElementById('venda-aviso-caixa').innerHTML = cx && !cx.sessao ? `
-      <div class="aviso-caixa"><span>Caixa fechado — abra o caixa pra poder confirmar vendas.</span><button class="btn-primario" onclick="irPara('caixa')">Abrir caixa</button></div>` : '';
+      <div class="aviso-caixa"><span>Caixa fechado — abra o caixa pra poder confirmar vendas.</span><button class="btn-primario" onclick="irPara('inicio')">Abrir caixa</button></div>` : '';
 
     const grid = document.getElementById('produtos-grid');
     const visiveis = produtosVisiveisVenda();
@@ -1048,26 +1036,130 @@
     toast(produto.nome + ' ' + v.tamanho + (v.cor ? ' ' + v.cor : '') + ' no carrinho');
   }
 
-  // Leitor de código de barras = teclado que digita rápido e aperta Enter.
+  // Leitor de código de barras (bipador) = teclado que digita o código muito rápido e aperta Enter.
   function onBuscaVendaEnter() {
     const termo = state.vendaBusca.trim();
     if (!termo) return;
     const digitos = termo.replace(/\D/g, '');
-    if (digitos && digitos === termo) {
-      for (const p of state.produtos) {
-        const v = p.variacoes.find(x => x.ativo && x.codigoBarras === digitos);
-        if (v) { adicionarAoCarrinho(v.id); limparBuscaVenda(); return; }
-      }
-      toast('Código ' + termo + ' não encontrado', 'erro');
-      limparBuscaVenda();
-      return;
-    }
+    if (digitos && digitos === termo) { limparBuscaVenda(); processarCodigoVenda(digitos); return; }
     const visiveis = produtosVisiveisVenda();
     if (visiveis.length === 1) abrirGradeVenda(visiveis[0].id);
   }
   function limparBuscaVenda() {
     const input = document.getElementById('venda-busca');
     input.value = ''; state.vendaBusca = ''; renderVenda(); input.focus();
+  }
+
+  /* ---------- Bipador ---------- */
+  // Zeros à esquerda não contam: EAN-13 "0789..." e UPC "789..." são a mesma etiqueta.
+  function normalizarCodigo(c) { return String(c || '').replace(/\D/g, '').replace(/^0+/, ''); }
+  function acharPorCodigo(codigo, inclusiveInativas) {
+    const alvo = normalizarCodigo(codigo);
+    if (!alvo) return null;
+    for (const p of state.produtos) {
+      const v = p.variacoes.find(x => (inclusiveInativas || x.ativo) && x.codigoBarras && normalizarCodigo(x.codigoBarras) === alvo);
+      if (v) return { produto: p, variacao: v };
+    }
+    return null;
+  }
+
+  async function processarCodigoVenda(codigo) {
+    let achado = acharPorCodigo(codigo);
+    // Pode ter sido cadastrado agora em outro computador: recarrega uma vez antes de dizer que não existe.
+    if (!achado) { try { await carregarProdutos(); } catch (e) {} achado = acharPorCodigo(codigo); }
+    if (achado) { adicionarAoCarrinho(achado.variacao.id); return; }
+    const inativa = acharPorCodigo(codigo, true);
+    if (inativa) { toast(inativa.produto.nome + ' ' + inativa.variacao.tamanho + ' ' + inativa.variacao.cor + ' está desativada no estoque', 'erro'); return; }
+    codigoDesconhecido(codigo, () => processarCodigoVenda(codigo));
+  }
+
+  // Etiqueta que o sistema não conhece (geralmente o código do fabricante): o Administrador vincula
+  // na hora a uma peça cadastrada, e dali pra frente ela passa a bipar direto.
+  function codigoDesconhecido(codigo, depois) {
+    if (!ehAdmin()) {
+      abrirModal(`<div class="modal-card estreito" style="text-align:center">${cabecalhoModal('Código não cadastrado', '')}
+        <div class="mono" style="font-size:16px">${esc(codigo)}</div>
+        <div class="modal-dica">Essa etiqueta ainda não está ligada a nenhuma peça. Chame um Administrador pra vincular, ou ache a peça tocando no produto.</div>
+        <button class="btn-primario" data-fechar>Ok</button></div>`, focarBuscaVenda);
+      return;
+    }
+    const produtos = state.produtos.filter(p => p.variacoes.length);
+    const camada = abrirModal(`<div class="modal-card">${cabecalhoModal('Código não cadastrado', 'Escolha a peça dessa etiqueta — ela passa a bipar direto')}
+      <div class="mono" style="font-size:16px;text-align:center">${esc(codigo)}</div>
+      <input id="vc-busca" class="input-busca" type="text" placeholder="Buscar produto pelo nome" autocomplete="off">
+      <div id="vc-lista" style="max-height:220px;overflow-y:auto"></div>
+      <div id="vc-grade"></div>
+      <div class="erro-modal" id="vc-erro"></div></div>`, focarBuscaVenda);
+    const lista = camada.querySelector('#vc-lista');
+    const desenharLista = () => {
+      const termo = camada.querySelector('#vc-busca').value.trim().toLowerCase();
+      const vis = produtos.filter(p => !termo || p.nome.toLowerCase().includes(termo)).slice(0, 30);
+      lista.innerHTML = vis.length ? vis.map(p => `<button class="linha-clicavel" data-vc-prod="${p.id}"><div class="produto-row-avatar" style="background:${p.swatch};width:28px;height:28px;font-size:12px">${esc(p.nome.charAt(0))}</div><div style="flex-grow:1">${esc(p.nome)}</div><span style="font-size:11px;color:var(--text-2)">${esc(p.categoria)}</span></button>`).join('')
+        : '<div class="vazio">Nenhum produto com esse nome. Cadastre em Estoque → "+ Novo produto" e bipe de novo.</div>';
+      lista.querySelectorAll('[data-vc-prod]').forEach(b => b.onclick = () => escolherProduto(b.dataset.vcProd));
+    };
+    const escolherProduto = (id) => {
+      const p = produtos.find(x => x.id === id);
+      lista.innerHTML = `<div class="linha-simples"><b style="flex-grow:1">${esc(p.nome)}</b><button class="link-btn" id="vc-voltar">trocar produto</button></div>`;
+      camada.querySelector('#vc-voltar').onclick = () => { camada.querySelector('#vc-grade').innerHTML = ''; desenharLista(); };
+      camada.querySelector('#vc-grade').innerHTML = `<div class="modal-dica">Toque no tamanho/cor dessa etiqueta:</div><div style="overflow-x:auto;margin-top:8px">${gradeHtml(p, { grande: true })}</div>`;
+      camada.querySelectorAll('#vc-grade button[data-variacao]').forEach(b => b.onclick = async () => {
+        const v = p.variacoes.find(x => x.id === b.dataset.variacao);
+        if (v.codigoBarras && !confirm('Essa peça já tem o código ' + v.codigoBarras + '. Trocar pelo ' + codigo + '? (etiquetas com o código antigo param de bipar)')) return;
+        try {
+          await api('/variacoes/' + v.id, { method: 'PUT', body: { codigoBarras: codigo } });
+          fecharModal(); await carregarProdutos();
+          toast('Código vinculado a ' + p.nome + ' ' + v.tamanho + ' ' + v.cor);
+          if (depois) depois(); else render();
+        } catch (e) { mostrarErro(camada.querySelector('#vc-erro'), e.message); }
+      });
+    };
+    camada.querySelector('#vc-busca').addEventListener('input', desenharLista);
+    desenharLista();
+    camada.querySelector('#vc-busca').focus();
+  }
+  function focarBuscaVenda() { if (state.view === 'venda') document.getElementById('venda-busca').focus(); }
+
+  // Bipou sem estar num campo de digitação (ou num campo que não é pra código): o leitor manda
+  // cada dígito com poucos milissegundos de intervalo — gente digitando nunca é tão rápida.
+  const leitor = { buffer: '', inicio: 0, ultimo: 0, alvo: null, valorAntes: null };
+  function ehCampoTexto(el) { return el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') && !['checkbox', 'radio', 'button', 'submit'].includes(el.type); }
+  function onTeclaLeitor(e) {
+    if (!state.logado || e.ctrlKey || e.altKey || e.metaKey) return;
+    const agora = performance.now();
+    if (/^\d$/.test(e.key)) {
+      if (agora - leitor.ultimo > 80) {
+        leitor.buffer = ''; leitor.inicio = agora; leitor.alvo = e.target;
+        leitor.valorAntes = ehCampoTexto(e.target) ? e.target.value : null;
+      }
+      leitor.buffer += e.key; leitor.ultimo = agora;
+      return;
+    }
+    if (e.key !== 'Enter' && e.key !== 'Tab') { leitor.buffer = ''; return; }
+    const codigo = leitor.buffer;
+    leitor.buffer = '';
+    const rapido = codigo.length >= 6 && agora - leitor.ultimo < 80 && (leitor.ultimo - leitor.inicio) / (codigo.length - 1) < 40;
+    if (!rapido) return;
+    // Campos feitos pra receber código (busca da venda, busca do estoque, código na edição) tratam sozinhos.
+    if (e.target && e.target.hasAttribute && e.target.hasAttribute('data-leitor')) return;
+    e.preventDefault(); e.stopPropagation();
+    if (leitor.valorAntes !== null && e.target === leitor.alvo) e.target.value = leitor.valorAntes;
+    codigoLido(codigo);
+  }
+  function codigoLido(codigo) {
+    if (document.getElementById('modal-topo').style.display === 'flex' || document.getElementById('modal').style.display === 'flex') {
+      toast('Feche a janela aberta pra bipar a peça', 'erro'); return;
+    }
+    if (state.view === 'estoque') { buscarNoEstoque(codigo); return; }
+    if (state.view !== 'venda') irPara('venda');
+    processarCodigoVenda(codigo);
+  }
+  function buscarNoEstoque(codigo) {
+    const achado = acharPorCodigo(codigo, true);
+    if (!achado) { toast('Código ' + codigo + ' não está em nenhuma peça', 'erro'); return; }
+    document.getElementById('busca').value = '';
+    setState({ busca: '', filtroCategoria: null, estoqueSelecionadoId: achado.produto.id });
+    toast(achado.produto.nome + ' · Tam ' + achado.variacao.tamanho + ' · ' + achado.variacao.cor + ' — ' + achado.variacao.estoque + ' em estoque');
   }
 
   function calcCarrinho() {
@@ -1332,28 +1424,23 @@
   }
 
   /* ================= Caixa ================= */
-  function renderCaixa() {
-    const el = document.getElementById('caixa-conteudo');
+  // Livro caixa fica no Início (mesmo modelo do Jabá): abrir, entradas/saídas e fechar sem trocar de aba.
+  function renderLivroCaixa() {
+    const el = document.getElementById('livro-caixa');
     const cx = state.caixa;
-    if (!cx) { el.innerHTML = '<div class="carregando">Carregando...</div>'; return; }
-    const historico = ehAdmin() && state.caixaSessoes ? `
-      <div class="painel" style="margin-top:16px"><div class="painel-titulo">Fechamentos anteriores</div>
-        ${state.caixaSessoes.length ? `<div class="tabela-scroll"><table class="tabela"><tr><th>Aberto</th><th>Fechado</th><th>Por</th><th style="text-align:right">Vendas</th><th style="text-align:right">Esperado</th><th style="text-align:right">Contado</th><th style="text-align:right">Diferença</th></tr>
-        ${state.caixaSessoes.map(s => `<tr><td>${dataHora(s.aberto_em)}</td><td>${dataHora(s.fechado_em)}</td><td>${esc(s.fechado_por_nome || '')}</td>
-          <td style="text-align:right">${fmt(s.total_vendas)}</td><td style="text-align:right">${fmt(s.dinheiro_esperado)}</td><td style="text-align:right">${fmt(s.dinheiro_contado)}</td>
-          <td style="text-align:right;font-weight:700" class="${Number(s.diferenca) < 0 ? 'valor-neg' : Number(s.diferenca) > 0 ? 'valor-ok' : ''}">${fmt(s.diferenca)}</td></tr>`).join('')}</table></div>`
-        : '<div class="vazio">Nenhum caixa fechado ainda.</div>'}</div>` : '';
+    renderHistoricoCaixa();
+    if (!cx) { el.innerHTML = '<div class="carregando">Carregando caixa...</div>'; return; }
 
     if (!cx.sessao) {
       // A tela redesenha quando os dados chegam do servidor — não perder o que já foi digitado.
       const digitado = document.getElementById('cx-inicial') ? document.getElementById('cx-inicial').value : '';
-      el.innerHTML = `<div class="painel" style="max-width:420px">
-        <div class="painel-titulo">Abrir caixa</div>
-        <p class="modal-dica" style="margin-top:0">Conte o dinheiro que está na gaveta pro troco.</p>
-        <label class="campo">Dinheiro inicial (troco)<input id="cx-inicial" type="text" inputmode="decimal" placeholder="0,00" value="${esc(digitado)}"></label>
-        <div class="erro-modal" id="cx-erro" style="margin-top:8px"></div>
-        <button class="btn-primario btn-grande" id="cx-abrir" style="margin-top:12px;width:100%">Abrir caixa</button>
-      </div>` + historico;
+      el.innerHTML = `
+        <div class="painel-titulo-linha"><div><div class="painel-titulo">Livro caixa</div><div class="modal-sub"><span class="tag aviso">Fechado</span> — abra o caixa pra começar a vender</div></div></div>
+        <div class="linha-campos" style="max-width:460px;align-items:flex-end">
+          <label class="campo">Dinheiro inicial na gaveta (troco)<input id="cx-inicial" type="text" inputmode="decimal" placeholder="0,00" value="${esc(digitado)}"></label>
+          <button class="btn-primario btn-grande" id="cx-abrir" style="flex:0 0 auto">Abrir caixa</button>
+        </div>
+        <div class="erro-modal" id="cx-erro" style="margin-top:8px"></div>`;
       document.getElementById('cx-abrir').onclick = (ev) => comBotao(ev.target, 'Abrindo...', async () => {
         const v = document.getElementById('cx-inicial').value.trim();
         const valor = v ? parseNumBR(v) : 0;
@@ -1363,38 +1450,61 @@
       }, document.getElementById('cx-erro'));
       return;
     }
+
     const s = cx.sessao, r = cx.resumo;
+    const porForma = (f) => { const x = r.porForma.find(p => p.forma === f); return x ? Number(x.total) : 0; };
+    const metrica = (label, valor, cor) => `<div class="stat-card"><div class="stat-label">${label}</div><div class="stat-valor"${cor ? ` style="color:${cor}"` : ''}>${fmt(valor)}</div></div>`;
+    const maxForma = Math.max(1, ...r.porForma.map(f => Number(f.total)));
     el.innerHTML = `
-      <div class="stats-row">
-        <div class="stat-card"><div class="stat-label">Aberto por</div><div class="stat-valor" style="font-size:16px">${esc(s.aberto_por_nome)} · ${hora(s.aberto_em)}</div></div>
-        <div class="stat-card"><div class="stat-label">Vendas no turno</div><div class="stat-valor">${r.vendas} · ${fmt(r.totalVendas)}</div></div>
-        <div class="stat-card"><div class="stat-label">Dinheiro esperado na gaveta</div><div class="stat-valor" style="color:var(--accent)">${fmt(r.dinheiroEsperado)}</div></div>
+      <div class="painel-titulo-linha">
+        <div><div class="painel-titulo">Livro caixa</div><div class="modal-sub">Aberto por ${esc(s.aberto_por_nome)} às ${hora(s.aberto_em)} · ${r.vendas} venda(s) · ${fmt(r.totalVendas)}</div></div>
+        <button class="btn-perigo" id="cx-fechar">Fechar caixa</button>
       </div>
-      <div class="paineis-duas-colunas">
-        <div class="painel"><div class="painel-titulo">Recebido por forma</div>
-          ${r.porForma.length ? r.porForma.map(f => `<div class="linha-simples"><div style="flex-grow:1">${esc(f.forma)}</div><b>${fmt(f.total)}</b></div>`).join('') : '<div class="vazio">Nenhuma venda ainda.</div>'}
-          <div class="linha-simples"><div style="flex-grow:1;color:var(--text-2)">Troco inicial</div><span>${fmt(s.dinheiro_inicial)}</span></div>
-          <div class="linha-simples"><div style="flex-grow:1;color:var(--text-2)">Suprimentos</div><span>+ ${fmt(r.suprimentos)}</span></div>
-          <div class="linha-simples"><div style="flex-grow:1;color:var(--text-2)">Sangrias</div><span>− ${fmt(r.sangrias)}</span></div>
+      <div class="metricas-4">
+        ${metrica('Dinheiro inicial', s.dinheiro_inicial)}
+        ${metrica('Vendas em dinheiro', porForma('Dinheiro'))}
+        ${metrica('Saídas', r.sangrias)}
+        ${metrica('Esperado em caixa', r.dinheiroEsperado, 'var(--accent)')}
+        ${metrica('Vendas no crédito', porForma('Crédito'))}
+        ${metrica('Vendas no débito', porForma('Débito'))}
+        ${metrica('Vendas no Pix', porForma('Pix'))}
+        ${metrica('Cashback / vale-troca', porForma('Cashback') + porForma('Vale-troca'))}
+      </div>
+      <div style="display:flex;gap:8px;margin:14px 0 6px;flex-wrap:wrap">
+        <button class="btn-secundario" id="cx-sangria">− Nova saída</button>
+        <button class="btn-secundario" id="cx-suprimento">+ Nova entrada</button>
+      </div>
+      <div class="paineis-duas-colunas" style="margin-top:8px">
+        <div class="painel"><div class="painel-titulo">Vendas por forma de pagamento</div>
+          ${r.porForma.length ? r.porForma.map(f => `<div class="barra-linha"><div class="barra-label">${esc(f.forma)}</div><div class="barra-trilho"><div class="barra-fill" style="width:${(Number(f.total) / maxForma * 100).toFixed(0)}%;background:${TIPO_CREDITO[f.forma] ? 'var(--border)' : 'var(--teal)'}"></div></div><div class="barra-valor">${fmt(f.total)}</div></div>`).join('')
+            : '<div class="vazio">Nenhuma venda ainda neste caixa.</div>'}
         </div>
-        <div class="painel"><div class="painel-titulo-linha"><div class="painel-titulo">Movimentos</div>
-          <div style="display:flex;gap:6px"><button class="btn-secundario" id="cx-suprimento">+ Suprimento</button><button class="btn-secundario" id="cx-sangria">− Sangria</button></div></div>
-          ${r.movimentos.length ? r.movimentos.map(m => `<div class="linha-simples"><div style="flex-grow:1"><div style="font-weight:600">${m.tipo === 'suprimento' ? 'Suprimento' : 'Sangria'}${m.descricao ? ' — ' + esc(m.descricao) : ''}</div>
+        <div class="painel"><div class="painel-titulo">Movimentações</div>
+          ${r.movimentos.length ? r.movimentos.slice().reverse().map(m => `<div class="linha-simples"><div style="flex-grow:1"><div style="font-weight:600">${m.tipo === 'sangria' ? '− Saída' : '+ Entrada'}${m.descricao ? ' — ' + esc(m.descricao) : ''}</div>
             <div style="font-size:11px;color:var(--text-2)">${hora(m.criado_em)} · ${esc(m.criado_por_nome)}</div></div><b class="${m.tipo === 'sangria' ? 'valor-neg' : 'valor-ok'}">${m.tipo === 'sangria' ? '−' : '+'} ${fmt(m.valor)}</b></div>`).join('')
-            : '<div class="vazio">Nenhum suprimento ou sangria.</div>'}
+            : '<div class="vazio">Nenhuma entrada ou saída.</div>'}
         </div>
-      </div>
-      <div style="margin-top:16px"><button class="btn-primario btn-grande" id="cx-fechar">Fechar caixa</button></div>` + historico;
+      </div>`;
     document.getElementById('cx-suprimento').onclick = () => abrirMovimentoCaixa('suprimento');
     document.getElementById('cx-sangria').onclick = () => abrirMovimentoCaixa('sangria');
     document.getElementById('cx-fechar').onclick = abrirFechamentoCaixa;
   }
 
+  function renderHistoricoCaixa() {
+    const el = document.getElementById('caixa-historico');
+    if (!ehAdmin() || !state.caixaSessoes || !state.caixaSessoes.length) { el.innerHTML = ''; return; }
+    el.innerHTML = `<div class="painel" style="margin-top:16px"><div class="painel-titulo">Fechamentos anteriores</div>
+      <div class="tabela-scroll"><table class="tabela"><tr><th>Aberto</th><th>Fechado</th><th>Por</th><th style="text-align:right">Vendas</th><th style="text-align:right">Esperado</th><th style="text-align:right">Contado</th><th style="text-align:right">Diferença</th></tr>
+      ${state.caixaSessoes.slice(0, 10).map(s => `<tr><td>${dataHora(s.aberto_em)}</td><td>${dataHora(s.fechado_em)}</td><td>${esc(s.fechado_por_nome || '')}</td>
+        <td style="text-align:right">${fmt(s.total_vendas)}</td><td style="text-align:right">${fmt(s.dinheiro_esperado)}</td><td style="text-align:right">${fmt(s.dinheiro_contado)}</td>
+        <td style="text-align:right;font-weight:700" class="${Number(s.diferenca) < 0 ? 'valor-neg' : Number(s.diferenca) > 0 ? 'valor-ok' : ''}">${fmt(s.diferenca)}</td></tr>`).join('')}</table></div></div>`;
+  }
+
   function abrirMovimentoCaixa(tipo) {
-    const titulo = tipo === 'suprimento' ? 'Suprimento (entrada de dinheiro na gaveta)' : 'Sangria (retirada de dinheiro da gaveta)';
+    const titulo = tipo === 'suprimento' ? 'Nova entrada (dinheiro que entra na gaveta)' : 'Nova saída (dinheiro que sai da gaveta)';
     const camada = abrirModal(`<div class="modal-card estreito">${cabecalhoModal(titulo, '')}
       <label class="campo">Valor<input id="mv-valor" type="text" inputmode="decimal" placeholder="0,00"></label>
-      <label class="campo">Motivo (opcional)<input id="mv-desc" type="text" placeholder="${tipo === 'sangria' ? 'Ex.: depósito no banco' : 'Ex.: troco'}"></label>
+      <label class="campo">Motivo (opcional)<input id="mv-desc" type="text" placeholder="${tipo === 'sangria' ? 'Ex.: depósito no banco, lanche, frete' : 'Ex.: troco'}"></label>
       <div class="erro-modal" id="mv-erro"></div>
       <button class="btn-primario btn-grande" id="mv-salvar">Registrar</button></div>`);
     camada.querySelector('#mv-valor').focus();
@@ -1402,7 +1512,7 @@
       const valor = parseNumBR(camada.querySelector('#mv-valor').value);
       if (!Number.isFinite(valor) || valor <= 0) throw new Error('Informe um valor maior que zero');
       await api('/caixa/movimentos', { method: 'POST', body: { tipo, valor, descricao: camada.querySelector('#mv-desc').value } });
-      fecharModal(); await carregarCaixa(); render(); toast(tipo === 'sangria' ? 'Sangria registrada' : 'Suprimento registrado');
+      fecharModal(); await carregarCaixa(); render(); toast(tipo === 'sangria' ? 'Saída registrada' : 'Entrada registrada');
     }, camada.querySelector('#mv-erro'));
   }
 
@@ -1502,7 +1612,7 @@
   function produtosFiltrados() {
     const termo = state.busca.trim().toLowerCase();
     return state.produtos.filter(p => {
-      const bateBusca = !termo || p.nome.toLowerCase().includes(termo) || p.variacoes.some(v => v.codigoBarras === termo);
+      const bateBusca = !termo || p.nome.toLowerCase().includes(termo) || (/^\d{6,}$/.test(termo) && p.variacoes.some(v => normalizarCodigo(v.codigoBarras) === normalizarCodigo(termo)));
       return bateBusca && (!state.filtroCategoria || p.categoria === state.filtroCategoria);
     });
   }
@@ -1647,7 +1757,7 @@
         <tr><th>Tam.</th><th>Cor</th><th>Código de barras</th><th>Preço</th><th>Mínimo</th><th>Estoque</th><th>Ativa</th></tr>
         ${vars.map((v, i) => `<tr data-linha="${i}">
           <td><b>${esc(v.tamanho)}</b></td><td>${esc(v.cor)}</td>
-          <td><input data-campo="codigo" value="${esc(v.codigoBarras)}" class="mono" style="min-width:130px"></td>
+          <td><input data-campo="codigo" data-leitor value="${esc(v.codigoBarras)}" class="mono" style="min-width:130px"></td>
           <td><input data-campo="preco" inputmode="decimal" value="${fmtNum(v.preco)}"></td>
           <td><input data-campo="minimo" inputmode="numeric" value="${v.estoqueMinimo}"></td>
           <td><input data-campo="estoque" inputmode="numeric" value="${v.estoque}"></td>
@@ -1756,6 +1866,7 @@
       <datalist id="nc-fornecedores">${fornecedores.map(f => `<option value="${esc(f.nome)}">`).join('')}</datalist>
       <div class="painel" style="padding:14px">
         <div class="painel-titulo" style="font-size:14px">Adicionar peças</div>
+        <input id="nc-bipar" data-leitor class="input-busca" type="text" autocomplete="off" placeholder="Bipe a etiqueta de cada peça (soma 1 por bip) — ou escolha o produto abaixo" style="margin-bottom:8px">
         <select id="nc-produto" class="input-busca"><option value="">Escolha o produto...</option>${state.produtos.map(p => `<option value="${p.id}">${esc(p.nome)}</option>`).join('')}</select>
         <div id="nc-grade" style="margin-top:10px"></div>
       </div>
@@ -1767,12 +1878,39 @@
     </div>`);
     const desenharItens = () => {
       const total = round2(itens.reduce((s, i) => s + i.qtd * i.custo, 0));
-      camada.querySelector('#nc-itens').innerHTML = itens.length ? `<div class="tabela-scroll"><table class="tabela"><tr><th>Peça</th><th>Qtd</th><th style="text-align:right">Custo un.</th><th style="text-align:right">Subtotal</th><th></th></tr>
-        ${itens.map((i, k) => `<tr><td>${esc(i.rotulo)}</td><td>${i.qtd}</td><td style="text-align:right">${fmt(i.custo)}</td><td style="text-align:right">${fmt(i.qtd * i.custo)}</td><td><button class="link-btn" data-rem="${k}">remover</button></td></tr>`).join('')}
-        </table></div><div class="linha-total grande"><span>Total da nota</span><span>${fmt(total)}</span></div>` : '<div class="modal-dica">Nenhuma peça adicionada ainda.</div>';
+      const pecas = itens.reduce((s, i) => s + i.qtd, 0);
+      camada.querySelector('#nc-itens').innerHTML = itens.length ? `<div class="tabela-scroll"><table class="tabela"><tr><th>Peça</th><th style="width:80px">Qtd</th><th style="width:110px">Custo un.</th><th style="text-align:right">Subtotal</th><th></th></tr>
+        ${itens.map((i, k) => `<tr><td>${esc(i.rotulo)}</td><td><input data-qtd="${k}" inputmode="numeric" value="${i.qtd}"></td><td><input data-custo="${k}" inputmode="decimal" value="${fmtNum(i.custo)}"></td>
+          <td style="text-align:right">${fmt(i.qtd * i.custo)}</td><td><button class="link-btn" data-rem="${k}">remover</button></td></tr>`).join('')}
+        </table></div><div class="linha-total grande"><span>Total da nota · ${pecas} peça(s)</span><span>${fmt(total)}</span></div>` : '<div class="modal-dica">Nenhuma peça adicionada ainda.</div>';
       camada.querySelectorAll('[data-rem]').forEach(b => b.onclick = () => { itens.splice(Number(b.dataset.rem), 1); desenharItens(); });
+      camada.querySelectorAll('[data-qtd]').forEach(inp => inp.onchange = () => {
+        const q = parseNumBR(inp.value);
+        if (Number.isInteger(q) && q > 0) itens[Number(inp.dataset.qtd)].qtd = q; else toast('Quantidade inválida', 'erro');
+        desenharItens();
+      });
+      camada.querySelectorAll('[data-custo]').forEach(inp => inp.onchange = () => {
+        const c = parseNumBR(inp.value);
+        if (Number.isFinite(c) && c >= 0) itens[Number(inp.dataset.custo)].custo = round2(c); else toast('Custo inválido', 'erro');
+        desenharItens();
+      });
     };
     desenharItens();
+    const inputBipar = camada.querySelector('#nc-bipar');
+    inputBipar.addEventListener('keydown', (e) => {
+      if (e.key !== 'Enter' && e.key !== 'Tab') return;
+      const codigo = inputBipar.value.replace(/\D/g, '');
+      if (!codigo) return;
+      e.preventDefault(); inputBipar.value = '';
+      const achado = acharPorCodigo(codigo, true);
+      if (!achado) { toast('Código ' + codigo + ' não está em nenhuma peça — escolha o produto na lista', 'erro'); return; }
+      const { produto: p, variacao: v } = achado;
+      const existente = itens.find(i => i.variacaoId === v.id);
+      if (existente) existente.qtd += 1;
+      else itens.push({ variacaoId: v.id, qtd: 1, custo: round2(v.custoUnitario), rotulo: p.nome + ' · ' + v.tamanho + (v.cor ? ' · ' + v.cor : '') });
+      desenharItens();
+    });
+    inputBipar.focus();
     camada.querySelector('#nc-produto').onchange = (e) => {
       const p = state.produtos.find(x => x.id === e.target.value);
       const box = camada.querySelector('#nc-grade');
@@ -2099,12 +2237,14 @@
   document.getElementById('btn-novo-usuario').addEventListener('click', () => abrirUsuario(null));
   const inputVendaBusca = document.getElementById('venda-busca');
   inputVendaBusca.addEventListener('input', (e) => { state.vendaBusca = e.target.value; renderVenda(); });
-  inputVendaBusca.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); onBuscaVendaEnter(); } });
+  // Alguns bipadores terminam com Tab em vez de Enter.
+  inputVendaBusca.addEventListener('keydown', (e) => { if (e.key === 'Enter' || (e.key === 'Tab' && /^\d{6,}$/.test(inputVendaBusca.value.trim()))) { e.preventDefault(); onBuscaVendaEnter(); } });
   document.getElementById('clientes-busca').addEventListener('input', (e) => {
     state.clientesBusca = e.target.value.trim();
     clearTimeout(timerBuscaClientes);
     timerBuscaClientes = setTimeout(() => carregarDadosDaView('clientes'), 250);
   });
+  document.addEventListener('keydown', onTeclaLeitor, true);
   document.addEventListener('keydown', (e) => {
     if (e.key !== 'Escape') return;
     if (document.getElementById('modal-topo').style.display === 'flex') document.getElementById('modal-topo').click();
