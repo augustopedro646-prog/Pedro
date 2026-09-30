@@ -1384,6 +1384,7 @@ app.post('/api/lojas/:lojaId/loja/pedidos', limitePedidoSite, rota(async (req, r
   if (!['Pix', 'Dinheiro', 'Débito', 'Crédito'].includes(body.pagamento)) falha(400, 'Escolha a forma de pagamento');
   const endereco = body.tipo === 'entrega' ? texto(body.endereco, 'Endereço de entrega', { max: 300 }) : null;
   const observacao = texto(body.observacao, 'Observação', { obrigatorio: false, max: 300 });
+  const origem = body.origem === 'whatsapp' ? 'whatsapp' : 'site';
   if (!Array.isArray(body.itens) || !body.itens.length || body.itens.length > 30) falha(400, 'Sacola vazia');
   const porVariacao = new Map();
   for (const it of body.itens) {
@@ -1437,9 +1438,9 @@ app.post('/api/lojas/:lojaId/loja/pedidos', limitePedidoSite, rota(async (req, r
     const { rows: ult } = await c.query('SELECT COALESCE(MAX(numero), 0) + 1 AS n FROM pedidos_online WHERE loja_id = $1', [req.lojaId]);
     const id = uid(), numeroPedido = ult[0].n, token = crypto.randomBytes(18).toString('base64url');
     await c.query(
-      `INSERT INTO pedidos_online (id, loja_id, numero, token, cliente_id, cliente_nome, telefone, tipo, endereco, pagamento, troco_para, observacao, subtotal, taxa_entrega, total)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)`,
-      [id, req.lojaId, numeroPedido, token, clienteId, nome, telefone, body.tipo, endereco, body.pagamento, trocoPara, observacao, subtotal, taxa, total]);
+      `INSERT INTO pedidos_online (id, loja_id, numero, token, cliente_id, cliente_nome, telefone, tipo, endereco, pagamento, troco_para, observacao, subtotal, taxa_entrega, total, origem)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)`,
+      [id, req.lojaId, numeroPedido, token, clienteId, nome, telefone, body.tipo, endereco, body.pagamento, trocoPara, observacao, subtotal, taxa, total, origem]);
     for (const it of gravar) {
       await c.query('INSERT INTO pedidos_online_itens (id, pedido_id, variacao_id, produto_nome, tamanho, cor, qtd, preco_unit) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)',
         [uid(), id, it.variacaoId, it.produtoNome, it.tamanho, it.cor, it.qtd, it.preco]);
@@ -1478,11 +1479,12 @@ app.get('/api/lojas/:lojaId/loja/pedidos/:token', rota(async (req, res) => {
 /* ---------- Pedidos online (painel) ---------- */
 
 // Avisa o atendente de WhatsApp (quando existir) que o status mudou — nunca atrasa o painel.
+const BOT_URL = process.env.BOT_URL || 'http://127.0.0.1:' + (process.env.BOT_PORT || 3101);
 function notificarBot(lojaId, pedidoId, status) {
-  const url = process.env.BOT_WEBHOOK_URL;
-  if (!url) return;
-  fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Bot-Webhook-Secret': process.env.BOT_WEBHOOK_SECRET || '' },
-    body: JSON.stringify({ lojaId, pedidoId, status }) }).catch((e) => console.error('Falha ao avisar o bot:', e.message));
+  if (!process.env.BOT_WEBHOOK_SECRET) return;
+  fetch(BOT_URL + '/webhook/pedido-status', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Bot-Secret': process.env.BOT_WEBHOOK_SECRET },
+    body: JSON.stringify({ lojaId, pedidoId, status }), signal: AbortSignal.timeout(5000) })
+    .catch(() => {}); // bot desligado: o pedido segue normal, só não sai o aviso automático
 }
 
 app.get('/api/lojas/:lojaId/pedidos-online', qualquer, rota(async (req, res) => {
@@ -1576,6 +1578,40 @@ app.post('/api/lojas/:lojaId/pedidos-online/:id/cancelar', admin, rota(async (re
     await c.query("UPDATE pedidos_online SET status = 'cancelado', motivo_cancelamento = $1, atualizado_em = now() WHERE id = $2", [motivo, p.id]);
   });
   notificarBot(req.lojaId, req.params.id, 'cancelado');
+  res.json({ ok: true });
+}));
+
+/* ---------- WhatsApp (painel → serviço bot-whatsapp) ---------- */
+
+async function repassarBot(req, res, caminho, metodo) {
+  if (!process.env.BOT_WEBHOOK_SECRET) return res.status(503).json({ erro: 'Atendente de WhatsApp não configurado (falta BOT_WEBHOOK_SECRET — rode "npm run setup").', codigo: 'bot_desligado' });
+  try {
+    const r = await fetch(BOT_URL + caminho, {
+      method: metodo || 'GET', headers: { 'Content-Type': 'application/json', 'X-Bot-Secret': process.env.BOT_WEBHOOK_SECRET },
+      body: metodo === 'POST' ? JSON.stringify(req.body || {}) : undefined, signal: AbortSignal.timeout(10000),
+    });
+    res.status(r.status).json(await r.json().catch(() => ({})));
+  } catch (e) {
+    res.status(503).json({ erro: 'O atendente de WhatsApp não está rodando neste computador.', codigo: 'bot_desligado' });
+  }
+}
+app.get('/api/lojas/:lojaId/bot/status', admin, (req, res) => repassarBot(req, res, '/status'));
+app.post('/api/lojas/:lojaId/bot/desconectar', admin, (req, res) => repassarBot(req, res, '/desconectar', 'POST'));
+app.get('/api/lojas/:lojaId/bot/conversas', admin, (req, res) => repassarBot(req, res, '/conversas'));
+app.get('/api/lojas/:lojaId/bot/conversas/:telefone', admin, (req, res) => {
+  if (!/^\d{5,20}$/.test(req.params.telefone)) return res.status(400).json({ erro: 'telefone inválido' });
+  repassarBot(req, res, '/conversas/' + req.params.telefone);
+});
+app.post('/api/lojas/:lojaId/bot/enviar', admin, (req, res) => repassarBot(req, res, '/enviar', 'POST'));
+app.post('/api/lojas/:lojaId/bot/reativar', admin, (req, res) => repassarBot(req, res, '/reativar', 'POST'));
+
+app.get('/api/lojas/:lojaId/bot/instrucoes', admin, rota(async (req, res) => {
+  const { rows } = await pool.query('SELECT bot_instrucoes FROM lojas WHERE id = $1', [req.lojaId]);
+  res.json({ instrucoes: rows.length ? rows[0].bot_instrucoes || '' : '' });
+}));
+app.put('/api/lojas/:lojaId/bot/instrucoes', admin, rota(async (req, res) => {
+  const instrucoes = texto((req.body || {}).instrucoes, 'instruções', { obrigatorio: false, max: 4000 }) || '';
+  await pool.query('UPDATE lojas SET bot_instrucoes = $1 WHERE id = $2', [instrucoes, req.lojaId]);
   res.json({ ok: true });
 }));
 

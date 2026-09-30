@@ -141,6 +141,13 @@ Plano fechado — pronto pra começar a Fase 1.
   - Estoque: editar produto, preço, código de barras, mínimo, ativar/desativar variação,
     ajuste de contagem (fica no histórico), nova cor.
   - Bater ponto gravado no banco (PIN da própria pessoa ou reconhecimento facial).
-- **Próximas**: Fase 3 (pedidos online), Fase 4 (relatórios), Fase 5 (NFC-e), Fase 6
-  (migração do GDOOR). Também na fila: importar XML de nota do fornecedor e imprimir
-  etiqueta de código de barras.
+- **Rodada de 30/09/2026 (pedidos do Pedro, modelo do Jabá): concluída.**
+  - Bipador em qualquer tela da venda (e vincular etiqueta do fabricante a uma peça).
+  - Início com o Livro caixa (a aba Caixa virou parte do Início).
+  - Entrada de nota por XML (exato), PDF e foto (IA), com conferência antes de lançar e
+    aprendizado da referência de cada fornecedor.
+  - Calendário (eventos, escala, ponto, aniversariantes).
+  - **Fase 3 — Canal online: concluída.** Site da loja (/loja) e aba Pedidos online.
+  - Atendente de WhatsApp com IA (bot-whatsapp/) e aba WhatsApp no painel.
+- **Próximas**: domínio (Cloudflare Tunnel, como o Jabá), Fase 4 (relatórios), Fase 5
+  (NFC-e), Fase 6 (migração do GDOOR), cancelar venda, etiqueta de código de barras.

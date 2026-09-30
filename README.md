@@ -38,6 +38,32 @@ certa (pelo código de barras, pela referência que o fornecedor usou em notas a
 por sugestão da IA). Dá pra corrigir quantidade, custo e peça, criar produto novo ali mesmo
 ou deixar um item de fora. A mesma NF-e não entra duas vezes.
 
+## Site da loja (pedidos online)
+
+O site pro cliente fica em **http://localhost:3000/loja** (depois do domínio, no endereço do
+domínio). Configure em **Equipe → Configurações da loja → Site da loja** (entrega, retirada, taxa,
+WhatsApp, endereço). Produto aparece no site se estiver ativo, marcado "Mostrar no site" (na
+edição do produto, onde também vão as fotos) e com estoque. As peças de um pedido ficam
+reservadas na hora; ao concluir na aba **Pedidos online**, o pedido vira venda do caixa aberto.
+
+## Atendente de WhatsApp (pasta `bot-whatsapp/`)
+
+Mesmo modelo do Jabá: um programa à parte que conecta no WhatsApp da loja (pareado por QR Code,
+como o WhatsApp Web) e responde os clientes com a IA do Claude — consulta a vitrine/estoque, manda
+foto das peças, fecha pedido, informa status e cashback, e passa pra equipe quando precisa.
+Também avisa o cliente a cada mudança de status dos pedidos (do site e do WhatsApp).
+
+- Usa o mesmo `api\.env` (banco, `ANTHROPIC_API_KEY` e o `BOT_WEBHOOK_SECRET`, que o
+  `npm run setup` gera sozinho). Opcional: `SITE_URL=https://seu-dominio` pra ele mandar o link do site.
+- Instalar e ligar: na pasta `bot-whatsapp`, `npm install` e `npm start` — ou, como a API, como
+  serviço do Windows (`LojaGuttoBot`, via NSSM, pasta `bot-whatsapp`, `node server.js`).
+- Conectar: aba **WhatsApp** no painel → aparece o QR Code → no celular da loja, WhatsApp →
+  Aparelhos conectados → Conectar um aparelho.
+- Testar sem WhatsApp: `npm run testar` (conversa pelo terminal com a IA de verdade).
+- ⚠ Não é a API oficial da Meta: existe risco de bloqueio do número se ele parecer robô. O
+  atendente escreve em ritmo humano e mostra no painel o "aquecimento" de número novo — divulgue
+  o número aos poucos nos primeiros dias.
+
 ## Dia a dia
 
 Na pasta `api`:

@@ -418,3 +418,26 @@ CREATE INDEX IF NOT EXISTS pedidos_online_itens_pedido_idx ON pedidos_online_ite
 
 ALTER TABLE vendas ADD COLUMN IF NOT EXISTS taxa_entrega NUMERIC(12,2) NOT NULL DEFAULT 0;
 ALTER TABLE vendas ADD COLUMN IF NOT EXISTS pedido_online_id TEXT REFERENCES pedidos_online(id);
+
+-- ================= Atendente de WhatsApp (bot-whatsapp/) =================
+ALTER TABLE lojas ADD COLUMN IF NOT EXISTS bot_instrucoes TEXT;
+ALTER TABLE pedidos_online ADD COLUMN IF NOT EXISTS origem TEXT NOT NULL DEFAULT 'site';
+
+-- Uma linha por conversa. precisa_humano = "alguém da equipe precisa olhar"; pausado = "o robô não
+-- responde sozinho" (só volta pelo botão "Devolver pro robô"). mensagens guarda só texto e uso de
+-- ferramentas (sem blocos de raciocínio da IA — ver bot-whatsapp/cerebro.js).
+CREATE TABLE IF NOT EXISTS bot_conversas (
+  loja_id INTEGER NOT NULL REFERENCES lojas(id) ON DELETE CASCADE,
+  telefone TEXT NOT NULL,
+  mensagens JSONB NOT NULL DEFAULT '[]',
+  precisa_humano BOOLEAN NOT NULL DEFAULT false,
+  motivo_humano TEXT,
+  pausado BOOLEAN NOT NULL DEFAULT false,
+  pausado_em TIMESTAMPTZ,
+  ultima_falha_envio TEXT,
+  nome_perfil TEXT,
+  cliente_nome TEXT,
+  nao_lidas INTEGER NOT NULL DEFAULT 0,
+  atualizado_em TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (loja_id, telefone)
+);

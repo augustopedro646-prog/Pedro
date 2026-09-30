@@ -195,6 +195,33 @@
   .foto-item .foto-acoes button { border: none; background: none; color: #fff; font-size: 11px; font-weight: 700; padding: 2px; }
   .foto-add { width: 92px; height: 92px; border-radius: 10px; border: 2px dashed var(--border); background: var(--surface); color: var(--text-2); font-size: 12px; font-weight: 600; }
 
+  /* ---------- WhatsApp ---------- */
+  .wa-inbox { display: flex; border: 1px solid var(--border); border-radius: 14px; background: var(--surface); height: 560px; overflow: hidden; }
+  .wa-lista { width: 320px; flex-shrink: 0; border-right: 1px solid var(--border); overflow-y: auto; }
+  .wa-item { width: 100%; display: flex; gap: 10px; align-items: center; padding: 12px; border: none; border-bottom: 1px solid var(--border-2); background: var(--surface); color: var(--text); text-align: left; }
+  .wa-item:hover, .wa-item.ativo { background: var(--border-2); }
+  .wa-item-meio { flex-grow: 1; min-width: 0; }
+  .wa-item-nome { font-weight: 600; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .wa-item-prev { font-size: 12px; color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .wa-item-lado { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; font-size: 11px; color: var(--text-2); flex-shrink: 0; }
+  .wa-chat { flex-grow: 1; display: flex; flex-direction: column; min-width: 0; }
+  .wa-chat-topo { padding: 12px 14px; border-bottom: 1px solid var(--border-2); display: flex; align-items: center; gap: 10px; }
+  .wa-msgs { flex-grow: 1; overflow-y: auto; padding: 14px; display: flex; flex-direction: column; gap: 8px; background: var(--bg); }
+  .wa-bolha { max-width: 75%; padding: 8px 12px; border-radius: 12px; font-size: 13px; line-height: 1.4; white-space: pre-wrap; word-wrap: break-word; }
+  .wa-bolha.cliente { align-self: flex-start; background: var(--surface); border: 1px solid var(--border); border-top-left-radius: 4px; }
+  .wa-bolha.nos { align-self: flex-end; background: var(--ok-bg); border: 1px solid var(--ok-border); border-top-right-radius: 4px; }
+  .wa-rotulo { font-size: 10px; font-weight: 700; color: var(--text-2); margin-bottom: 2px; }
+  .wa-rodape { border-top: 1px solid var(--border-2); padding: 10px; display: flex; flex-direction: column; gap: 8px; }
+  .wa-rodape textarea { flex-grow: 1; resize: none; padding: 9px 10px; border-radius: 10px; border: 1px solid var(--border); font-size: 13px; }
+  .wa-voltar { display: none; }
+  @media (max-width: 860px) {
+    .wa-lista { width: 100%; border-right: none; }
+    .wa-chat { display: none; }
+    .wa-inbox.aberta .wa-lista { display: none; }
+    .wa-inbox.aberta .wa-chat { display: flex; }
+    .wa-voltar { display: inline-flex; }
+  }
+
   /* ---------- Calendário ---------- */
   .cal-legenda { display: flex; gap: 14px; flex-wrap: wrap; font-size: 12px; color: var(--text-2); margin-bottom: 10px; }
   .cal-legenda i { display: inline-block; width: 11px; height: 11px; border-radius: 3px; border: 1px solid; margin-right: 5px; vertical-align: -1px; }
@@ -456,6 +483,21 @@
       <div class="painel" style="margin-top:16px"><div class="painel-titulo">Configurações da loja</div><div id="config-loja"></div></div>
     </div>
 
+    <div class="view page" id="view-whatsapp">
+      <div class="page-topo"><div><h1 class="titulo">WhatsApp</h1><p class="sub">Atendente automático com IA + conversas com os clientes</p></div></div>
+      <div id="wa-status"></div>
+      <div class="wa-inbox" id="wa-inbox">
+        <div class="wa-lista" id="wa-lista"></div>
+        <div class="wa-chat" id="wa-chat"></div>
+      </div>
+      <div class="painel" style="margin-top:16px">
+        <div class="painel-titulo">Instruções pro robô</div>
+        <p class="modal-dica" style="margin-top:0">O que o atendente precisa saber além da vitrine: horário da loja, trocas, promoções, formas de envio... Ele consulta quando for relevante.</p>
+        <textarea id="wa-instrucoes" rows="5" maxlength="4000" style="width:100%;padding:10px;border-radius:10px;border:1px solid var(--border)" placeholder="Ex.: Abrimos de segunda a sábado, 9h às 18h. Troca em até 30 dias com etiqueta. Esta semana: 10% no Pix."></textarea>
+        <div style="display:flex;gap:10px;align-items:center;margin-top:8px"><button class="btn-primario" id="wa-salvar-instrucoes">Salvar instruções</button><span class="modal-dica" id="wa-instrucoes-ok"></span></div>
+      </div>
+    </div>
+
     <div class="view page" id="view-calendario">
       <div class="page-topo">
         <div><h1 class="titulo">Calendário</h1><p class="sub">Eventos da loja, escala da equipe, ponto e aniversariantes</p></div>
@@ -525,6 +567,7 @@
     users: '<circle cx="9" cy="9" r="3" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M3.3 19c0-3 2.6-5.2 5.7-5.2s5.7 2.2 5.7 5.2" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><circle cx="17.3" cy="9.8" r="2.3" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M15.6 13.8c2.3.4 3.9 2.2 3.9 4.6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>',
     clock: '<circle cx="12" cy="12" r="8.5" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M12 7.3V12l3 2" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>',
     chart: '<path d="M4 20V10M10 20V4M16 20v-7M3 20h18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>',
+    chat: '<path d="M4 20l1.3-3.9A8 8 0 1 1 8 19z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M9 10.5h6M9 13.5h4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>',
     bag: '<path d="M5 8h14l-1.2 11.2a1.8 1.8 0 0 1-1.8 1.6H8a1.8 1.8 0 0 1-1.8-1.6z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M9 10V7a3 3 0 0 1 6 0v3" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>',
     calendar: '<rect x="3.5" y="5" width="17" height="15.5" rx="2.2" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M3.5 10h17M8 3v4M16 3v4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>',
     menu: '<path d="M4 6h16M4 12h16M4 18h16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>',
@@ -543,6 +586,7 @@
     { id: 'compras', label: 'Compras', icon: 'truck', papeis: ['administrador'] },
     { id: 'fluxo', label: 'Fluxo de caixa', icon: 'cash', papeis: ['administrador'] },
     { id: 'equipe', label: 'Equipe', icon: 'users', papeis: ['administrador'] },
+    { id: 'whatsapp', label: 'WhatsApp', icon: 'chat', papeis: ['administrador'] },
     { id: 'calendario', label: 'Calendário', icon: 'calendar', papeis: ['administrador', 'caixa'] },
     { id: 'ponto', label: 'Bater ponto', icon: 'clock', papeis: ['administrador', 'caixa'] },
     { id: 'relatorios', label: 'Relatórios', icon: 'chart', papeis: ['administrador'] },
@@ -643,6 +687,7 @@
     fluxo: null, mesFluxo: hojeLocal().slice(0, 7), equipe: null, caixaSessoes: null,
     calMes: hojeLocal().slice(0, 7), calAgenda: null, calPontos: [], calAniversarios: [],
     pedidosOnline: null, onlineNovos: 0, ultimoPedidoVisto: null,
+    wa: { status: null, conversas: null, sel: null, detalhe: null, erro: null },
     tema: temaInicial, sidebarCollapsed: false,
     rostos: carregarRostos(),
   };
@@ -733,6 +778,8 @@
       } else if (view === 'equipe') {
         const [equipe] = await Promise.all([api('/equipe'), carregarConfig()]);
         state.equipe = equipe;
+      } else if (view === 'whatsapp') {
+        await carregarWhatsApp(true);
       } else if (view === 'online') {
         state.pedidosOnline = await api('/pedidos-online');
       } else if (view === 'calendario') {
@@ -818,9 +865,10 @@
       el.style.height = v === state.view && VIEWS_FLEX.includes(v) ? '100%' : 'auto';
     });
     if (state.view !== 'ponto') desligarCameraPonto();
+    if (state.view !== 'whatsapp') { clearInterval(timerWhats); timerWhats = null; }
 
     const renders = { inicio: renderInicio, venda: renderVenda, clientes: renderClientes, estoque: renderEstoque,
-      compras: renderCompras, fluxo: renderFluxo, equipe: renderEquipe, ponto: renderPonto, calendario: renderCalendario, online: renderOnline, relatorios: renderRelatorios };
+      compras: renderCompras, fluxo: renderFluxo, equipe: renderEquipe, ponto: renderPonto, calendario: renderCalendario, online: renderOnline, whatsapp: renderWhatsApp, relatorios: renderRelatorios };
     (renders[state.view] || renderInicio)();
   }
 
@@ -2629,6 +2677,130 @@
     }, camada.querySelector('#us-erro'));
   }
 
+  /* ================= WhatsApp (atendente com IA) ================= */
+  let timerWhats = null;
+  const WA_ESTADOS = { conectando: 'Conectando ao WhatsApp...', aguardando_qr: 'Aguardando conexão', conectado: 'Conectado', reconectando: 'Reconectando...', desconectado: 'Desconectado', substituida: 'Conectado em outro lugar' };
+
+  // Carrega status + lista (e a conversa aberta). A cada 4s enquanto a aba está aberta.
+  async function carregarWhatsApp(comInstrucoes) {
+    const wa = state.wa;
+    try {
+      const [status, conversas] = await Promise.all([api('/bot/status'), api('/bot/conversas')]);
+      wa.status = status; wa.conversas = conversas; wa.erro = null;
+      if (wa.sel) wa.detalhe = await api('/bot/conversas/' + wa.sel);
+    } catch (e) {
+      wa.erro = e.data && e.data.codigo === 'bot_desligado' ? e.message : 'Não consegui falar com o atendente: ' + e.message;
+      wa.status = null;
+    }
+    if (comInstrucoes) {
+      try { const r = await api('/bot/instrucoes'); document.getElementById('wa-instrucoes').value = r.instrucoes; } catch (e) {}
+    }
+    if (!timerWhats && state.view === 'whatsapp') timerWhats = setInterval(() => { if (state.view === 'whatsapp') carregarWhatsApp().then(() => renderWhatsApp()); }, 4000);
+  }
+
+  function nomeWa(c) { return c.nome || (c.telefoneLocal ? telefoneBR(c.telefoneLocal) : 'Contato ' + c.telefone.slice(-4)); }
+  function horaCurta(iso) {
+    const d = new Date(iso);
+    return new Date().toDateString() === d.toDateString() ? hora(iso) : d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', timeZone: TZ });
+  }
+
+  function renderWhatsApp() {
+    const wa = state.wa;
+    const st = document.getElementById('wa-status');
+    if (wa.erro) {
+      st.innerHTML = `<div class="aviso-caixa"><span>${esc(wa.erro)}</span></div>
+        <div class="painel" style="margin-bottom:16px"><div class="modal-dica" style="margin:0">O atendente roda num programa à parte (pasta <b>bot-whatsapp</b>). Veja no README como ligar — depois disso, o QR Code pra conectar o número aparece aqui.</div></div>`;
+    } else if (!wa.status) {
+      st.innerHTML = '<div class="carregando">Carregando...</div>';
+    } else if (wa.status.estado === 'conectado') {
+      const aq = wa.status.aquecimento;
+      st.innerHTML = `<div class="painel" style="margin-bottom:16px;display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">
+        <div><div style="font-weight:700">🟢 Conectado ${wa.status.numero ? '· ' + esc(telefoneBR(String(wa.status.numero).replace(/^55/, ''))) : ''}</div>
+          ${aq ? `<div class="modal-dica" style="margin:2px 0 0">${aq.aquecido ? `Número aquecido — ${aq.enviadasHoje} mensagens hoje.` : `🌱 Número em aquecimento (dia ${aq.diaAtual}): ${aq.enviadasHoje} de até ~${aq.limiteHoje} mensagens recomendadas hoje. Divulgue o número aos poucos nos primeiros dias.`}</div>` : ''}</div>
+        <button class="btn-perigo" id="wa-desconectar">Desconectar</button></div>`;
+      document.getElementById('wa-desconectar').onclick = async () => {
+        if (!confirm('Desconectar o WhatsApp do atendente? Pra voltar, vai precisar ler o QR Code de novo.')) return;
+        try { await api('/bot/desconectar', { method: 'POST' }); toast('Desconectado'); carregarWhatsApp().then(renderWhatsApp); } catch (e) { toast(e.message, 'erro'); }
+      };
+    } else if (wa.status.qrDataUrl) {
+      st.innerHTML = `<div class="painel" style="margin-bottom:16px;display:flex;gap:18px;align-items:center;flex-wrap:wrap">
+        <img src="${wa.status.qrDataUrl}" alt="QR Code do WhatsApp" style="width:220px;height:220px;border-radius:10px;background:#fff;padding:6px">
+        <div style="max-width:420px"><div style="font-weight:700;font-size:15px">Conectar o WhatsApp da loja</div>
+          <ol style="font-size:13px;color:var(--text-2);padding-left:18px;line-height:1.7">
+            <li>No celular com o número da loja, abra o WhatsApp</li>
+            <li>Toque em ⋮ (ou Configurações) → <b>Aparelhos conectados</b></li>
+            <li><b>Conectar um aparelho</b> e aponte pra este QR Code</li></ol>
+          <div class="modal-dica">Use de preferência o WhatsApp Business. O celular continua funcionando normalmente.</div></div></div>`;
+    } else {
+      st.innerHTML = `<div class="painel" style="margin-bottom:16px"><div class="modal-dica" style="margin:0">${esc(WA_ESTADOS[wa.status.estado] || wa.status.estado)}${wa.status.estado === 'substituida' ? ' — outro aparelho assumiu esse número. Desconecte lá e aguarde um QR novo aqui.' : ' — aguarde, o QR Code aparece em instantes.'}</div></div>`;
+    }
+
+    const inbox = document.getElementById('wa-inbox');
+    inbox.style.display = wa.erro ? 'none' : '';
+    inbox.classList.toggle('aberta', !!wa.sel);
+    const lista = document.getElementById('wa-lista');
+    const conversas = wa.conversas || [];
+    lista.innerHTML = !wa.conversas ? '<div class="carregando">Carregando...</div>' : conversas.length ? conversas.map(c => `
+      <button class="wa-item ${wa.sel === c.telefone ? 'ativo' : ''}" data-wa="${esc(c.telefone)}">
+        <div class="avatar" style="width:36px;height:36px;font-size:14px;background:${c.precisaHumano ? 'var(--zero-text)' : 'var(--teal)'}">${esc(nomeWa(c).charAt(0).toUpperCase())}</div>
+        <div class="wa-item-meio"><div class="wa-item-nome">${esc(nomeWa(c))}</div>
+          <div class="wa-item-prev">${c.ultimaFalhaEnvio ? '⚠ ' : ''}${c.ultimaMensagem ? (c.ultimaMensagem.doCliente ? '' : 'Você: ') + esc(c.ultimaMensagem.texto) : ''}</div></div>
+        <div class="wa-item-lado"><span>${horaCurta(c.atualizadoEm)}</span>
+          ${c.precisaHumano ? '<span class="tag aviso" style="background:var(--zero-bg);color:var(--zero-text);border-color:var(--zero-border)">precisa de você</span>' : c.pausado ? '<span class="tag cinza">robô pausado</span>' : ''}
+          ${c.naoLidas && wa.sel !== c.telefone ? `<span class="nav-badge" style="margin:0">${c.naoLidas}</span>` : ''}</div>
+      </button>`).join('') : '<div class="vazio">Nenhuma conversa ainda. Quando um cliente mandar mensagem, ela aparece aqui.</div>';
+    lista.querySelectorAll('[data-wa]').forEach(b => b.onclick = async () => {
+      wa.sel = b.dataset.wa; wa.detalhe = null; renderWhatsApp();
+      try { wa.detalhe = await api('/bot/conversas/' + wa.sel); } catch (e) { toast(e.message, 'erro'); }
+      renderWhatsApp();
+    });
+    renderChatWhatsApp();
+  }
+
+  function renderChatWhatsApp() {
+    const wa = state.wa;
+    const chat = document.getElementById('wa-chat');
+    if (!wa.sel) { chat.innerHTML = '<div class="vazio" style="margin:auto">Escolha uma conversa.</div>'; chat.dataset.conversa = ''; return; }
+    const c = (wa.conversas || []).find(x => x.telefone === wa.sel) || { telefone: wa.sel };
+    const d = wa.detalhe;
+    // O campo de resposta só é recriado ao trocar de conversa (a atualização a cada 4s não apaga o que se digita).
+    if (chat.dataset.conversa !== wa.sel) {
+      chat.dataset.conversa = wa.sel;
+      chat.innerHTML = `<div class="wa-chat-topo" id="wa-topo"></div><div class="wa-msgs" id="wa-msgs"></div>
+        <div class="wa-rodape"><div id="wa-pausa"></div>
+          <div style="display:flex;gap:8px"><textarea id="wa-resposta" rows="2" placeholder="Escreva sua resposta (Enter envia, Shift+Enter quebra linha)"></textarea><button class="btn-primario" id="wa-enviar">Enviar</button></div>
+          <div class="modal-dica" style="margin:0">Ao responder por aqui, o robô para de responder essa conversa até você devolver.</div></div>`;
+      const enviar = async () => {
+        const campo = document.getElementById('wa-resposta');
+        const texto = campo.value.trim();
+        if (!texto) return;
+        const btn = document.getElementById('wa-enviar');
+        await comBotao(btn, 'Enviando...', async () => {
+          await api('/bot/enviar', { method: 'POST', body: { telefone: wa.sel, texto } });
+          campo.value = '';
+          await carregarWhatsApp(); renderWhatsApp();
+        });
+      };
+      document.getElementById('wa-enviar').onclick = enviar;
+      document.getElementById('wa-resposta').addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); enviar(); } });
+    }
+    document.getElementById('wa-topo').innerHTML = `<button class="icon-btn wa-voltar" id="wa-voltar" aria-label="Voltar">‹</button>
+      <div class="avatar" style="width:34px;height:34px">${esc(nomeWa(c).charAt(0).toUpperCase())}</div>
+      <div style="min-width:0;flex-grow:1"><div style="font-weight:700">${esc(nomeWa(c))}</div><div class="modal-dica" style="margin:0">${c.telefoneLocal ? esc(telefoneBR(c.telefoneLocal)) : ''}</div></div>`;
+    document.getElementById('wa-voltar').onclick = () => { wa.sel = null; wa.detalhe = null; renderWhatsApp(); };
+    const msgs = document.getElementById('wa-msgs');
+    const noFim = msgs.scrollHeight - msgs.scrollTop - msgs.clientHeight < 40;
+    const rotulo = { equipe: 'Você', sistema: 'Automático', robo: 'Robô' };
+    msgs.innerHTML = !d ? '<div class="carregando">Carregando...</div>' : (d.ultimaFalhaEnvio ? `<div class="aviso-caixa">⚠ Última mensagem não foi entregue: ${esc(d.ultimaFalhaEnvio)}</div>` : '')
+      + (d.mensagens.length ? d.mensagens.map(m => `<div class="wa-bolha ${m.doCliente ? 'cliente' : 'nos'}">${m.doCliente ? '' : `<div class="wa-rotulo">${rotulo[m.remetente] || 'Robô'}</div>`}${esc(m.texto)}</div>`).join('') : '<div class="vazio">Sem mensagens.</div>');
+    if (noFim || !msgs.dataset.rolou) { msgs.scrollTop = msgs.scrollHeight; msgs.dataset.rolou = '1'; }
+    document.getElementById('wa-pausa').innerHTML = d && (d.pausado || d.precisaHumano) ? `<div class="aviso-caixa" style="margin:0">
+      <span>${d.precisaHumano ? '🙋 O cliente precisa de atendimento' + (d.motivo ? ': ' + esc(d.motivo) : '') : 'Robô pausado nesta conversa — você está respondendo.'}</span>
+      <button class="btn-secundario" id="wa-devolver">Devolver pro robô</button></div>` : '';
+    const dev = document.getElementById('wa-devolver');
+    if (dev) dev.onclick = () => comBotao(dev, '...', async () => { await api('/bot/reativar', { method: 'POST', body: { telefone: wa.sel } }); toast('O robô volta a responder essa conversa'); await carregarWhatsApp(); renderWhatsApp(); });
+  }
+
   /* ================= Calendário (mesmo modelo do Jabá) ================= */
   function limitesMes(ym) {
     const [a, m] = ym.split('-').map(Number);
@@ -2902,6 +3074,10 @@
   document.getElementById('busca').addEventListener('input', (e) => setState({ busca: e.target.value }));
   document.getElementById('mes-anterior').addEventListener('click', () => mudarMes(-1));
   document.getElementById('mes-proximo').addEventListener('click', () => mudarMes(1));
+  document.getElementById('wa-salvar-instrucoes').addEventListener('click', (ev) => comBotao(ev.target, 'Salvando...', async () => {
+    await api('/bot/instrucoes', { method: 'PUT', body: { instrucoes: document.getElementById('wa-instrucoes').value } });
+    document.getElementById('wa-instrucoes-ok').textContent = 'Salvo — o robô já usa na próxima mensagem.';
+  }));
   document.getElementById('cal-anterior').addEventListener('click', () => mudarMesCalendario(-1));
   document.getElementById('cal-proximo').addEventListener('click', () => mudarMesCalendario(1));
   document.getElementById('btn-novo-evento').addEventListener('click', () => abrirFormAgenda('evento'));

@@ -52,6 +52,14 @@ async function main() {
   if (!garantirEnv()) return;
   require('dotenv').config({ path: ENV_PATH });
 
+  // Segredo que a API e o atendente de WhatsApp usam pra conversar entre si (gerado uma vez só).
+  if (!process.env.BOT_WEBHOOK_SECRET) {
+    const segredo = crypto.randomBytes(24).toString('hex');
+    fs.appendFileSync(ENV_PATH, (fs.readFileSync(ENV_PATH, 'utf8').endsWith('\n') ? '' : '\n') + 'BOT_WEBHOOK_SECRET=' + segredo + '\n');
+    process.env.BOT_WEBHOOK_SECRET = segredo;
+    console.log('Segredo do atendente de WhatsApp criado no .env.');
+  }
+
   if (!process.env.DATABASE_URL || process.env.DATABASE_URL.includes(PLACEHOLDER_SENHA)) {
     console.error('O .env ainda está com a senha de exemplo. Abra ' + ENV_PATH + ' e coloque a senha do PostgreSQL.');
     process.exit(1);
