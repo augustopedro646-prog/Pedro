@@ -91,11 +91,11 @@ comissão, metas — hoje só tem produtos mais vendidos e formas de pagamento).
 ## Decisões fechadas em 30/09/2026 (2ª rodada)
 
 1. **Cargos**: só **Administrador** e **Caixa** têm login no sistema — bem mais simples
-   que o GDOOR. **Vendedor não é papel de login**: continua existindo como pessoa
-   cadastrada (lista de vendedores), atribuída por item na venda pra fins de
-   comissão/meta — quem opera o sistema (loga, bate ponto) é sempre Administrador ou
-   Caixa, mas registra "quem vendeu" separadamente. Sem Gerente — Administrador acumula
-   a aprovação de desconto acima do limite (mesmo modelo que o Jabá já usa).
+   que o GDOOR. Loja pequena reabrindo: **o caixa é o próprio vendedor**, então não existe
+   cadastro de vendedor separado — quem vendeu cada item é sempre o usuário logado no
+   momento da venda (auto-atribuído, sem seleção manual). Comissão/meta (Fase 4) calculam
+   em cima do usuário, não de uma entidade "vendedor" à parte. Sem Gerente — Administrador
+   acumula a aprovação de desconto acima do limite (mesmo modelo que o Jabá já usa).
 2. **Fidelidade**: entra **já na primeira versão** — cashback, reaproveitando a lógica
    já validada no Jabá Club (crédito só uma vez, na confirmação da venda, nunca
    duplicado). Passa a fazer parte da Fase 1/2, não da Fase 4.
@@ -107,7 +107,7 @@ comissão, metas — hoje só tem produtos mais vendidos e formas de pagamento).
 
 1. **Fundação** — banco real, login com PIN de verdade (hash), papéis Administrador/Caixa,
    Produtos/Estoque com grade tamanho×cor, Venda rápida ligada ao banco (decremento
-   atômico de estoque), cadastro de vendedores (atribuição por item, sem login).
+   atômico de estoque, vendedor = usuário logado).
 2. **Operação da loja** — Fluxo de caixa real, Clientes (crédito/vale-troca + **cashback**),
    Compras/Entrada de nota, Bater ponto.
 3. **Canal online** — Pedidos online.
