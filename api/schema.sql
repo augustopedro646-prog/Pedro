@@ -616,3 +616,42 @@ CREATE TABLE IF NOT EXISTS crediario_parcelas (
 CREATE INDEX IF NOT EXISTS crediario_abertas_idx ON crediario_parcelas(loja_id, vencimento) WHERE pago_em IS NULL;
 CREATE INDEX IF NOT EXISTS crediario_cliente_idx ON crediario_parcelas(cliente_id);
 CREATE INDEX IF NOT EXISTS crediario_sessao_idx ON crediario_parcelas(caixa_sessao_id);
+
+-- Lista de presentes (chá de bebê, aniversário): a mãe escolhe as peças, os convidados veem pelo
+-- link (token) o que falta e presenteiam pelo site ou na loja. Cada presente fica registrado com
+-- quem deu e de qual venda/pedido veio (cancelar desfaz).
+CREATE TABLE IF NOT EXISTS listas_presentes (
+  id TEXT PRIMARY KEY,
+  loja_id INTEGER NOT NULL REFERENCES lojas(id) ON DELETE CASCADE,
+  token TEXT NOT NULL UNIQUE,
+  cliente_id TEXT NOT NULL REFERENCES clientes(id),
+  titulo TEXT NOT NULL,
+  data_evento DATE,
+  mensagem TEXT,
+  ativa BOOLEAN NOT NULL DEFAULT true,
+  criado_por TEXT REFERENCES usuarios(id),
+  criado_em TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE TABLE IF NOT EXISTS lista_presentes_itens (
+  id TEXT PRIMARY KEY,
+  lista_id TEXT NOT NULL REFERENCES listas_presentes(id) ON DELETE CASCADE,
+  variacao_id TEXT NOT NULL REFERENCES produto_variacoes(id),
+  qtd_desejada INTEGER NOT NULL CHECK (qtd_desejada > 0),
+  qtd_presenteada INTEGER NOT NULL DEFAULT 0,
+  criado_em TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE (lista_id, variacao_id)
+);
+CREATE TABLE IF NOT EXISTS lista_presentes_dados (
+  id TEXT PRIMARY KEY,
+  lista_item_id TEXT NOT NULL REFERENCES lista_presentes_itens(id) ON DELETE CASCADE,
+  qtd INTEGER NOT NULL CHECK (qtd > 0),
+  de_quem TEXT,
+  mensagem TEXT,
+  venda_id TEXT REFERENCES vendas(id),
+  pedido_id TEXT REFERENCES pedidos_online(id),
+  criado_em TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS lista_presentes_dados_venda_idx ON lista_presentes_dados(venda_id);
+CREATE INDEX IF NOT EXISTS lista_presentes_dados_pedido_idx ON lista_presentes_dados(pedido_id);
+ALTER TABLE pedidos_online ADD COLUMN IF NOT EXISTS lista_id TEXT REFERENCES listas_presentes(id) ON DELETE SET NULL;
+ALTER TABLE pedidos_online ADD COLUMN IF NOT EXISTS presente_de TEXT;

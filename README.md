@@ -177,6 +177,19 @@ período anterior. "Este mês" compara com os mesmos dias do mês passado.
 
 Cada bloco tem **Baixar planilha** (abre direto no Excel).
 
+## Lista de presentes (Clientes → "Listas de presentes")
+
+- **Criar**: escolha a cliente (a mãe), título ("Chá de bebê do Davi"), data, mensagem pros
+  convidados e as peças (produto → tamanho/cor, quantas de cada).
+- **Link**: "Mandar o link no WhatsApp" manda pra mãe o link da lista, que ela repassa pros
+  convidados. No link, o convidado vê o que **ainda falta**, clica em **Presentear** e faz o
+  pedido pelo site (com o nome dele e uma mensagem pra família). A lista não mostra telefone nem
+  sobrenome.
+- **Na loja**: no caixa, "🎁 É presente de uma lista?" → escolha a lista e quem está dando.
+- A lista se atualiza sozinha (só conta até a quantidade que faltava). No painel aparece **quem deu
+  o quê**, pelo site ou na loja. Cancelar a venda/pedido tira o presente da lista. "Encerrar lista"
+  quando o evento passar.
+
 ## Crediário (venda a prazo na loja, "carnê")
 
 - No caixa, com a **cliente identificada**, aparece a forma **"Crediário"**. Pode ter entrada

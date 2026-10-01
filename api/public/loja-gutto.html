@@ -64,6 +64,12 @@
   .card-cat { font-size: 11px; color: var(--text-2); font-weight: 600; text-transform: uppercase; letter-spacing: .04em; }
   .card-nome { font-family: 'Baloo 2'; font-weight: 600; font-size: 16px; line-height: 1.2; }
   .card-preco { font-weight: 700; color: var(--accent); }
+  .lista-presentes { display: flex; flex-direction: column; gap: 10px; }
+  .presente { display: flex; gap: 10px; align-items: center; padding: 10px; border: 1px solid var(--border); border-radius: 12px; }
+  .presente.ganho { opacity: .6; }
+  .presente .nome { font-weight: 600; font-size: 14px; }
+  .presente .mini { width: 56px; height: 56px; border-radius: 10px; background: center / cover no-repeat; flex-shrink: 0; }
+  .link { border: none; background: none; color: var(--accent); text-decoration: underline; font-weight: 600; cursor: pointer; padding: 0; }
   .preco-de { color: var(--text-2); font-weight: 400; text-decoration: line-through; font-size: .85em; margin-right: 4px; }
   .selo-promo { position: absolute; top: 8px; right: 8px; background: var(--accent); color: #fff; font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 999px; }
   .promo-faixa { font-size: 13px; font-weight: 600; color: var(--accent); }
@@ -163,7 +169,7 @@
   const CORES = ['#3E6FA8', '#E8B23D', '#D9748C', '#8B8680', '#4E8C6E', '#E8664A', '#9B7FC7', '#B79C6B', '#57A0C9', '#C97A3E'];
   const ETAPAS = [['recebido', 'Pedido recebido'], ['separando', 'Separando as peças'], ['pronto', 'Pronto'], ['saiu_entrega', 'Saiu para entrega'], ['entregue', 'Concluído']];
 
-  const state = { config: null, produtos: [], categoria: null, busca: '', sacola: carregar('gutto-sacola', []), meusPedidos: carregar('gutto-pedidos', []), cliente: carregar('gutto-cliente', {}) };
+  const state = { config: null, produtos: [], categoria: null, busca: '', sacola: carregar('gutto-sacola', []), meusPedidos: carregar('gutto-pedidos', []), cliente: carregar('gutto-cliente', {}), lista: carregar('gutto-lista', null) };
 
   function carregar(chave, padrao) { try { return JSON.parse(localStorage.getItem(chave)) || padrao; } catch (e) { return padrao; } }
   function salvar(chave, valor) { try { localStorage.setItem(chave, JSON.stringify(valor)); } catch (e) {} }
@@ -297,6 +303,39 @@
     desenhar();
   }
 
+  /* ---------- Lista de presentes (link que a família manda pros convidados) ---------- */
+  async function abrirLista(token) {
+    history.replaceState(null, '', '#lista=' + token);
+    let l;
+    try { l = await api('/loja/listas/' + encodeURIComponent(token)); }
+    catch (e) { abrirFolha(`${topoFolha('Lista de presentes')}<div class="vazio">${esc(e.message)}</div>`); return; }
+    const data = l.dataEvento ? l.dataEvento.split('-').reverse().join('/') : '';
+    const folha = abrirFolha(`${topoFolha('🎁 ' + esc(l.titulo), 'Lista da ' + esc(l.dona) + (data ? ' · ' + data : ''))}
+      ${l.mensagem ? `<div class="desc" style="color:var(--text)">${esc(l.mensagem)}</div>` : ''}
+      ${!l.ativa ? '<div class="desc" style="font-weight:700">Essa lista já foi encerrada. Obrigado pelo carinho!</div>' : ''}
+      <div class="lista-presentes">${l.itens.map(i => {
+        const falta = i.desejada - i.presenteada;
+        return `<div class="presente ${falta <= 0 ? 'ganho' : ''}">
+          <div class="mini" style="${i.foto ? `background-image:url('${foto(i.foto)}')` : `background:${corDe(i.nome)}`}"></div>
+          <div style="flex-grow:1;min-width:0"><div class="nome">${esc(i.nome)}</div><div class="dica">Tam ${esc(i.tamanho)}${i.cor ? ' · ' + esc(i.cor) : ''} · ${brl(i.preco)}</div>
+            <div class="dica" style="font-weight:600">${falta <= 0 ? '✓ Já ganhou' : 'Falta ' + falta + (i.presenteada ? ' de ' + i.desejada : '')}</div></div>
+          ${falta > 0 && l.ativa ? (i.noSite && state.config.ativo ? `<button class="btn" style="width:auto;padding:10px 14px" data-presentear="${esc(i.variacaoId)}">Presentear</button>` : '<span class="dica">Na loja</span>') : ''}</div>`;
+      }).join('')}</div>
+      ${l.deQuem.length ? `<div class="dica">Já presentearam: ${l.deQuem.map(esc).join(', ')} 💛</div>` : ''}
+      <div class="dica">Pode comprar aqui pelo site (retira na loja ou recebe em casa) ou direto na loja — é só dizer que é da lista da ${esc(l.dona)}.</div>`);
+    folha.querySelectorAll('[data-presentear]').forEach(b => b.onclick = () => {
+      const it = l.itens.find(i => i.variacaoId === b.dataset.presentear);
+      const v = variacaoAtual(it.variacaoId);
+      if (!v || v.disponivel <= 0) { toast('Essa peça acabou no site — dá pra comprar na loja'); return; }
+      const naSacola = state.sacola.find(i => i.variacaoId === v.id);
+      if (naSacola) naSacola.qtd = Math.min(naSacola.qtd + 1, v.disponivel);
+      else state.sacola.push({ variacaoId: v.id, produtoId: it.produtoId, nome: it.nome, tamanho: v.tamanho, cor: v.cor, preco: v.preco, foto: it.foto || null, qtd: 1 });
+      state.lista = { token, titulo: l.titulo, dona: l.dona };
+      salvar('gutto-sacola', state.sacola); salvar('gutto-lista', state.lista); atualizarSacola();
+      toast('🎁 ' + it.nome + ' na sacola — presente pra lista da ' + l.dona);
+    });
+  }
+
   /* ---------- Sacola ---------- */
   function variacaoAtual(id) { for (const p of state.produtos) { const v = p.variacoes.find(x => x.id === id); if (v) return v; } return null; }
   // Preço, estoque e disponibilidade sempre do catálogo atual (a sacola fica salva no navegador).
@@ -330,6 +369,7 @@
       return;
     }
     const folha = abrirFolha(`${topoFolha('Sua sacola')}
+      ${state.lista ? `<div class="desc" style="color:var(--text)">🎁 Presente pra <b>${esc(state.lista.titulo)}</b> <button class="link" id="nao-presente">não é presente</button></div>` : ''}
       <div>${state.sacola.map((i, k) => `<div class="linha-sacola">
         <div class="mini" style="${i.foto ? `background-image:url('${foto(i.foto)}')` : `background:${corDe(i.nome)}`}"></div>
         <div style="flex-grow:1;min-width:0"><div class="nome">${esc(i.nome)}</div><div class="dica">Tam ${esc(i.tamanho)}${i.cor ? ' · ' + esc(i.cor) : ''} · ${brl(i.preco)}</div>
@@ -342,6 +382,8 @@
     folha.querySelectorAll('[data-mais]').forEach(b => b.onclick = () => { const i = state.sacola[b.dataset.mais]; const v = variacaoAtual(i.variacaoId); if (v && i.qtd < v.disponivel) { i.qtd++; salvar('gutto-sacola', state.sacola); atualizarSacola(); abrirSacola(); } else toast('Não temos mais peças desse tamanho'); });
     folha.querySelector('[data-fechar-2]').onclick = fecharFolha;
     folha.querySelector('#finalizar').onclick = abrirCheckout;
+    const naoPresente = folha.querySelector('#nao-presente');
+    if (naoPresente) naoPresente.onclick = () => { state.lista = null; salvar('gutto-lista', null); abrirSacola(); };
   }
 
   /* ---------- Checkout ---------- */
@@ -375,6 +417,9 @@
           ${['Pix', 'Crédito', 'Débito', 'Dinheiro'].map(f => `<button class="opcao ${pagamento === f ? 'sel' : ''}" data-pag="${f}">${f === 'Crédito' ? 'Cartão de crédito' : f === 'Débito' ? 'Cartão de débito' : f}</button>`).join('')}
         </div></div>
         ${pagamento === 'Dinheiro' ? `<label class="campo">Troco para quanto? (deixe vazio se não precisar)<input data-campo="troco" inputmode="decimal" placeholder="Ex.: 100,00" value="${v('troco')}"></label>` : ''}
+        ${state.lista ? `<div class="dupla">
+          <label class="campo">Seu nome no presente (pra família saber)<input data-campo="presente_de" maxlength="80" value="${v('presente_de', cli.nome)}"></label>
+          <label class="campo">Mensagem pra família (opcional)<input data-campo="presente_msg" maxlength="300" value="${v('presente_msg')}"></label></div>` : ''}
         <label class="campo">Observação (opcional)<textarea data-campo="obs" maxlength="300" placeholder="Ex.: é presente, pode embalar?">${v('obs')}</textarea></label>
         <div>
           <div class="linha-total"><span>${state.sacola.reduce((s, i) => s + i.qtd, 0)} peça(s)</span><span>${brl(subtotal())}</span></div>
@@ -415,11 +460,13 @@
     salvar('gutto-cliente', state.cliente);
     try {
       const r = await api('/loja/pedidos', { method: 'POST', body: { nome, telefone, tipo, endereco, pagamento, trocoPara, observacao: campo('obs') || null,
-        itens: state.sacola.map(i => ({ variacaoId: i.variacaoId, qtd: i.qtd })) } });
+        itens: state.sacola.map(i => ({ variacaoId: i.variacaoId, qtd: i.qtd })),
+        lista: state.lista ? { token: state.lista.token, deQuem: campo('presente_de') || nome, mensagem: campo('presente_msg') || null } : undefined } });
       const resumo = state.sacola.map(i => i.qtd + 'x ' + i.nome + ' Tam ' + i.tamanho + (i.cor ? ' ' + i.cor : '')).join(', ');
       state.meusPedidos = [{ token: r.token, numero: r.numero, criado: Date.now() }].concat(state.meusPedidos).slice(0, 10);
       salvar('gutto-pedidos', state.meusPedidos);
       state.sacola = []; salvar('gutto-sacola', state.sacola); atualizarSacola();
+      state.lista = null; salvar('gutto-lista', null);
       mostrarConfirmacao(r, resumo, nome);
       carregarCatalogo().catch(() => {});
     } catch (e) {
@@ -486,6 +533,8 @@
   carregarCatalogo().then(() => {
     const m = location.hash.match(/^#pedido=([A-Za-z0-9_-]+)$/);
     if (m) abrirAcompanhamento(m[1]);
+    const ml = location.hash.match(/^#lista=([A-Za-z0-9_-]+)$/);
+    if (ml) abrirLista(ml[1]);
   }).catch((e) => { document.getElementById('produtos').innerHTML = `<div class="vazio">${esc(e.message)}</div>`; });
   atualizarSacola();
 </script>

@@ -471,6 +471,7 @@
         <div class="bloco-carrinho" id="carrinho-pagamentos"></div>
         <button id="confirmar" style="margin-top:12px">Confirmar venda</button>
         <button class="btn-secundario" id="btn-enviar-condicional" style="margin-top:8px;width:100%">Enviar como condicional (levar pra provar)</button>
+        <button class="link-btn" id="btn-presente-lista" style="margin-top:8px;align-self:center">🎁 É presente de uma lista?</button>
       </div>
     </div>
 
@@ -485,7 +486,7 @@
     <div class="view page" id="view-clientes">
       <div class="page-topo">
         <div><h1 class="titulo">Clientes</h1><p class="sub">Cadastro, cashback e vale-troca</p></div>
-        <div style="display:flex;gap:6px"><button class="btn-secundario" id="btn-crediario">Crediário</button><button class="btn-primario" id="btn-novo-cliente">+ Novo cliente</button></div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn-secundario" id="btn-listas">Listas de presentes</button><button class="btn-secundario" id="btn-crediario">Crediário</button><button class="btn-primario" id="btn-novo-cliente">+ Novo cliente</button></div>
       </div>
       <input id="clientes-busca" class="input-busca" type="text" placeholder="Buscar por nome, telefone ou CPF" style="max-width:420px;margin-bottom:14px">
       <div class="painel"><div id="clientes-lista"></div></div>
@@ -746,7 +747,7 @@
     pedidosOnline: null, onlineNovos: 0, ultimoPedidoVisto: null,
     wa: { status: null, conversas: null, sel: null, detalhe: null, erro: null },
     backup: null,
-    condicional: null, condicionaisResumo: null, crediario: null, crediarioResumo: null,
+    condicional: null, condicionaisResumo: null, crediario: null, crediarioResumo: null, listaPresente: null,
     contas: null, contasFiltro: 'abertas', contasResumo: null, fluxoAba: 'mes',
     rel: null, relFiltro: null, relPedido: null, relCarregando: false, relVer: {}, relTodos: {},
     tema: temaInicial, sidebarCollapsed: false,
@@ -1446,6 +1447,10 @@
     const cond = state.condicional;
     if (cond) el.insertAdjacentHTML('afterbegin', `<div class="aviso-caixa" style="display:block;font-weight:400">Fechando o <b>condicional nº ${cond.numero}</b> de ${esc(cond.cliente_nome)}: ao confirmar, as peças que voltaram entram no estoque e estas viram venda.
       <button class="link-btn" id="btn-sair-condicional">não fechar agora</button></div>`);
+    const lp = state.listaPresente;
+    if (lp && state.cart.length) el.insertAdjacentHTML('afterbegin', `<div class="aviso-caixa" style="display:block;font-weight:400">🎁 Presente pra lista <b>${esc(lp.titulo)}</b>${lp.deQuem ? ' — de ' + esc(lp.deQuem) : ''} <button class="link-btn" id="btn-sair-lista">não é presente</button></div>`);
+    const sairLista = document.getElementById('btn-sair-lista');
+    if (sairLista) sairLista.onclick = () => setState({ listaPresente: null });
     const sairCond = document.getElementById('btn-sair-condicional');
     if (sairCond) sairCond.onclick = () => setState({ condicional: null, cart: [], pagamentos: [], cliente: null });
     document.getElementById('carrinho-cliente').innerHTML = cli ? `
@@ -1506,6 +1511,7 @@
     const btnCond = document.getElementById('btn-enviar-condicional');
     btnCond.style.display = cond ? 'none' : '';
     btnCond.disabled = !state.cart.length;
+    document.getElementById('btn-presente-lista').style.display = state.cart.length && !state.listaPresente ? '' : 'none';
   }
 
   function adicionarPagamento(forma, total) {
@@ -1548,6 +1554,7 @@
       pagamentos: pag.aplicados, clienteId: state.cliente ? state.cliente.id : undefined, aprovacao,
       troco: pag.troco > 0.005 ? pag.troco : undefined,
       condicionalId: state.condicional ? state.condicional.id : undefined,
+      listaId: state.listaPresente ? state.listaPresente.id : undefined, presenteDeQuem: state.listaPresente ? state.listaPresente.deQuem : undefined,
       crediario: pag.aplicados.some(p => p.forma === 'Crediário') ? { parcelas: (state.crediario || crediarioPadrao()).parcelas, primeiroVencimento: (state.crediario || crediarioPadrao()).primeiro } : undefined,
     };
     try {
@@ -1556,7 +1563,7 @@
       const troco = pag.troco;
       r.clienteNome = state.cliente ? state.cliente.nome : null;
       r.clienteCpf = state.cliente ? (state.cliente.cpf || '') : '';
-      Object.assign(state, { cart: [], pagamentos: [], cliente: null, condicional: null, crediario: null });
+      Object.assign(state, { cart: [], pagamentos: [], cliente: null, condicional: null, crediario: null, listaPresente: null });
       if (r.crediario) carregarResumoCrediario();
       await Promise.all([carregarProdutos(), carregarCaixa()]);
       render();
@@ -1715,6 +1722,118 @@
       <hr><div class="c p">O crédito fica no cadastro do cliente (pelo telefone) e pode ser usado em qualquer compra na loja.</div>
       ${state.config.cupomRodape ? `<div class="c p" style="margin-top:2mm">${esc(state.config.cupomRodape)}</div>` : ''}
     </body></html>`, largura);
+  }
+
+  /* ================= Lista de presentes (chá de bebê) ================= */
+  function linkLista(token) { return (state.config.siteUrl || location.origin) + '/loja-gutto.html#lista=' + token; }
+  function msgLista(l) {
+    return `Oi, ${(l.cliente_nome || '').split(' ')[0]}! Sua lista de presentes da Loja Gutto ("${l.titulo}") está pronta 🎁 Manda esse link pros convidados: ${linkLista(l.token)} — eles veem o que falta e podem presentear pelo site ou aqui na loja.`;
+  }
+  async function abrirListas() {
+    let listas;
+    try { listas = await api('/listas-presentes'); } catch (e) { toast(e.message, 'erro'); return; }
+    const camada = abrirModal(`<div class="modal-card largo">${cabecalhoModal('Listas de presentes', 'Chá de bebê, aniversário... a família manda o link e os convidados veem o que falta')}
+      <div style="display:flex;justify-content:flex-end"><button class="btn-primario" id="lp-nova">+ Nova lista</button></div>
+      ${listas.length ? `<div class="tabela-scroll"><table class="tabela"><tr><th>Lista</th><th>Cliente</th><th>Data</th><th>Presentes</th><th></th></tr>
+        ${listas.map(l => `<tr style="${l.ativa ? '' : 'opacity:.55'}"><td><b>${esc(l.titulo)}</b>${l.ativa ? '' : ' <span class="tag cinza">encerrada</span>'}</td><td>${esc(l.cliente_nome)}</td>
+          <td>${l.data_evento ? dataBR(l.data_evento) : '—'}</td><td>${l.presenteadas} de ${l.desejadas}</td>
+          <td style="white-space:nowrap"><button class="btn-secundario" data-lp-abrir="${l.id}">Abrir</button> <button class="link-btn" data-lp-link="${l.token}">copiar link</button></td></tr>`).join('')}</table></div>`
+        : '<div class="vazio">Nenhuma lista ainda.</div>'}</div>`);
+    camada.querySelector('#lp-nova').onclick = () => abrirFormLista(null);
+    camada.querySelectorAll('[data-lp-abrir]').forEach(b => b.onclick = () => abrirLista(b.dataset.lpAbrir));
+    camada.querySelectorAll('[data-lp-link]').forEach(b => b.onclick = async () => {
+      try { await navigator.clipboard.writeText(linkLista(b.dataset.lpLink)); toast('Link copiado'); } catch (e) { prompt('Copie o link:', linkLista(b.dataset.lpLink)); }
+    });
+  }
+  async function abrirLista(id) {
+    let l;
+    try { l = await api('/listas-presentes/' + id); } catch (e) { toast(e.message, 'erro'); return; }
+    const wa = waLink(l.cliente_telefone, msgLista(l));
+    const camada = abrirModal(`<div class="modal-card largo">${cabecalhoModal('🎁 ' + l.titulo, l.cliente_nome + (l.data_evento ? ' · ' + dataBR(l.data_evento) : ''))}
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        ${wa ? `<a class="btn-primario" href="${wa}" target="_blank" rel="noopener" style="text-decoration:none">Mandar o link pra ${esc(l.cliente_nome.split(' ')[0])} no WhatsApp</a>` : ''}
+        <button class="btn-secundario" id="lp-copiar">Copiar link</button><a class="btn-secundario" href="${linkLista(l.token)}" target="_blank" rel="noopener" style="text-decoration:none">Ver como o convidado vê</a>
+        <button class="btn-secundario" id="lp-editar">Editar peças</button><button class="link-btn" id="lp-ativa">${l.ativa ? 'encerrar lista' : 'reabrir lista'}</button></div>
+      <div class="tabela-scroll"><table class="tabela"><tr><th>Peça</th><th style="text-align:right">Preço</th><th>Queria</th><th>Ganhou</th></tr>
+        ${l.itens.map(i => `<tr><td>${esc(i.nome)} · <b>${esc(i.tamanho)}</b>${i.cor ? ' · ' + esc(i.cor) : ''}</td><td style="text-align:right">${fmt(i.preco)}</td><td>${i.qtd_desejada}</td>
+          <td>${i.qtd_presenteada >= i.qtd_desejada ? '<span class="tag ok">✓ ' + i.qtd_presenteada + '</span>' : i.qtd_presenteada}</td></tr>`).join('')}</table></div>
+      <div class="painel-titulo" style="font-size:14px;margin:0">Quem já deu</div>
+      ${l.presentes.length ? l.presentes.map(p => `<div class="linha-simples" style="font-size:13px"><span style="flex:1"><b>${esc(p.de_quem || 'Sem nome')}</b>: ${p.qtd}× ${esc(p.nome)} ${esc(p.tamanho)}${p.mensagem ? ` — <i>"${esc(p.mensagem)}"</i>` : ''}</span>
+        <span style="color:var(--text-2);font-size:11px">${dataHora(p.criado_em)} · ${p.pedido_id ? 'pelo site' : 'na loja'}</span></div>`).join('') : '<div class="modal-dica" style="margin:0">Ninguém ainda.</div>'}</div>`);
+    camada.querySelector('#lp-copiar').onclick = async () => { try { await navigator.clipboard.writeText(linkLista(l.token)); toast('Link copiado'); } catch (e) { prompt('Copie o link:', linkLista(l.token)); } };
+    camada.querySelector('#lp-editar').onclick = () => abrirFormLista(l);
+    camada.querySelector('#lp-ativa').onclick = async () => {
+      try { await api('/listas-presentes/' + l.id, { method: 'PUT', body: { ativa: !l.ativa } }); toast(l.ativa ? 'Lista encerrada' : 'Lista reaberta'); abrirLista(l.id); } catch (e) { toast(e.message, 'erro'); }
+    };
+  }
+  // Criar/editar: cliente, dados e as peças (produto → tamanho/cor → quantas).
+  async function abrirFormLista(l) {
+    if (!state.produtos.length) await carregarProdutos();
+    let cliente = l ? { id: l.cliente_id, nome: l.cliente_nome } : null;
+    const itens = new Map((l ? l.itens : []).map(i => [i.variacao_id, { qtd: i.qtd_desejada, ganhou: i.qtd_presenteada, rotulo: i.nome + ' · ' + i.tamanho + (i.cor ? ' · ' + i.cor : '') }]));
+    const removidos = new Set();
+    const camada = abrirModal(`<div class="modal-card largo">${cabecalhoModal(l ? 'Editar lista' : 'Nova lista de presentes', '')}
+      <div class="linha-campos" style="align-items:flex-end">
+        <div class="campo">Cliente (dona da lista)<div style="display:flex;gap:8px;align-items:center"><b id="fl-cliente">${cliente ? esc(cliente.nome) : 'nenhuma'}</b>${l ? '' : '<button class="btn-secundario" id="fl-escolher" type="button">Escolher</button>'}</div></div>
+        <label class="campo" style="flex:2">Título<input id="fl-titulo" maxlength="80" value="${esc(l ? l.titulo : '')}" placeholder="Ex.: Chá de bebê do Davi"></label>
+        <label class="campo">Data<input id="fl-data" type="date" value="${l && l.data_evento ? l.data_evento : ''}"></label>
+      </div>
+      <label class="campo">Mensagem pros convidados (opcional)<input id="fl-msg" maxlength="400" value="${esc(l ? l.mensagem || '' : '')}" placeholder="Ex.: O Davi chega em dezembro! Tamanho RN e P 💙"></label>
+      <div class="painel" style="padding:12px 14px"><div class="painel-titulo" style="font-size:14px">Adicionar peça</div>
+        <select id="fl-prod" class="input-busca"><option value="">Escolha o produto...</option>${state.produtos.filter(p => p.ativo).map(p => `<option value="${p.id}">${esc(p.nome)}</option>`).join('')}</select>
+        <div id="fl-vars" style="margin-top:8px"></div></div>
+      <div id="fl-itens"></div>
+      <div class="erro-modal" id="fl-erro"></div>
+      <button class="btn-primario btn-grande" id="fl-salvar">${l ? 'Salvar' : 'Criar lista'}</button></div>`);
+    const $ = (q) => camada.querySelector(q);
+    const desenharItens = () => {
+      $('#fl-itens').innerHTML = itens.size ? `<table class="tabela"><tr><th>Peça</th><th style="width:110px">Quantas</th><th></th></tr>
+        ${[...itens].map(([vid, it]) => `<tr><td>${esc(it.rotulo)}${it.ganhou ? ` <span class="tag ok">ganhou ${it.ganhou}</span>` : ''}</td><td><input data-fl-qtd="${vid}" type="number" min="${Math.max(1, it.ganhou || 0)}" max="50" value="${it.qtd}"></td>
+          <td>${it.ganhou ? '' : `<button class="link-btn" data-fl-tirar="${vid}">tirar</button>`}</td></tr>`).join('')}</table>` : '<div class="modal-dica">Nenhuma peça ainda.</div>';
+      camada.querySelectorAll('[data-fl-qtd]').forEach(inp => inp.onchange = () => { itens.get(inp.dataset.flQtd).qtd = Math.max(1, parseInt(inp.value, 10) || 1); });
+      camada.querySelectorAll('[data-fl-tirar]').forEach(b => b.onclick = () => { itens.delete(b.dataset.flTirar); removidos.add(b.dataset.flTirar); desenharItens(); });
+    };
+    $('#fl-prod').onchange = () => {
+      const p = state.produtos.find(x => x.id === $('#fl-prod').value);
+      $('#fl-vars').innerHTML = p ? `<div class="chips">${p.tamanhos.flatMap(t => p.variacoes.filter(v => v.tamanho === t && v.ativo)).map(v => `<button class="chip" data-fl-var="${v.id}" type="button">${esc(v.tamanho)}${v.cor ? ' · ' + esc(v.cor) : ''}</button>`).join('')}</div>` : '';
+      camada.querySelectorAll('[data-fl-var]').forEach(b => b.onclick = () => {
+        const a = acharVariacao(b.dataset.flVar);
+        const atual = itens.get(b.dataset.flVar);
+        if (atual) atual.qtd++; else itens.set(b.dataset.flVar, { qtd: 1, ganhou: 0, rotulo: a.produto.nome + ' · ' + a.variacao.tamanho + (a.variacao.cor ? ' · ' + a.variacao.cor : '') });
+        removidos.delete(b.dataset.flVar);
+        desenharItens();
+      });
+    };
+    const esc2 = $('#fl-escolher');
+    if (esc2) esc2.onclick = async () => {
+      const c = await escolherCliente('De quem é a lista?');
+      if (c) { cliente = c; $('#fl-cliente').textContent = c.nome; if (!$('#fl-titulo').value) $('#fl-titulo').value = 'Chá de bebê — ' + c.nome.split(' ')[0]; }
+    };
+    desenharItens();
+    $('#fl-salvar').onclick = (ev) => comBotao(ev.target, 'Salvando...', async () => {
+      if (!cliente) throw new Error('Escolha a cliente (a dona da lista).');
+      if (!itens.size) throw new Error('Adicione pelo menos uma peça.');
+      const corpo = { titulo: $('#fl-titulo').value, dataEvento: $('#fl-data').value || null, mensagem: $('#fl-msg').value,
+        itens: [...itens].map(([variacaoId, it]) => ({ variacaoId, qtd: it.qtd })).concat([...removidos].map(variacaoId => ({ variacaoId, qtd: 0 }))) };
+      if (l) { await api('/listas-presentes/' + l.id, { method: 'PUT', body: corpo }); toast('Lista salva'); abrirLista(l.id); }
+      else { const r = await api('/listas-presentes', { method: 'POST', body: Object.assign({ clienteId: cliente.id }, corpo) }); toast('Lista criada'); abrirLista(r.id); }
+    }, $('#fl-erro'));
+  }
+  // Caixa: a venda é presente de uma lista (marca na lista o que for dela).
+  async function escolherListaNoCaixa() {
+    let listas;
+    try { listas = (await api('/listas-presentes')).filter(l => l.ativa); } catch (e) { toast(e.message, 'erro'); return; }
+    if (!listas.length) { toast('Nenhuma lista de presentes aberta', 'erro'); return; }
+    const camada = abrirModal(`<div class="modal-card estreito">${cabecalhoModal('Presente de lista', 'As peças da venda que estão na lista ficam marcadas como presenteadas')}
+      <label class="campo">Lista<select id="lc-lista">${listas.map(l => `<option value="${l.id}">${esc(l.titulo)} — ${esc(l.cliente_nome)} (${l.presenteadas}/${l.desejadas})</option>`).join('')}</select></label>
+      <label class="campo">Quem está dando o presente<input id="lc-de" maxlength="80" placeholder="Ex.: Tia Ana"></label>
+      <button class="btn-primario btn-grande" id="lc-ok">Marcar como presente</button></div>`);
+    camada.querySelector('#lc-ok').onclick = () => {
+      const l = listas.find(x => x.id === camada.querySelector('#lc-lista').value);
+      const deQuem = camada.querySelector('#lc-de').value.trim();
+      fecharModal();
+      setState({ listaPresente: { id: l.id, titulo: l.titulo, deQuem } });
+    };
   }
 
   /* ================= Crediário (venda a prazo na loja) ================= */
@@ -2163,6 +2282,7 @@
       </div>
       <div style="font-size:13px">${p.tipo === 'entrega' ? `🛵 <b>Entrega:</b> ${esc(p.endereco)} · <a class="link-btn" href="${linkMaps(p.endereco)}" target="_blank" rel="noopener">abrir no mapa</a>${p.entregador ? ' · com ' + esc(p.entregador) : ''}` : '🏬 <b>Retirada na loja</b>'}
         <div><b>Pagamento:</b> ${esc(p.pagamento)} na ${p.tipo === 'entrega' ? 'entrega' : 'retirada'}${troco}</div>
+        ${p.lista_titulo ? `<div>🎁 <b>Presente pra lista:</b> ${esc(p.lista_titulo)}${p.presente_de ? ' — de ' + esc(p.presente_de) : ''}</div>` : ''}
         ${p.observacao ? `<div><b>Obs.:</b> ${esc(p.observacao)}</div>` : ''}${p.status === 'cancelado' && p.motivo_cancelamento ? `<div><b>Cancelado:</b> ${esc(p.motivo_cancelamento)}</div>` : ''}</div>
       <div class="pedido-itens">${p.itens.map(i => `<div class="linha-simples" style="padding:4px 0"><b style="width:32px">${i.qtd}×</b><div style="flex-grow:1">${esc(i.produto_nome)} · Tam ${esc(i.tamanho)}${i.cor ? ' · ' + esc(i.cor) : ''}</div><span>${fmt(i.preco_unit * i.qtd)}</span></div>`).join('')}
         ${p.taxa_entrega ? `<div class="linha-simples" style="padding:4px 0;color:var(--text-2)"><div style="flex-grow:1">Taxa de entrega</div><span>${fmt(p.taxa_entrega)}</span></div>` : ''}</div>
@@ -4807,9 +4927,11 @@
   document.getElementById('btn-troca').addEventListener('click', () => abrirTroca(false));
   document.getElementById('btn-condicionais').addEventListener('click', () => abrirCondicionais(false));
   document.getElementById('btn-enviar-condicional').addEventListener('click', () => enviarComoCondicional());
-  document.getElementById('btn-limpar-carrinho').addEventListener('click', () => { if (!state.cart.length || confirm('Limpar o carrinho?')) setState({ cart: [], pagamentos: [], cliente: null, condicional: null }); });
+  document.getElementById('btn-presente-lista').addEventListener('click', () => escolherListaNoCaixa());
+  document.getElementById('btn-limpar-carrinho').addEventListener('click', () => { if (!state.cart.length || confirm('Limpar o carrinho?')) setState({ cart: [], pagamentos: [], cliente: null, condicional: null, listaPresente: null }); });
   document.getElementById('btn-novo-cliente').addEventListener('click', abrirNovoCliente);
   document.getElementById('btn-crediario').addEventListener('click', () => abrirCrediario(false));
+  document.getElementById('btn-listas').addEventListener('click', () => abrirListas());
   document.getElementById('btn-nova-compra').addEventListener('click', abrirNovaCompra);
   document.getElementById('btn-ler-nota').addEventListener('click', () => document.getElementById('input-nota').click());
   document.getElementById('input-nota').addEventListener('change', (e) => {

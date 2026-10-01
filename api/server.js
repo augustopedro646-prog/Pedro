@@ -558,6 +558,143 @@ app.post('/api/lojas/:lojaId/variacoes/:id/ajuste-estoque', admin, rota(async (r
   res.json({ ok: true, ...r });
 }));
 
+/* ---------- Lista de presentes (chá de bebê) ---------- */
+
+// Marca como presenteado o que a venda/pedido tem da lista (até a quantidade que ainda falta).
+async function registrarPresentes(c, listaId, itens, ref, deQuem, mensagem) {
+  let marcados = 0;
+  for (const it of itens) {
+    const { rows } = await c.query(
+      'SELECT id, qtd_desejada, qtd_presenteada FROM lista_presentes_itens WHERE lista_id = $1 AND variacao_id = $2 FOR UPDATE', [listaId, it.variacaoId]);
+    if (!rows.length) continue;
+    const q = Math.min(it.qtd, rows[0].qtd_desejada - rows[0].qtd_presenteada);
+    if (q <= 0) continue;
+    await c.query('UPDATE lista_presentes_itens SET qtd_presenteada = qtd_presenteada + $1 WHERE id = $2', [q, rows[0].id]);
+    await c.query('INSERT INTO lista_presentes_dados (id, lista_item_id, qtd, de_quem, mensagem, venda_id, pedido_id) VALUES ($1,$2,$3,$4,$5,$6,$7)',
+      [uid(), rows[0].id, q, deQuem || null, mensagem || null, ref.vendaId || null, ref.pedidoId || null]);
+    marcados += q;
+  }
+  return marcados;
+}
+// Venda/pedido cancelado: o presente volta a "faltar" na lista.
+async function desfazerPresentes(c, ref) {
+  const { rows } = await c.query(`DELETE FROM lista_presentes_dados WHERE ${ref.vendaId ? 'venda_id' : 'pedido_id'} = $1 RETURNING lista_item_id, qtd`, [ref.vendaId || ref.pedidoId]);
+  for (const r of rows) await c.query('UPDATE lista_presentes_itens SET qtd_presenteada = GREATEST(qtd_presenteada - $1, 0) WHERE id = $2', [r.qtd, r.lista_item_id]);
+}
+async function detalheLista(db, where, params, tz) {
+  const { rows } = await db.query(
+    `SELECT l.*, to_char(l.data_evento, 'YYYY-MM-DD') AS data_evento, cl.nome AS cliente_nome, cl.telefone AS cliente_telefone
+     FROM listas_presentes l JOIN clientes cl ON cl.id = l.cliente_id WHERE ${where}`, params);
+  if (!rows.length) return null;
+  const l = rows[0];
+  const { rows: itens } = await db.query(
+    `SELECT li.id, li.variacao_id, li.qtd_desejada, li.qtd_presenteada, p.id AS produto_id, p.nome, p.categoria, v.tamanho, v.cor, v.preco_venda::float AS preco_venda,
+            GREATEST(v.estoque, 0)::int AS estoque, (v.ativo AND p.ativo AND p.publicado AND v.preco_venda > 0) AS no_site,
+            (SELECT f.id FROM produto_fotos f WHERE f.produto_id = p.id ORDER BY f.ordem, f.criado_em LIMIT 1) AS foto
+     FROM lista_presentes_itens li JOIN produto_variacoes v ON v.id = li.variacao_id JOIN produtos p ON p.id = v.produto_id
+     WHERE li.lista_id = $1 ORDER BY (li.qtd_presenteada >= li.qtd_desejada), p.nome, v.tamanho`, [l.id]);
+  const promos = await promocoes.ativas(db, l.loja_id, tz);
+  const { rows: dados } = await db.query(
+    `SELECT d.qtd, d.de_quem, d.mensagem, d.criado_em, d.venda_id, d.pedido_id, p.nome, v.tamanho FROM lista_presentes_dados d
+     JOIN lista_presentes_itens li ON li.id = d.lista_item_id JOIN produto_variacoes v ON v.id = li.variacao_id JOIN produtos p ON p.id = v.produto_id
+     WHERE li.lista_id = $1 ORDER BY d.criado_em DESC`, [l.id]);
+  return { ...l, itens: itens.map((i) => ({ ...i, preco: promocoes.precoComPromo(promos, i.produto_id, i.categoria, i.preco_venda).preco })), presentes: dados };
+}
+
+app.get('/api/lojas/:lojaId/listas-presentes', qualquer, rota(async (req, res) => {
+  const { rows } = await pool.query(
+    `SELECT l.id, l.token, l.titulo, to_char(l.data_evento, 'YYYY-MM-DD') AS data_evento, l.ativa, cl.nome AS cliente_nome, cl.telefone AS cliente_telefone,
+            COALESCE(SUM(li.qtd_desejada), 0)::int AS desejadas, COALESCE(SUM(LEAST(li.qtd_presenteada, li.qtd_desejada)), 0)::int AS presenteadas
+     FROM listas_presentes l JOIN clientes cl ON cl.id = l.cliente_id LEFT JOIN lista_presentes_itens li ON li.lista_id = l.id
+     WHERE l.loja_id = $1 GROUP BY l.id, cl.nome, cl.telefone ORDER BY l.ativa DESC, l.data_evento NULLS LAST, l.criado_em DESC`, [req.lojaId]);
+  res.json(rows);
+}));
+
+app.get('/api/lojas/:lojaId/listas-presentes/:id', qualquer, rota(async (req, res) => {
+  const l = await detalheLista(pool, 'l.id = $1 AND l.loja_id = $2', [req.params.id, req.lojaId], TZ);
+  if (!l) falha(404, 'lista não encontrada');
+  res.json(l);
+}));
+
+function lerItensLista(itens) {
+  if (!Array.isArray(itens) || itens.length > 200) falha(400, 'itens inválidos');
+  const por = new Map();
+  for (const it of itens) {
+    if (!it || typeof it.variacaoId !== 'string') falha(400, 'peça inválida');
+    por.set(it.variacaoId, numero(it.qtd, 'quantidade', { minExclusivo: true, inteiro: true, max: 50 }));
+  }
+  return por;
+}
+// Corpo: { clienteId, titulo, dataEvento?, mensagem?, itens: [{variacaoId, qtd}] }
+app.post('/api/lojas/:lojaId/listas-presentes', qualquer, rota(async (req, res) => {
+  const body = req.body || {};
+  const titulo = texto(body.titulo, 'título', { max: 80 });
+  const itens = lerItensLista(body.itens || []);
+  const r = await transacao(async (c) => {
+    const { rows: cli } = await c.query('SELECT id FROM clientes WHERE id = $1 AND loja_id = $2', [body.clienteId, req.lojaId]);
+    if (!cli.length) falha(400, 'Escolha a cliente (a dona da lista)');
+    const id = uid(), token = crypto.randomBytes(9).toString('base64url');
+    await c.query('INSERT INTO listas_presentes (id, loja_id, token, cliente_id, titulo, data_evento, mensagem, criado_por) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)',
+      [id, req.lojaId, token, cli[0].id, titulo, body.dataEvento ? dataISO(body.dataEvento, 'data do evento') : null,
+        texto(body.mensagem, 'mensagem', { obrigatorio: false, max: 400 }), req.usuario.id]);
+    for (const [variacaoId, qtd] of itens) {
+      const { rowCount } = await c.query('SELECT 1 FROM produto_variacoes WHERE id = $1 AND loja_id = $2', [variacaoId, req.lojaId]);
+      if (!rowCount) falha(404, 'peça não encontrada');
+      await c.query('INSERT INTO lista_presentes_itens (id, lista_id, variacao_id, qtd_desejada) VALUES ($1,$2,$3,$4)', [uid(), id, variacaoId, qtd]);
+    }
+    return { id, token };
+  });
+  res.status(201).json(r);
+}));
+
+// Atualiza dados e itens (quantidade 0 tira o item, se ninguém deu ainda). Corpo: { titulo?, dataEvento?, mensagem?, ativa?, itens? }
+app.put('/api/lojas/:lojaId/listas-presentes/:id', qualquer, rota(async (req, res) => {
+  const body = req.body || {};
+  await transacao(async (c) => {
+    const { rows } = await c.query('SELECT id FROM listas_presentes WHERE id = $1 AND loja_id = $2 FOR UPDATE', [req.params.id, req.lojaId]);
+    if (!rows.length) falha(404, 'lista não encontrada');
+    await c.query(`UPDATE listas_presentes SET titulo = COALESCE($1, titulo), data_evento = CASE WHEN $2::boolean THEN $3::date ELSE data_evento END,
+        mensagem = COALESCE($4, mensagem), ativa = COALESCE($5, ativa) WHERE id = $6`,
+      [body.titulo != null ? texto(body.titulo, 'título', { max: 80 }) : null, body.dataEvento !== undefined,
+        body.dataEvento ? dataISO(body.dataEvento, 'data do evento') : null,
+        body.mensagem != null ? (texto(body.mensagem, 'mensagem', { obrigatorio: false, max: 400 }) || '') : null,
+        typeof body.ativa === 'boolean' ? body.ativa : null, req.params.id]);
+    if (Array.isArray(body.itens)) {
+      const por = new Map();
+      for (const it of body.itens) {
+        if (!it || typeof it.variacaoId !== 'string') falha(400, 'peça inválida');
+        por.set(it.variacaoId, numero(it.qtd, 'quantidade', { inteiro: true, max: 50 }));
+      }
+      for (const [variacaoId, qtd] of por) {
+        const { rows: ex } = await c.query('SELECT id, qtd_presenteada FROM lista_presentes_itens WHERE lista_id = $1 AND variacao_id = $2', [req.params.id, variacaoId]);
+        if (ex.length) {
+          if (qtd === 0 && ex[0].qtd_presenteada > 0) falha(409, 'Esse item já foi presenteado — não dá pra tirar da lista');
+          if (qtd === 0) await c.query('DELETE FROM lista_presentes_itens WHERE id = $1', [ex[0].id]);
+          else await c.query('UPDATE lista_presentes_itens SET qtd_desejada = GREATEST($1, qtd_presenteada) WHERE id = $2', [qtd, ex[0].id]);
+        } else if (qtd > 0) {
+          const { rowCount } = await c.query('SELECT 1 FROM produto_variacoes WHERE id = $1 AND loja_id = $2', [variacaoId, req.lojaId]);
+          if (!rowCount) falha(404, 'peça não encontrada');
+          await c.query('INSERT INTO lista_presentes_itens (id, lista_id, variacao_id, qtd_desejada) VALUES ($1,$2,$3,$4)', [uid(), req.params.id, variacaoId, qtd]);
+        }
+      }
+    }
+  });
+  res.json({ ok: true });
+}));
+
+// Página pública da lista (o link que a mãe manda). Sem telefone nem sobrenome.
+app.get('/api/lojas/:lojaId/loja/listas/:token', rota(async (req, res) => {
+  const l = await detalheLista(pool, 'l.token = $1 AND l.loja_id = $2', [req.params.token, req.lojaId], TZ);
+  if (!l) falha(404, 'Lista não encontrada — confira o link');
+  res.set('Cache-Control', 'no-store');
+  res.json({
+    titulo: l.titulo, dataEvento: l.data_evento, mensagem: l.mensagem || '', ativa: l.ativa, dona: String(l.cliente_nome || '').split(' ')[0],
+    itens: l.itens.map((i) => ({ variacaoId: i.variacao_id, produtoId: i.produto_id, nome: i.nome, tamanho: i.tamanho, cor: i.cor, preco: i.preco, foto: i.foto,
+      desejada: i.qtd_desejada, presenteada: Math.min(i.qtd_presenteada, i.qtd_desejada), noSite: i.no_site && i.estoque > 0 })),
+    deQuem: [...new Set(l.presentes.map((p) => p.de_quem).filter(Boolean))],
+  });
+}));
+
 /* ---------- Crediário (parcelas a receber) ---------- */
 
 const SQL_CRED = `SELECT cp.id, cp.venda_id, cp.cliente_id, cl.nome AS cliente_nome, cl.telefone AS cliente_telefone, cp.parcela, cp.parcelas,
@@ -1275,6 +1412,12 @@ app.post('/api/lojas/:lojaId/vendas', qualquer, rota(async (req, res) => {
       }
     }
 
+    if (body.listaId) {
+      const { rows: ls } = await c.query('SELECT id FROM listas_presentes WHERE id = $1 AND loja_id = $2 AND ativa', [body.listaId, req.lojaId]);
+      if (!ls.length) falha(404, 'Lista de presentes não encontrada ou encerrada');
+      await registrarPresentes(c, ls[0].id, gravar.map((it) => ({ variacaoId: it.variacaoId, qtd: it.qtd })), { vendaId },
+        texto(body.presenteDeQuem, 'nome de quem deu o presente', { obrigatorio: false, max: 80 }), null);
+    }
     if (parcelasCrediario) {
       for (const p of parcelasCrediario) {
         await c.query('INSERT INTO crediario_parcelas (id, loja_id, venda_id, cliente_id, parcela, parcelas, valor, vencimento) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)',
@@ -1370,6 +1513,8 @@ app.post('/api/lojas/:lojaId/vendas/:id/cancelar', admin, rota(async (req, res) 
     const { rowCount: credPagas } = await c.query('SELECT 1 FROM crediario_parcelas WHERE venda_id = $1 AND pago_em IS NOT NULL', [venda.id]);
     if (credPagas) falha(409, 'Essa venda no crediário já tem parcela paga — desfaça o recebimento das parcelas antes de cancelar');
     await c.query('DELETE FROM crediario_parcelas WHERE venda_id = $1 AND pago_em IS NULL', [venda.id]);
+    await desfazerPresentes(c, { vendaId: venda.id });
+    if (venda.pedido_online_id) await desfazerPresentes(c, { pedidoId: venda.pedido_online_id });
     if (devs) falha(409, 'Essa venda já teve troca/devolução — não dá pra cancelar (o cliente já recebeu vale-troca). Faça a troca/devolução do restante.');
 
     const aberta = await sessaoAberta(c, req.lojaId, 'SHARE');
@@ -2412,6 +2557,16 @@ app.post('/api/lojas/:lojaId/loja/pedidos', limitePedidoSite, rota(async (req, r
          VALUES ($1,$2,$3,'venda',$4,$5,$6,'pedido_online',$7,'Reservado pelo pedido online')`,
         [uid(), req.lojaId, it.variacaoId, -it.qtd, it.custo, round2(it.custo * it.qtd), id]);
     }
+    // Presente de lista (chá de bebê): marca na lista o que esse pedido tem dela.
+    if (body.lista && typeof body.lista === 'object' && typeof body.lista.token === 'string') {
+      const { rows: ls } = await c.query('SELECT id, titulo FROM listas_presentes WHERE token = $1 AND loja_id = $2 AND ativa', [body.lista.token, req.lojaId]);
+      if (ls.length) {
+        const deQuem = texto(body.lista.deQuem, 'seu nome no presente', { obrigatorio: false, max: 80 }) || nome;
+        await registrarPresentes(c, ls[0].id, gravar.map((it) => ({ variacaoId: it.variacaoId, qtd: it.qtd })), { pedidoId: id }, deQuem,
+          texto(body.lista.mensagem, 'mensagem do presente', { obrigatorio: false, max: 300 }));
+        await c.query('UPDATE pedidos_online SET lista_id = $1, presente_de = $2 WHERE id = $3', [ls[0].id, deQuem, id]);
+      }
+    }
     return { id, numero: numeroPedido, token, total, telefone };
   });
   notificarBot(req.lojaId, r.id, 'recebido');
@@ -2419,7 +2574,7 @@ app.post('/api/lojas/:lojaId/loja/pedidos', limitePedidoSite, rota(async (req, r
 }));
 
 async function detalhePedido(db, where, params) {
-  const { rows } = await db.query(`SELECT * FROM pedidos_online WHERE ${where}`, params);
+  const { rows } = await db.query(`SELECT po.*, lp.titulo AS lista_titulo FROM pedidos_online po LEFT JOIN listas_presentes lp ON lp.id = po.lista_id WHERE ${where.replace(/\b(id|token|loja_id)\b/g, 'po.$1')}`, params);
   if (!rows.length) return null;
   const p = rows[0];
   const { rows: itens } = await db.query('SELECT variacao_id, produto_nome, tamanho, cor, qtd, preco_unit, preco_cheio, promocao_id FROM pedidos_online_itens WHERE pedido_id = $1 ORDER BY produto_nome, tamanho', [p.id]);
@@ -2538,6 +2693,7 @@ app.post('/api/lojas/:lojaId/pedidos-online/:id/cancelar', admin, rota(async (re
         [uid(), req.lojaId, it.variacao_id, it.qtd, Number(v[0].custo_unitario), round2(Number(v[0].custo_unitario) * it.qtd), p.id, req.usuario.id]);
     }
     await c.query("UPDATE pedidos_online SET status = 'cancelado', motivo_cancelamento = $1, atualizado_em = now() WHERE id = $2", [motivo, p.id]);
+    await desfazerPresentes(c, { pedidoId: p.id });
   });
   notificarBot(req.lojaId, req.params.id, 'cancelado');
   res.json({ ok: true });
