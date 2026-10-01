@@ -655,3 +655,44 @@ CREATE INDEX IF NOT EXISTS lista_presentes_dados_venda_idx ON lista_presentes_da
 CREATE INDEX IF NOT EXISTS lista_presentes_dados_pedido_idx ON lista_presentes_dados(pedido_id);
 ALTER TABLE pedidos_online ADD COLUMN IF NOT EXISTS lista_id TEXT REFERENCES listas_presentes(id) ON DELETE SET NULL;
 ALTER TABLE pedidos_online ADD COLUMN IF NOT EXISTS presente_de TEXT;
+
+-- ============================================================================
+-- Mensagens pros clientes pelo WhatsApp: aniversário da criança, cashback parado e
+-- "chegou novidade no tamanho que seu filho usa". O sistema SUGERE (fila de revisão no
+-- painel); só sai depois de aprovada (ou sozinha, se a loja ligar o envio automático), pelo
+-- mesmo número do atendente, com ritmo humano e limite por dia.
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS cliente_filhos (
+  id TEXT PRIMARY KEY,
+  loja_id INTEGER NOT NULL REFERENCES lojas(id) ON DELETE CASCADE,
+  cliente_id TEXT NOT NULL REFERENCES clientes(id) ON DELETE CASCADE,
+  nome TEXT NOT NULL,
+  nascimento DATE,
+  tamanho TEXT,
+  criado_em TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS cliente_filhos_cliente_idx ON cliente_filhos(cliente_id);
+-- Cliente que respondeu SAIR (ou que pediu no balcão) não recebe mais aviso nenhum.
+ALTER TABLE clientes ADD COLUMN IF NOT EXISTS aceita_mensagens BOOLEAN NOT NULL DEFAULT true;
+ALTER TABLE lojas ADD COLUMN IF NOT EXISTS mensagens_config JSONB NOT NULL DEFAULT '{}';
+CREATE TABLE IF NOT EXISTS mensagens_clientes (
+  id TEXT PRIMARY KEY,
+  loja_id INTEGER NOT NULL REFERENCES lojas(id) ON DELETE CASCADE,
+  cliente_id TEXT NOT NULL REFERENCES clientes(id) ON DELETE CASCADE,
+  tipo TEXT NOT NULL CHECK (tipo IN ('aniversario', 'cashback', 'novidade')),
+  chave TEXT NOT NULL, -- impede sugerir a mesma mensagem duas vezes (ex.: aniversário do filho X em 2026)
+  telefone TEXT NOT NULL,
+  texto TEXT NOT NULL,
+  detalhe JSONB NOT NULL DEFAULT '{}',
+  status TEXT NOT NULL DEFAULT 'pendente'
+    CHECK (status IN ('pendente', 'na_fila', 'enviando', 'enviada', 'descartada', 'erro', 'vencida')),
+  erro TEXT,
+  aprovada_por TEXT REFERENCES usuarios(id),
+  aprovada_em TIMESTAMPTZ,
+  enviada_em TIMESTAMPTZ,
+  enviada_manual BOOLEAN NOT NULL DEFAULT false,
+  criado_em TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE (loja_id, chave)
+);
+CREATE INDEX IF NOT EXISTS mensagens_clientes_status_idx ON mensagens_clientes(loja_id, status, criado_em);
+CREATE INDEX IF NOT EXISTS mensagens_clientes_cliente_idx ON mensagens_clientes(cliente_id, tipo, criado_em);

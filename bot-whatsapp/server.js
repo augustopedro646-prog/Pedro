@@ -5,6 +5,7 @@ const { LOJA_ID, pool, telefoneLocal } = require('./config');
 const express = require('express');
 const crypto = require('crypto');
 const conexao = require('./conexao');
+const campanhas = require('./campanhas');
 
 if (!process.env.ANTHROPIC_API_KEY) {
   console.error('Falta ANTHROPIC_API_KEY no api/.env — o atendente usa a IA do Claude pra responder.');
@@ -53,6 +54,15 @@ app.post('/webhook/pedido-status', async (req, res) => {
     await conexao.enviarTexto({ telefoneLocal: p.telefone }, texto, 'sistema');
   } catch (e) { console.error('Falha no aviso de status:', e.message); }
 });
+
+// Mensagens pros clientes aprovadas no painel: a API cutuca aqui pra começar a enviar na hora
+// (sem isso, o robô confere a fila sozinho a cada 5 minutos).
+app.post('/mensagens/processar', (req, res) => { res.json({ ok: true }); campanhas.processar(); });
+
+// Só nos testes automáticos (modo simulado): finge que um cliente mandou uma mensagem.
+if (process.env.BOT_SEM_WHATSAPP === '1' && process.env.BOT_SIMULAR_ENVIO === '1') {
+  app.post('/teste/recebida', async (req, res) => { await conexao.mensagemRecebida(req.body.telefone, req.body.texto, null); res.json({ ok: true }); });
+}
 
 app.get('/status', (req, res) => res.json(conexao.getStatus()));
 app.post('/desconectar', async (req, res) => { await conexao.desconectar(); res.json({ ok: true }); });
@@ -124,4 +134,5 @@ const PORT = Number(process.env.BOT_PORT || 3101);
 app.listen(PORT, '127.0.0.1', () => {
   console.log(`Atendente de WhatsApp da Loja Gutto (loja ${LOJA_ID}) em http://127.0.0.1:${PORT}`);
   if (process.env.BOT_SEM_WHATSAPP !== '1') conexao.iniciar().catch((e) => console.error('Falha ao iniciar o WhatsApp:', e));
+  campanhas.iniciar();
 });

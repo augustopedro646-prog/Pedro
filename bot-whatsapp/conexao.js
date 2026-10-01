@@ -9,6 +9,7 @@ const { Boom } = require('@hapi/boom');
 const QRCode = require('qrcode');
 const { LOJA_ID, pool, telefoneLocal } = require('./config');
 const { responder, RecusaDaIA } = require('./cerebro');
+const sair = require('./sair');
 
 const PASTA_AUTH = path.join(__dirname, 'auth');
 const ARQ_AQUECIMENTO = path.join(__dirname, 'aquecimento-estado.json');
@@ -60,12 +61,15 @@ async function digitando(jid, tamanho) {
 const jidPorId = new Map();
 const idDoJid = (jid) => String(jid || '').split('@')[0].split(':')[0];
 
-async function jidParaTelefone(telefoneLocalCliente) {
+// `soSeExistir`: devolve null quando o WhatsApp responde que o número não tem conta (mandar
+// mensagem pra número inexistente em série é sinal de robô).
+async function jidParaTelefone(telefoneLocalCliente, soSeExistir) {
   const numero = '55' + telefoneLocalCliente;
   for (const [id, jid] of jidPorId) if (telefoneLocal(id) === telefoneLocalCliente) return jid;
   try {
     const [r] = await sock.onWhatsApp(numero);
     if (r && r.exists) return r.jid;
+    if (soSeExistir) return null;
   } catch {}
   return numero + '@s.whatsapp.net';
 }
@@ -86,14 +90,17 @@ async function acrescentar(id, mensagem, extra = {}) {
 
 // `destino`: id do WhatsApp de uma conversa existente, ou { telefoneLocal } pra falar com um
 // cliente que talvez nunca tenha escrito (aviso de status de pedido feito no site).
-// `remetente` ('equipe' | 'sistema'): grava no histórico — a resposta do robô já é gravada pelo cérebro.
+// `remetente` ('equipe' | 'sistema' | 'campanha'): grava no histórico — a resposta do robô já é
+// gravada pelo cérebro. Com destino.soSeExistir, não envia pra número sem WhatsApp.
 async function enviarTexto(destino, texto, remetente) {
+  if (SIMULADO) return enviarSimulado(destino, texto, remetente);
   if (!sock || estado.estado !== 'conectado') {
     if (typeof destino === 'string') await anotarFalha(destino, 'WhatsApp desconectado na hora do envio');
     return { ok: false, erro: 'WhatsApp desconectado' };
   }
   return naFila(async () => {
-    const jid = typeof destino === 'string' ? (jidPorId.get(destino) || destino + '@s.whatsapp.net') : await jidParaTelefone(destino.telefoneLocal);
+    const jid = typeof destino === 'string' ? (jidPorId.get(destino) || destino + '@s.whatsapp.net') : await jidParaTelefone(destino.telefoneLocal, destino.soSeExistir);
+    if (!jid) return { ok: false, erro: 'Esse número não tem WhatsApp' };
     const id = idDoJid(jid);
     try {
       await espera(entre(400, 1200));
@@ -139,6 +146,13 @@ async function mensagemRecebida(id, texto, nomePerfil) {
     `INSERT INTO bot_conversas (loja_id, telefone, nome_perfil) VALUES ($1, $2, $3)
      ON CONFLICT (loja_id, telefone) DO UPDATE SET nome_perfil = COALESCE($3, bot_conversas.nome_perfil)`,
     [LOJA_ID, id, nomePerfil || null]).catch(() => {});
+  if (sair.pediuPraSair(texto)) {
+    await acrescentar(id, { role: 'user', content: texto });
+    const achou = await sair.descadastrar(telefoneLocal(id)).catch(() => 0);
+    if (!achou) await chamarEquipe(id, 'Pediu pra não receber mais avisos — desmarque "aceita mensagens" no cadastro dela');
+    await enviarTexto(id, 'Pronto! Você não vai mais receber nossos avisos e novidades por aqui. Se precisar de qualquer coisa, é só chamar 💛', 'sistema');
+    return;
+  }
   if (await conversaPausada(id)) {
     // Humano assumiu: o robô não responde, só guarda a mensagem pro inbox do painel.
     await acrescentar(id, { role: 'user', content: texto }, { naoLida: true });
@@ -161,6 +175,17 @@ async function mensagemRecebida(id, texto, nomePerfil) {
     return;
   }
   await enviarTexto(id, resposta);
+}
+
+// Só pra teste automático (BOT_SIMULAR_ENVIO=1 junto com BOT_SEM_WHATSAPP=1): finge que está
+// conectado e grava as mensagens "enviadas" no histórico sem falar com o WhatsApp.
+const SIMULADO = process.env.BOT_SEM_WHATSAPP === '1' && process.env.BOT_SIMULAR_ENVIO === '1';
+if (SIMULADO) estado = { estado: 'conectado', qrDataUrl: null, numero: '5500000000000' };
+async function enviarSimulado(destino, texto, remetente) {
+  const id = typeof destino === 'string' ? destino : '55' + destino.telefoneLocal;
+  if (/falhar-envio/.test(texto)) return { ok: false, erro: 'falha simulada' };
+  if (remetente) await acrescentar(id, { role: 'assistant', content: texto, remetente });
+  return { ok: true };
 }
 
 function getStatus() {
@@ -232,4 +257,4 @@ async function iniciar() {
   }
 }
 
-module.exports = { iniciar, enviarTexto, getStatus, desconectar };
+module.exports = { iniciar, enviarTexto, getStatus, desconectar, mensagemRecebida };

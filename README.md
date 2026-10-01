@@ -75,6 +75,35 @@ Também avisa o cliente a cada mudança de status dos pedidos (do site e do What
   atendente escreve em ritmo humano e mostra no painel o "aquecimento" de número novo — divulgue
   o número aos poucos nos primeiros dias.
 
+## Mensagens pros clientes (aba WhatsApp → "Mensagens pros clientes")
+
+Todo dia o sistema procura, sozinho, quem merece uma mensagem:
+
+- **🎂 Aniversário da criança**: parabéns no dia. Cadastre as crianças na ficha do cliente
+  (nome, nascimento e o tamanho que usa). Os aniversários também aparecem no Calendário.
+- **💰 Cashback parado**: quem tem saldo (a partir de R$ 10) e não compra há 30 dias. No máximo um
+  lembrete a cada 30 dias.
+- **✨ Chegou novidade no tamanho**: peças cadastradas nos últimos 7 dias, com estoque, no tamanho
+  que a criança usa (o cadastrado na criança + o que a cliente comprou nos últimos 6 meses). Não
+  repete peça já avisada nem já comprada.
+
+Como sai:
+
+- As sugestões ficam **pra revisar** (aviso no Início). Dá pra editar o texto, **Aprovar e
+  enviar**, **Mandar pelo celular** (abre o WhatsApp com o texto pronto, sem precisar do robô) ou
+  **descartar**.
+- As aprovadas saem pelo número do atendente, **uma de cada vez** (40 a 90 segundos entre elas),
+  só no horário configurado (padrão 9h às 20h) e até o limite por dia (padrão 30). Se o robô ou o
+  WhatsApp estiver desligado, elas esperam na fila e saem quando voltar. Parabéns que não saiu no
+  dia não é mandado atrasado.
+- Toda mensagem termina com "Se não quiser mais receber esses avisos, é só responder SAIR".
+  Quem responde SAIR é desmarcado na hora (também dá pra desmarcar na ficha do cliente).
+- **Configurar**: liga/desliga cada tipo, valores (saldo mínimo, dias), os textos (com campos
+  como `{cliente}`, `{crianca}`, `{valor}`, `{tamanho}`, `{produtos}`) e o **envio automático**
+  (sem revisão) — recomendo deixar desligado nas primeiras semanas.
+- Precisa do atendente ligado e conectado (e da chave da Anthropic, que ele usa pra responder
+  quem conversar depois). Sem ele, funciona tudo pelo "Mandar pelo celular".
+
 ## Etiquetas de código de barras (Elgin L42 ou outra térmica)
 
 Estoque → produto → **Imprimir etiquetas** (já vem com a quantidade em estoque de cada tamanho/cor),

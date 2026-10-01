@@ -12,6 +12,7 @@ const relatorios = require('./relatorios');
 const seguranca = require('./seguranca');
 const promocoes = require('./promocoes');
 const fiscal = require('./fiscal');
+const mensagens = require('./mensagens');
 const ExcelJS = require('exceljs');
 const Anthropic = require('@anthropic-ai/sdk');
 const crypto = require('crypto');
@@ -1173,7 +1174,26 @@ function dadosCliente(body) {
   const cpf = soDigitos(body.cpf);
   if (telefone && (telefone.length < 10 || telefone.length > 13)) falha(400, 'telefone inválido (use DDD + número)');
   if (cpf && cpf.length !== 11) falha(400, 'CPF deve ter 11 dígitos');
-  return { telefone, cpf, nascimento, observacao: texto(body.observacao, 'observacao', { obrigatorio: false, max: 300 }) };
+  return { telefone, cpf, nascimento, observacao: texto(body.observacao, 'observacao', { obrigatorio: false, max: 300 }),
+    aceitaMensagens: typeof body.aceitaMensagens === 'boolean' ? body.aceitaMensagens : null, filhos: lerFilhos(body.filhos) };
+}
+// Crianças da cliente (pro parabéns no aniversário e pra saber o tamanho que usa). undefined = não mexe.
+function lerFilhos(lista) {
+  if (lista === undefined || lista === null) return null;
+  if (!Array.isArray(lista) || lista.length > 10) falha(400, 'filhos: até 10 crianças');
+  return lista.map((f) => ({
+    nome: texto(f && f.nome, 'nome da criança', { max: 60 }),
+    nascimento: f.nascimento ? dataISO(f.nascimento, 'nascimento da criança') : null,
+    tamanho: texto(f.tamanho, 'tamanho da criança', { obrigatorio: false, max: 20 }) || null,
+  }));
+}
+async function salvarFilhos(c, lojaId, clienteId, filhos) {
+  if (!filhos) return;
+  await c.query('DELETE FROM cliente_filhos WHERE cliente_id = $1 AND loja_id = $2', [clienteId, lojaId]);
+  for (const f of filhos) {
+    await c.query('INSERT INTO cliente_filhos (id, loja_id, cliente_id, nome, nascimento, tamanho) VALUES ($1,$2,$3,$4,$5,$6)',
+      [uid(), lojaId, clienteId, f.nome, f.nascimento, f.tamanho]);
+  }
 }
 
 app.post('/api/lojas/:lojaId/clientes', qualquer, rota(async (req, res) => {
@@ -1182,10 +1202,13 @@ app.post('/api/lojas/:lojaId/clientes', qualquer, rota(async (req, res) => {
   const d = dadosCliente(body);
   const id = uid();
   try {
-    await pool.query(
-      'INSERT INTO clientes (id, loja_id, nome, telefone, cpf, nascimento, observacao) VALUES ($1,$2,$3,$4,$5,$6,$7)',
-      [id, req.lojaId, nome, d.telefone, d.cpf, d.nascimento, d.observacao]
-    );
+    await transacao(async (c) => {
+      await c.query(
+        'INSERT INTO clientes (id, loja_id, nome, telefone, cpf, nascimento, observacao, aceita_mensagens) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)',
+        [id, req.lojaId, nome, d.telefone, d.cpf, d.nascimento, d.observacao, d.aceitaMensagens !== false]
+      );
+      await salvarFilhos(c, req.lojaId, id, d.filhos);
+    });
   } catch (e) {
     if (e.code === '23505') falha(409, 'Já existe cliente com esse telefone ou CPF');
     throw e;
@@ -1198,11 +1221,19 @@ app.put('/api/lojas/:lojaId/clientes/:id', qualquer, rota(async (req, res) => {
   const nome = texto(body.nome, 'nome', { max: 100 });
   const d = dadosCliente(body);
   try {
-    const { rowCount } = await pool.query(
-      'UPDATE clientes SET nome = $1, telefone = $2, cpf = $3, nascimento = $4, observacao = $5 WHERE id = $6 AND loja_id = $7',
-      [nome, d.telefone, d.cpf, d.nascimento, d.observacao, req.params.id, req.lojaId]
-    );
-    if (!rowCount) falha(404, 'cliente não encontrado');
+    await transacao(async (c) => {
+      const { rowCount } = await c.query(
+        `UPDATE clientes SET nome = $1, telefone = $2, cpf = $3, nascimento = $4, observacao = $5, aceita_mensagens = COALESCE($8, aceita_mensagens)
+         WHERE id = $6 AND loja_id = $7`,
+        [nome, d.telefone, d.cpf, d.nascimento, d.observacao, req.params.id, req.lojaId, d.aceitaMensagens]
+      );
+      if (!rowCount) falha(404, 'cliente não encontrado');
+      await salvarFilhos(c, req.lojaId, req.params.id, d.filhos);
+      // Quem pediu pra não receber sai também da fila de mensagens que ainda não foram.
+      if (d.aceitaMensagens === false) {
+        await c.query("UPDATE mensagens_clientes SET status = 'descartada' WHERE cliente_id = $1 AND status IN ('pendente', 'na_fila', 'erro')", [req.params.id]);
+      }
+    });
   } catch (e) {
     if (e.code === '23505') falha(409, 'Já existe cliente com esse telefone ou CPF');
     throw e;
@@ -1232,7 +1263,9 @@ app.get('/api/lojas/:lojaId/clientes/:id', qualquer, rota(async (req, res) => {
   const { rows: parcelas } = await pool.query(SQL_CRED + ' WHERE cp.cliente_id = $1 ORDER BY (cp.pago_em IS NULL) DESC, cp.vencimento LIMIT 60', [req.params.id]);
   const { rows: cfg } = await pool.query('SELECT crediario_limite_padrao FROM lojas WHERE id = $1', [req.lojaId]);
   const limite = c.limite_crediario != null ? Number(c.limite_crediario) : Number(cfg[0].crediario_limite_padrao);
-  res.json({ ...c, saldo_cashback: Number(c.saldo_cashback), saldo_vale_troca: Number(c.saldo_vale_troca), extrato, compras,
+  const { rows: filhos } = await pool.query(
+    "SELECT id, nome, to_char(nascimento, 'YYYY-MM-DD') AS nascimento, tamanho FROM cliente_filhos WHERE cliente_id = $1 ORDER BY nascimento NULLS LAST, nome", [req.params.id]);
+  res.json({ ...c, filhos, saldo_cashback: Number(c.saldo_cashback), saldo_vale_troca: Number(c.saldo_vale_troca), extrato, compras,
     crediario: { limite, limiteProprio: c.limite_crediario != null, devendo: c.crediario_devendo, disponivel: round2(Math.max(0, limite - c.crediario_devendo)), parcelas } });
 }));
 
@@ -2348,10 +2381,14 @@ app.get('/api/lojas/:lojaId/clientes-aniversarios', qualquer, rota(async (req, r
   const mes = Number(req.query.mes);
   if (!Number.isInteger(mes) || mes < 1 || mes > 12) falha(400, 'mes inválido (1 a 12)');
   const { rows } = await pool.query(
-    `SELECT id, nome, telefone, EXTRACT(DAY FROM nascimento)::int AS dia
+    `SELECT id, nome, telefone, EXTRACT(DAY FROM nascimento)::int AS dia, NULL AS crianca, NULL AS idade
      FROM clientes WHERE loja_id = $1 AND nascimento IS NOT NULL AND EXTRACT(MONTH FROM nascimento) = $2
+     UNION ALL
+     SELECT c.id, c.nome, c.telefone, EXTRACT(DAY FROM f.nascimento)::int, f.nome, ($3 - EXTRACT(YEAR FROM f.nascimento))::int
+     FROM cliente_filhos f JOIN clientes c ON c.id = f.cliente_id
+     WHERE f.loja_id = $1 AND f.nascimento IS NOT NULL AND EXTRACT(MONTH FROM f.nascimento) = $2
      ORDER BY dia, nome`,
-    [req.lojaId, mes]
+    [req.lojaId, mes, Number(req.query.ano) || Number(hojeLoja().slice(0, 4))]
   );
   res.json(rows);
 }));
@@ -2733,6 +2770,110 @@ app.put('/api/lojas/:lojaId/bot/instrucoes', admin, rota(async (req, res) => {
   res.json({ ok: true });
 }));
 
+/* ---------- Mensagens pros clientes (aniversário, cashback, novidade) ---------- */
+// O sistema sugere; o Administrador revisa (pode editar o texto) e aprova. As aprovadas vão pra
+// fila que o serviço bot-whatsapp envia aos poucos. Sem o robô ligado, dá pra mandar uma a uma
+// pelo WhatsApp do celular (link wa.me) e marcar como enviada.
+
+function cutucarBot() {
+  if (!process.env.BOT_WEBHOOK_SECRET) return Promise.resolve(false);
+  return fetch(BOT_URL + '/mensagens/processar', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Bot-Secret': process.env.BOT_WEBHOOK_SECRET },
+    body: '{}', signal: AbortSignal.timeout(5000) }).then((r) => r.ok, () => false);
+}
+function siteUrl() { return process.env.SITE_URL || null; }
+async function gerarMensagens(lojaId) {
+  const r = await mensagens.gerar(pool, lojaId, TZ, siteUrl());
+  if (r.automatico && Object.values(r.criadas).some(Boolean)) cutucarBot();
+  return r;
+}
+
+const SQL_MSG = `SELECT m.id, m.cliente_id, c.nome AS cliente_nome, m.tipo, m.telefone, m.texto, m.detalhe, m.status, m.erro,
+  m.criado_em, m.aprovada_em, m.enviada_em, m.enviada_manual, u.nome AS aprovada_por_nome
+  FROM mensagens_clientes m JOIN clientes c ON c.id = m.cliente_id LEFT JOIN usuarios u ON u.id = m.aprovada_por`;
+
+function idsDoCorpo(body) {
+  const ids = (body || {}).ids;
+  if (!Array.isArray(ids) || !ids.length || ids.length > 500 || ids.some((i) => typeof i !== 'string')) falha(400, 'ids: lista de mensagens');
+  return ids;
+}
+
+app.get('/api/lojas/:lojaId/mensagens-clientes', admin, rota(async (req, res) => {
+  const historico = req.query.ver === 'historico';
+  if (!historico) await gerarMensagens(req.lojaId);
+  const { rows } = historico
+    ? await pool.query(SQL_MSG + ` WHERE m.loja_id = $1 AND m.status NOT IN ('pendente', 'erro') AND m.criado_em > now() - interval '30 days'
+        ORDER BY COALESCE(m.enviada_em, m.aprovada_em, m.criado_em) DESC LIMIT 300`, [req.lojaId])
+    : await pool.query(SQL_MSG + ` WHERE m.loja_id = $1 AND m.status IN ('pendente', 'erro') ORDER BY m.status DESC, m.tipo, m.criado_em`, [req.lojaId]);
+  const { cfg } = await mensagens.lerConfig(pool, req.lojaId);
+  res.json({ itens: rows, resumo: await mensagens.resumo(pool, req.lojaId, TZ), robo: !!process.env.BOT_WEBHOOK_SECRET, automatico: cfg.automatico });
+}));
+
+app.get('/api/lojas/:lojaId/mensagens-clientes/resumo', admin, rota(async (req, res) => {
+  res.json(await mensagens.resumo(pool, req.lojaId, TZ));
+}));
+
+app.get('/api/lojas/:lojaId/mensagens-clientes/config', admin, rota(async (req, res) => {
+  const { cfg } = await mensagens.lerConfig(pool, req.lojaId);
+  res.json({ ...cfg, padrao: mensagens.PADRAO, rodape: mensagens.RODAPE_SAIR });
+}));
+app.put('/api/lojas/:lojaId/mensagens-clientes/config', admin, rota(async (req, res) => {
+  const cfg = mensagens.mesclarConfig(req.body || {});
+  await pool.query('UPDATE lojas SET mensagens_config = $1 WHERE id = $2', [JSON.stringify(cfg), req.lojaId]);
+  res.json(cfg);
+}));
+
+app.put('/api/lojas/:lojaId/mensagens-clientes/:id', admin, rota(async (req, res) => {
+  const t = texto((req.body || {}).texto, 'texto', { max: 2000 });
+  const { rowCount } = await pool.query(
+    "UPDATE mensagens_clientes SET texto = $1 WHERE id = $2 AND loja_id = $3 AND status IN ('pendente', 'erro')", [t, req.params.id, req.lojaId]);
+  if (!rowCount) falha(409, 'Essa mensagem já foi aprovada ou enviada');
+  res.json({ ok: true });
+}));
+
+// Corpo: { ids: [...], textos?: { id: texto editado } }
+app.post('/api/lojas/:lojaId/mensagens-clientes/aprovar', admin, rota(async (req, res) => {
+  const ids = idsDoCorpo(req.body);
+  const textos = (req.body || {}).textos && typeof req.body.textos === 'object' ? req.body.textos : {};
+  let aprovadas = 0;
+  await transacao(async (c) => {
+    for (const id of ids) {
+      const t = textos[id] !== undefined ? texto(textos[id], 'texto', { max: 2000 }) : null;
+      const { rowCount } = await c.query(
+        `UPDATE mensagens_clientes SET status = 'na_fila', erro = NULL, aprovada_por = $1, aprovada_em = now(), texto = COALESCE($2, texto)
+         WHERE id = $3 AND loja_id = $4 AND status IN ('pendente', 'erro')`, [req.usuario.id, t, id, req.lojaId]);
+      aprovadas += rowCount;
+    }
+  });
+  const robo = aprovadas ? await cutucarBot() : false;
+  res.json({ aprovadas, robo });
+}));
+
+app.post('/api/lojas/:lojaId/mensagens-clientes/descartar', admin, rota(async (req, res) => {
+  const ids = idsDoCorpo(req.body);
+  const { rowCount } = await pool.query(
+    "UPDATE mensagens_clientes SET status = 'descartada' WHERE id = ANY($1) AND loja_id = $2 AND status IN ('pendente', 'erro', 'na_fila')", [ids, req.lojaId]);
+  res.json({ descartadas: rowCount });
+}));
+
+// Tira da fila de envio (volta pra revisão) — só se o robô ainda não pegou.
+app.post('/api/lojas/:lojaId/mensagens-clientes/:id/voltar', admin, rota(async (req, res) => {
+  const { rowCount } = await pool.query(
+    "UPDATE mensagens_clientes SET status = 'pendente', aprovada_por = NULL, aprovada_em = NULL WHERE id = $1 AND loja_id = $2 AND status = 'na_fila'", [req.params.id, req.lojaId]);
+  if (!rowCount) falha(409, 'Essa mensagem não está mais na fila (já foi enviada ou está saindo agora)');
+  res.json({ ok: true });
+}));
+
+// Mandou pelo WhatsApp do celular (link wa.me): só registra.
+app.post('/api/lojas/:lojaId/mensagens-clientes/:id/manual', admin, rota(async (req, res) => {
+  const t = (req.body || {}).texto !== undefined ? texto(req.body.texto, 'texto', { max: 2000 }) : null;
+  const { rowCount } = await pool.query(
+    `UPDATE mensagens_clientes SET status = 'enviada', enviada_manual = true, enviada_em = now(), erro = NULL, texto = COALESCE($1, texto),
+       aprovada_por = $2, aprovada_em = COALESCE(aprovada_em, now())
+     WHERE id = $3 AND loja_id = $4 AND status IN ('pendente', 'erro', 'na_fila')`, [t, req.usuario.id, req.params.id, req.lojaId]);
+  if (!rowCount) falha(409, 'Essa mensagem já foi enviada ou descartada');
+  res.json({ ok: true });
+}));
+
 /* ---------- Backup ---------- */
 
 app.get('/api/lojas/:lojaId/backup', admin, rota(async (req, res) => {
@@ -2757,4 +2898,10 @@ const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log('API da Loja Gutto rodando na porta ' + PORT);
   backup.agendar();
+  // Sugere as mensagens do dia sozinho (de 3 em 3 horas), mesmo sem ninguém abrir a tela —
+  // assim o envio automático (se ligado) e o aviso do Início funcionam.
+  const rodarMensagens = () => pool.query('SELECT id FROM lojas').then(({ rows }) => Promise.all(rows.map((l) => gerarMensagens(l.id))))
+    .catch((e) => console.error('Mensagens pros clientes:', e.message));
+  setTimeout(rodarMensagens, 60 * 1000).unref();
+  setInterval(rodarMensagens, 3 * 60 * 60 * 1000).unref();
 });

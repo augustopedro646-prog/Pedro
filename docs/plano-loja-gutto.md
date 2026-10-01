@@ -183,6 +183,15 @@ Plano fechado — pronto pra começar a Fase 1.
   - Promoções: % por período em produtos, categoria ou loja, com preço automático no caixa, site e
     WhatsApp; liquidação a partir dos parados.
   - Contagem de estoque com o bipador, com resumo antes de ajustar.
+  - Condicional: a cliente leva peças pra provar; o que ficar vira venda no caixa, o resto volta
+    pro estoque.
+  - Crediário: venda a prazo com carnê, limite por cliente (acima dele, PIN do Administrador) e
+    recebimento das parcelas no caixa. Entra como receita quando é recebido.
+  - Lista de presentes (chá de bebê): link pros convidados presentearem pelo site ou na loja.
+  - Mensagens pros clientes pelo WhatsApp:
+    - Aniversário da criança, cashback parado e novidade no tamanho que a criança usa.
+    - Revisão no painel antes de sair, com envio aos poucos e limite por dia.
+    - Quem responde SAIR para de receber.
 - **Próximas**:
   - Ligar a NFC-e (acima).
   - Rodar o script do túnel quando o domínio estiver na Cloudflare.
