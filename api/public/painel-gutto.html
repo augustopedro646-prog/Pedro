@@ -437,6 +437,7 @@
       <h1 class="titulo">Início</h1>
       <p class="sub" id="inicio-ola">Resumo de hoje</p>
       <div id="aviso-backup"></div>
+      <div id="aviso-contas"></div>
       <div class="painel" id="livro-caixa"></div>
       <div class="stats-row" id="inicio-stats" style="margin-top:20px"></div>
       <div class="paineis-duas-colunas">
@@ -522,6 +523,7 @@
           <button id="mes-proximo" class="icon-btn" aria-label="Próximo mês">›</button>
         </div>
       </div>
+      <div class="chips" id="fluxo-abas" style="margin-bottom:14px"></div>
       <div id="fluxo-conteudo"></div>
     </div>
 
@@ -740,6 +742,7 @@
     pedidosOnline: null, onlineNovos: 0, ultimoPedidoVisto: null,
     wa: { status: null, conversas: null, sel: null, detalhe: null, erro: null },
     backup: null,
+    contas: null, contasFiltro: 'abertas', contasResumo: null, fluxoAba: 'mes',
     rel: null, relFiltro: null, relPedido: null, relCarregando: false, relVer: {}, relTodos: {},
     tema: temaInicial, sidebarCollapsed: false,
     rostos: carregarRostos(),
@@ -819,6 +822,7 @@
         const [vendas, pontos, sessoes] = await Promise.all([api('/vendas?periodo=hoje'), api('/pontos'), ehAdmin() ? api('/caixa/sessoes') : null, carregarCaixa(), carregarProdutos()]);
         state.vendasHoje = vendas; state.pontos = pontos; state.caixaSessoes = sessoes;
         if (ehAdmin()) api('/backup').then(b => { state.backup = b; if (state.view === 'inicio') renderAvisoBackup(); }).catch(() => {});
+        if (ehAdmin()) atualizarAvisoContas();
       } else if (view === 'venda') {
         await Promise.all([carregarProdutos(), carregarCaixa(), carregarConfig()]);
       } else if (view === 'clientes') {
@@ -828,7 +832,9 @@
       } else if (view === 'compras') {
         state.compras = await api('/compras');
       } else if (view === 'fluxo') {
-        state.fluxo = await api('/fluxo?mes=' + state.mesFluxo);
+        const [fluxo, contas] = await Promise.all([api('/fluxo?mes=' + state.mesFluxo),
+          api('/contas-pagar' + (state.contasFiltro === 'pagas' ? '?status=pagas&mes=' + state.mesFluxo : ''))]);
+        state.fluxo = fluxo; state.contas = contas;
       } else if (view === 'equipe') {
         const [equipe, bkp, ncm] = await Promise.all([api('/equipe'), api('/backup'), api('/fiscal/ncm'), carregarConfig()]);
         state.equipe = equipe; state.backup = bkp; state.fiscalNcm = ncm;
@@ -1122,6 +1128,7 @@
       <div class="stat-card"><div class="stat-label">Peças vendidas</div><div class="stat-valor">${pecas}</div></div>`;
 
     renderAvisoBackup();
+    renderAvisoContas();
     document.getElementById('inicio-ola').textContent = 'Olá, ' + state.logado.nome.split(' ')[0] + ' — resumo de hoje';
     renderLivroCaixa();
 
@@ -2652,11 +2659,11 @@
         <div id="nc-grade" style="margin-top:10px"></div>
       </div>
       <div id="nc-itens"></div>
-      <label style="display:flex;align-items:center;gap:8px;font-size:13px"><input type="checkbox" id="nc-despesa" checked> Lançar no fluxo de caixa como despesa
-        <select id="nc-forma" style="padding:6px;border-radius:7px;border:1px solid var(--border)"><option>Boleto</option><option>Pix</option><option>Dinheiro</option><option>Cartão</option><option>Transferência</option></select></label>
+      ${htmlPagamentoCompra('nc')}
       <div class="erro-modal" id="nc-erro"></div>
       <div class="modal-acoes"><button class="btn-secundario" data-fechar>Cancelar</button><button class="btn-primario btn-grande" id="nc-salvar">Salvar entrada</button></div>
     </div>`);
+    const pagamentoNc = ligarPagamentoCompra(camada, 'nc', { total: () => itens.reduce((t, i) => t + i.qtd * i.custo, 0), duplicatas: null, dataBase: () => camada.querySelector('#nc-data').value });
     const desenharItens = () => {
       const total = round2(itens.reduce((s, i) => s + i.qtd * i.custo, 0));
       const pecas = itens.reduce((s, i) => s + i.qtd, 0);
@@ -2726,13 +2733,13 @@
       if (!itens.length) throw new Error('Adicione pelo menos uma peça.');
       const nomeForn = camada.querySelector('#nc-fornecedor').value.trim();
       const existente = fornecedores.find(f => f.nome.toLowerCase() === nomeForn.toLowerCase());
-      await api('/compras', { method: 'POST', body: {
+      const lancadaNc = await api('/compras', { method: 'POST', body: {
         fornecedorId: existente ? existente.id : undefined, fornecedorNome: existente ? undefined : (nomeForn || undefined),
         numeroNota: camada.querySelector('#nc-numero').value, data: camada.querySelector('#nc-data').value,
         itens: itens.map(i => ({ variacaoId: i.variacaoId, qtd: i.qtd, custoUnitario: i.custo })),
-        lancarDespesa: camada.querySelector('#nc-despesa').checked, formaPagamento: camada.querySelector('#nc-forma').value,
+        ...pagamentoNc.ler(),
       } });
-      fecharModal(); toast('Entrada registrada — estoque atualizado'); carregarDadosDaView('compras');
+      fecharModal(); toast('Entrada registrada — estoque atualizado' + (lancadaNc.contas ? ' · ' + lancadaNc.contas + ' boleto' + (lancadaNc.contas > 1 ? 's' : '') + ' em contas a pagar' : '')); carregarDadosDaView('compras');
       await carregarProdutos();
       abrirImprimirEtiquetas(etiquetasDeItens(itens.map(i => ({ variacaoId: i.variacaoId, qtd: i.qtd }))), 'Etiquetas das peças que chegaram');
     }, camada.querySelector('#nc-erro'));
@@ -2820,12 +2827,14 @@
       <div class="modal-dica">Produtos novos: preço de venda = custo × <input id="cn-markup" inputmode="decimal" value="2,0" style="width:52px;padding:4px 6px;border-radius:6px;border:1px solid var(--border)"> <button class="link-btn" id="cn-aplicar-markup">aplicar aos novos</button></div>
       <div id="cn-itens"></div>
       <div id="cn-resumo"></div>
-      <label style="display:flex;align-items:center;gap:8px;font-size:13px"><input type="checkbox" id="cn-despesa" checked> Lançar no fluxo de caixa como despesa
-        <select id="cn-forma" style="padding:6px;border-radius:7px;border:1px solid var(--border)"><option>Boleto</option><option>Pix</option><option>Dinheiro</option><option>Cartão</option><option>Transferência</option></select></label>
+      ${htmlPagamentoCompra('cn')}
       <div class="erro-modal" id="cn-erro"></div>
       <div class="modal-acoes"><button class="btn-secundario" data-fechar>Cancelar</button><button class="btn-primario btn-grande" id="cn-confirmar">Dar entrada no estoque</button></div>
     </div>`);
 
+    const pagamentoCn = ligarPagamentoCompra(camada, 'cn', {
+      total: () => r.total || itens.filter(i => !i.destino || i.destino.tipo !== 'ignorar').reduce((t, i) => t + i.qtd * i.custoUnitario, 0),
+      duplicatas: r.duplicatas, dataBase: () => camada.querySelector('#cn-data').value });
     const rotuloDestino = (it) => {
       const d = it.destino;
       if (!d) return '<span class="valor-neg" style="font-weight:700">Escolher peça</span>';
@@ -2932,10 +2941,11 @@
         itens: lancar.map(i => ({ variacaoId: i.destino.variacaoId, qtd: i.qtd, custoUnitario: i.custoUnitario,
           codigoFornecedor: i.codigoFornecedor || undefined, codigoBarras: i.usarCodigo && !i.destino.criado ? i.ean : undefined,
           ncm: r.origem === 'xml' ? (i.ncm || undefined) : undefined })),
-        lancarDespesa: camada.querySelector('#cn-despesa').checked, formaPagamento: camada.querySelector('#cn-forma').value,
+        ...pagamentoCn.ler(),
       } });
       fecharModal();
-      toast('Nota lançada — ' + lancar.reduce((s, i) => s + i.qtd, 0) + ' peças no estoque' + (lancada.ncmPreenchidos ? ' · NCM do fornecedor preenchido em ' + lancada.ncmPreenchidos + ' produto' + (lancada.ncmPreenchidos > 1 ? 's' : '') : ''));
+      toast('Nota lançada — ' + lancar.reduce((s, i) => s + i.qtd, 0) + ' peças no estoque' + (lancada.ncmPreenchidos ? ' · NCM do fornecedor preenchido em ' + lancada.ncmPreenchidos + ' produto' + (lancada.ncmPreenchidos > 1 ? 's' : '') : '')
+        + (lancada.contas ? ' · ' + lancada.contas + ' boleto' + (lancada.contas > 1 ? 's' : '') + ' em contas a pagar' : ''));
       await carregarProdutos();
       carregarDadosDaView('compras');
       abrirImprimirEtiquetas(etiquetasDeItens(lancar.map(i => ({ variacaoId: i.destino.variacaoId, qtd: i.qtd }))), 'Etiquetas das peças que chegaram');
@@ -3013,11 +3023,18 @@
     const [a, m] = state.mesFluxo.split('-').map(Number);
     const d = new Date(Date.UTC(a, m - 1 + delta, 1));
     state.mesFluxo = d.getUTCFullYear() + '-' + String(d.getUTCMonth() + 1).padStart(2, '0');
-    state.fluxo = null; render(); carregarDadosDaView('fluxo');
+    state.fluxo = null; if (state.contasFiltro === 'pagas') state.contas = null; render(); carregarDadosDaView('fluxo');
   }
   function renderFluxo() {
     document.getElementById('mes-atual').textContent = nomeMes(state.mesFluxo);
     const el = document.getElementById('fluxo-conteudo');
+    const aba = state.fluxoAba || 'mes';
+    const r = state.contasResumo;
+    const alerta = r && (r.vencidas.n || r.hoje.n) ? ' <span class="tag" style="background:var(--zero-bg);color:var(--zero-text);border:1px solid var(--zero-border)">' + (r.vencidas.n + r.hoje.n) + '</span>' : '';
+    document.getElementById('fluxo-abas').innerHTML = `<button class="chip ${aba === 'mes' ? 'ativo' : ''}" data-fa="mes">Receitas e despesas do mês</button><button class="chip ${aba === 'contas' ? 'ativo' : ''}" data-fa="contas">Contas a pagar${alerta}</button>`;
+    document.querySelectorAll('[data-fa]').forEach(b => b.onclick = () => { state.fluxoAba = b.dataset.fa; render(); });
+    document.querySelector('#view-fluxo .mes-seletor').style.visibility = aba === 'contas' && state.contasFiltro !== 'pagas' ? 'hidden' : 'visible';
+    if (aba === 'contas') { renderContas(el); return; }
     const f = state.fluxo;
     if (!f) { el.innerHTML = '<div class="carregando">Carregando...</div>'; return; }
     const maxForma = Math.max(1, ...f.porForma.map(x => x.total));
@@ -3069,6 +3086,241 @@
         categoria: camada.querySelector('#nd-cat').value, formaPagamento: camada.querySelector('#nd-forma').value } });
       fecharModal(); toast('Despesa lançada'); carregarDadosDaView('fluxo');
     }, camada.querySelector('#nd-erro'));
+  }
+
+  /* ================= Contas a pagar ================= */
+  function somaMesesISO(iso, n) {
+    const [a, m, d] = iso.split('-').map(Number);
+    const alvo = new Date(Date.UTC(a, m - 1 + n, 1));
+    const ultimo = new Date(Date.UTC(alvo.getUTCFullYear(), alvo.getUTCMonth() + 1, 0)).getUTCDate();
+    alvo.setUTCDate(Math.min(d, ultimo));
+    return alvo.toISOString().slice(0, 10);
+  }
+  function gerarParcelas(total, n, primeiro, intervalo) {
+    const base = Math.floor((total / n) * 100) / 100;
+    return Array.from({ length: n }, (_, i) => ({
+      vencimento: intervalo === '30' ? somaDiasISO(primeiro, 30 * i) : somaMesesISO(primeiro, i),
+      valor: i === n - 1 ? Math.round((total - base * (n - 1)) * 100) / 100 : base, codigoBarras: '',
+    }));
+  }
+  // Tabela de parcelas editável (quantas, 1º vencimento, intervalo → gera; cada linha dá pra ajustar).
+  function editorParcelas(el, { total, inicial, dataBase }) {
+    let linhas = inicial && inicial.length ? inicial.map(p => ({ vencimento: p.vencimento, valor: p.valor, codigoBarras: p.codigoBarras || '' }))
+      : gerarParcelas(total(), 1, somaDiasISO(dataBase || hojeLocal(), 30), 'mensal');
+    let intervalo = 'mensal';
+    const soma = () => Math.round(linhas.reduce((t, l) => t + (Number(l.valor) || 0), 0) * 100) / 100;
+    const mostrarSoma = () => {
+      const t = total(), s = soma();
+      el.querySelector('[data-p-soma]').innerHTML = 'Soma das parcelas: <b>' + fmt(s) + '</b>' + (t > 0 && Math.abs(t - s) > 0.05 ? ' · <span class="valor-neg">diferente do total (' + fmt(t) + ')</span>' : '');
+    };
+    const desenhar = () => {
+      el.innerHTML = `<div class="linha-campos" style="align-items:flex-end">
+          <label class="campo" style="max-width:90px">Parcelas<input data-p-n inputmode="numeric" value="${linhas.length}"></label>
+          <label class="campo">1º vencimento<input data-p-primeiro type="date" value="${esc(linhas[0] ? linhas[0].vencimento : '')}"></label>
+          <label class="campo">Intervalo<select data-p-int><option value="mensal" ${intervalo === 'mensal' ? 'selected' : ''}>todo mês, no mesmo dia</option><option value="30" ${intervalo === '30' ? 'selected' : ''}>a cada 30 dias</option></select></label>
+          <button class="btn-secundario" data-p-gerar type="button">Gerar parcelas</button></div>
+        <div class="tabela-scroll"><table class="tabela"><tr><th>Parcela</th><th>Vencimento</th><th>Valor</th><th>Código do boleto (opcional)</th></tr>
+          ${linhas.map((l, i) => `<tr><td>${i + 1}/${linhas.length}</td><td><input type="date" data-p-venc="${i}" value="${esc(l.vencimento)}"></td>
+            <td><input data-p-valor="${i}" inputmode="decimal" value="${fmtNum(l.valor)}" style="max-width:110px"></td>
+            <td><input data-p-cod="${i}" inputmode="numeric" value="${esc(l.codigoBarras || '')}" placeholder="linha digitável"></td></tr>`).join('')}</table></div>
+        <div class="modal-dica" data-p-soma style="margin:0"></div>`;
+      el.querySelector('[data-p-gerar]').onclick = () => {
+        const n = parseInt(el.querySelector('[data-p-n]').value, 10);
+        const primeiro = el.querySelector('[data-p-primeiro]').value;
+        if (!(n >= 1 && n <= 60)) { toast('Parcelas: de 1 a 60', 'erro'); return; }
+        if (!primeiro) { toast('Escolha o 1º vencimento', 'erro'); return; }
+        intervalo = el.querySelector('[data-p-int]').value;
+        linhas = gerarParcelas(total() || soma(), n, primeiro, intervalo);
+        desenhar();
+      };
+      el.querySelectorAll('[data-p-venc]').forEach(i => i.onchange = () => { linhas[i.dataset.pVenc].vencimento = i.value; });
+      el.querySelectorAll('[data-p-valor]').forEach(i => i.oninput = () => { linhas[i.dataset.pValor].valor = parseNumBR(i.value); mostrarSoma(); });
+      el.querySelectorAll('[data-p-cod]').forEach(i => i.oninput = () => { linhas[i.dataset.pCod].codigoBarras = i.value.replace(/\D/g, ''); });
+      mostrarSoma();
+    };
+    desenhar();
+    return {
+      ler() {
+        linhas.forEach((l, i) => {
+          if (!/^\d{4}-\d{2}-\d{2}$/.test(l.vencimento || '')) throw new Error('Parcela ' + (i + 1) + ': escolha o vencimento');
+          if (!(Number(l.valor) > 0)) throw new Error('Parcela ' + (i + 1) + ': valor inválido');
+        });
+        return linhas.map(l => ({ vencimento: l.vencimento, valor: Number(l.valor), codigoBarras: l.codigoBarras || undefined }));
+      },
+    };
+  }
+
+  // Bloco "Pagamento da nota" das compras: pago agora (despesa hoje), a prazo (contas a pagar) ou nada.
+  function htmlPagamentoCompra(pref) {
+    return `<div class="painel" style="padding:12px 14px">
+      <div class="linha-campos" style="align-items:flex-end">
+        <label class="campo" style="flex:2">Pagamento da nota<select id="${pref}-pag">
+          <option value="agora">Já paguei — lança no fluxo de caixa</option><option value="prazo">A prazo (boletos) — vai pra contas a pagar</option><option value="nao">Não lançar no financeiro</option></select></label>
+        <label class="campo" id="${pref}-forma-campo">Forma<select id="${pref}-forma"><option>Pix</option><option>Dinheiro</option><option>Boleto</option><option>Cartão</option><option>Transferência</option></select></label>
+      </div>
+      <div id="${pref}-parcelas" style="display:none;margin-top:10px"></div></div>`;
+  }
+  function ligarPagamentoCompra(camada, pref, { total, duplicatas, dataBase }) {
+    const sel = camada.querySelector('#' + pref + '-pag'), caixa = camada.querySelector('#' + pref + '-parcelas');
+    let editor = null;
+    const atualizar = () => {
+      camada.querySelector('#' + pref + '-forma-campo').style.display = sel.value === 'agora' ? '' : 'none';
+      caixa.style.display = sel.value === 'prazo' ? 'block' : 'none';
+      if (sel.value === 'prazo' && !editor) editor = editorParcelas(caixa, { total, inicial: duplicatas, dataBase: dataBase() });
+    };
+    sel.onchange = atualizar;
+    if (duplicatas && duplicatas.length) {
+      // Os boletos que vieram no XML (duplicatas da nota) já entram como parcelas.
+      sel.value = 'prazo';
+      caixa.insertAdjacentHTML('beforebegin', `<div class="modal-dica" style="margin:8px 0 0">✓ ${duplicatas.length} boleto${duplicatas.length > 1 ? 's' : ''} lido${duplicatas.length > 1 ? 's' : ''} do XML da nota — confira os vencimentos.</div>`);
+    }
+    atualizar();
+    return {
+      ler() {
+        if (sel.value === 'agora') return { lancarDespesa: true, formaPagamento: camada.querySelector('#' + pref + '-forma').value };
+        if (sel.value === 'prazo') return { lancarDespesa: false, parcelas: editor.ler() };
+        return { lancarDespesa: false };
+      },
+    };
+  }
+
+  function rotuloVencimento(venc, hoje) {
+    const dias = Math.round((Date.parse(venc + 'T12:00:00Z') - Date.parse(hoje + 'T12:00:00Z')) / 864e5);
+    if (dias < 0) return `<span class="tag" style="background:var(--zero-bg);color:var(--zero-text);border:1px solid var(--zero-border)">vencida há ${-dias} dia${dias === -1 ? '' : 's'}</span>`;
+    if (dias === 0) return '<span class="tag aviso">vence hoje</span>';
+    if (dias <= 7) return `<span class="tag aviso">em ${dias} dia${dias === 1 ? '' : 's'}</span>`;
+    return `<span class="tag cinza">em ${dias} dias</span>`;
+  }
+  function renderContas(el) {
+    const c = state.contas;
+    if (!c) { el.innerHTML = '<div class="carregando">Carregando...</div>'; return; }
+    const pagas = state.contasFiltro === 'pagas';
+    const r = c.resumo;
+    el.innerHTML = `
+      ${!pagas && r ? `<div class="stats-row">
+        <div class="stat-card"><div class="stat-label">Vencidas</div><div class="stat-valor ${r.vencidas.n ? 'valor-neg' : ''}">${fmt(r.vencidas.valor)}</div><div class="stat-label">${r.vencidas.n} conta(s)</div></div>
+        <div class="stat-card"><div class="stat-label">Vencem hoje</div><div class="stat-valor">${fmt(r.hoje.valor)}</div><div class="stat-label">${r.hoje.n} conta(s)</div></div>
+        <div class="stat-card"><div class="stat-label">Próximos 7 dias</div><div class="stat-valor">${fmt(r.proximos7.valor)}</div><div class="stat-label">${r.proximos7.n} conta(s)</div></div>
+        <div class="stat-card"><div class="stat-label">Total em aberto</div><div class="stat-valor">${fmt(r.abertas.valor)}</div><div class="stat-label">${r.abertas.n} conta(s)</div></div>
+      </div>` : ''}
+      <div class="painel" style="margin-top:12px"><div class="painel-titulo-linha">
+        <div class="chips"><button class="chip ${pagas ? '' : 'ativo'}" data-cf="abertas">Em aberto</button><button class="chip ${pagas ? 'ativo' : ''}" data-cf="pagas">Pagas em ${esc(nomeMes(state.mesFluxo))}</button></div>
+        <button class="btn-primario" id="btn-nova-conta">+ Nova conta</button></div>
+        ${!c.contas.length ? `<div class="vazio">${pagas ? 'Nenhuma conta paga nesse mês.' : 'Nenhuma conta em aberto. 🎉'}</div>` : `<div class="tabela-scroll"><table class="tabela">
+          ${pagas ? `<tr><th>Pago em</th><th>Conta</th><th>Parcela</th><th>Forma</th><th style="text-align:right">Valor pago</th><th></th></tr>
+            ${c.contas.map(x => `<tr><td>${dataBR(x.pago_em)}</td><td>${esc(x.descricao)}${x.fornecedor_nome && !x.descricao.includes(x.fornecedor_nome) ? `<div style="font-size:11px;color:var(--text-2)">${esc(x.fornecedor_nome)}</div>` : ''}</td>
+              <td>${x.parcelas > 1 ? x.parcela + '/' + x.parcelas : '—'}</td><td>${esc(x.forma_pagamento || '')}</td><td style="text-align:right;font-weight:600">${fmt(x.valor_pago)}</td>
+              <td><button class="link-btn" data-cdesf="${x.id}">desfazer</button></td></tr>`).join('')}`
+          : `<tr><th>Vencimento</th><th>Conta</th><th>Parcela</th><th style="text-align:right">Valor</th><th></th></tr>
+            ${c.contas.map(x => `<tr><td style="white-space:nowrap">${dataBR(x.vencimento)}<div>${rotuloVencimento(x.vencimento, c.hoje)}</div></td>
+              <td>${esc(x.descricao)}${x.fornecedor_nome && !x.descricao.includes(x.fornecedor_nome) ? `<div style="font-size:11px;color:var(--text-2)">${esc(x.fornecedor_nome)}</div>` : ''}${x.observacao ? `<div style="font-size:11px;color:var(--text-2)">${esc(x.observacao)}</div>` : ''}</td>
+              <td>${x.parcelas > 1 ? x.parcela + '/' + x.parcelas : '—'}</td><td style="text-align:right;font-weight:600">${fmt(x.valor)}</td>
+              <td style="white-space:nowrap"><button class="btn-primario" data-cpagar="${x.id}">Pagar</button>
+                ${x.codigo_barras ? `<button class="link-btn" data-ccod="${x.id}" title="Copiar a linha digitável do boleto">copiar código</button>` : ''}
+                <button class="link-btn" data-ceditar="${x.id}">editar</button> <button class="link-btn" data-cexcluir="${x.id}">excluir</button></td></tr>`).join('')}`}
+        </table></div>`}
+      </div>`;
+    const acha = (id) => c.contas.find(x => x.id === id);
+    el.querySelectorAll('[data-cf]').forEach(b => b.onclick = () => { state.contasFiltro = b.dataset.cf; state.contas = null; render(); carregarDadosDaView('fluxo'); });
+    document.getElementById('btn-nova-conta').onclick = abrirNovaConta;
+    el.querySelectorAll('[data-cpagar]').forEach(b => b.onclick = () => abrirPagarConta(acha(b.dataset.cpagar)));
+    el.querySelectorAll('[data-ceditar]').forEach(b => b.onclick = () => abrirEditarConta(acha(b.dataset.ceditar)));
+    el.querySelectorAll('[data-ccod]').forEach(b => b.onclick = async () => {
+      try { await navigator.clipboard.writeText(acha(b.dataset.ccod).codigo_barras); toast('Código do boleto copiado'); } catch (e) { prompt('Copie o código do boleto:', acha(b.dataset.ccod).codigo_barras); }
+    });
+    el.querySelectorAll('[data-cexcluir]').forEach(b => b.onclick = async () => {
+      const x = acha(b.dataset.cexcluir);
+      if (!confirm('Excluir a conta "' + x.descricao + '"' + (x.parcelas > 1 ? ' (parcela ' + x.parcela + '/' + x.parcelas + ')' : '') + ' de ' + fmt(x.valor) + '?')) return;
+      try { await api('/contas-pagar/' + x.id, { method: 'DELETE' }); toast('Conta excluída'); carregarDadosDaView('fluxo'); } catch (e) { toast(e.message, 'erro'); }
+    });
+    el.querySelectorAll('[data-cdesf]').forEach(b => b.onclick = async () => {
+      const x = acha(b.dataset.cdesf);
+      if (!confirm('Desfazer o pagamento de "' + x.descricao + '"? A despesa sai do fluxo e a conta volta a ficar em aberto.')) return;
+      try { await api('/contas-pagar/' + x.id + '/desfazer', { method: 'POST' }); toast('Pagamento desfeito'); carregarDadosDaView('fluxo'); } catch (e) { toast(e.message, 'erro'); }
+    });
+  }
+  async function abrirNovaConta() {
+    let fornecedores = [];
+    try { fornecedores = await api('/fornecedores'); } catch (e) {}
+    const camada = abrirModal(`<div class="modal-card largo">${cabecalhoModal('Nova conta a pagar', 'Boleto, parcela de fornecedor, aluguel... Pagar depois lança a despesa no fluxo.')}
+      <div class="linha-campos">
+        <label class="campo" style="flex:2">Descrição<input id="ncp-desc" type="text" placeholder="Ex.: Boletos Malharia Sol (nota 1234)"></label>
+        <label class="campo">Fornecedor (opcional)<input id="ncp-forn" type="text" list="ncp-forns"></label>
+      </div>
+      <datalist id="ncp-forns">${fornecedores.map(f => `<option value="${esc(f.nome)}">`).join('')}</datalist>
+      <div class="linha-campos">
+        <label class="campo">Valor total<input id="ncp-total" inputmode="decimal" placeholder="0,00"></label>
+        <label class="campo">Categoria<input id="ncp-cat" list="nd-cats-cp" placeholder="Ex.: Mercadoria"></label>
+        <label class="campo" style="flex:2">Observação (opcional)<input id="ncp-obs" type="text"></label>
+      </div>
+      <datalist id="nd-cats-cp"><option value="Mercadoria"><option value="Fixo"><option value="Funcionários"><option value="Impostos"><option value="Manutenção"><option value="Marketing"></datalist>
+      <div id="ncp-parcelas"></div>
+      <div class="erro-modal" id="ncp-erro"></div>
+      <button class="btn-primario btn-grande" id="ncp-salvar">Salvar conta</button></div>`);
+    const total = () => { const v = parseNumBR(camada.querySelector('#ncp-total').value || '0'); return Number.isFinite(v) ? v : 0; };
+    const editor = editorParcelas(camada.querySelector('#ncp-parcelas'), { total, inicial: null, dataBase: hojeLocal() });
+    camada.querySelector('#ncp-total').addEventListener('change', () => { const b = camada.querySelector('[data-p-gerar]'); if (b) b.click(); });
+    camada.querySelector('#ncp-desc').focus();
+    camada.querySelector('#ncp-salvar').onclick = (ev) => comBotao(ev.target, 'Salvando...', async () => {
+      const parcelas = editor.ler();
+      await api('/contas-pagar', { method: 'POST', body: { descricao: camada.querySelector('#ncp-desc').value, fornecedorNome: camada.querySelector('#ncp-forn').value,
+        categoria: camada.querySelector('#ncp-cat').value, observacao: camada.querySelector('#ncp-obs').value, parcelas } });
+      fecharModal(); toast(parcelas.length > 1 ? parcelas.length + ' parcelas lançadas' : 'Conta lançada'); carregarDadosDaView('fluxo');
+    }, camada.querySelector('#ncp-erro'));
+  }
+  function abrirPagarConta(x) {
+    const camada = abrirModal(`<div class="modal-card estreito">${cabecalhoModal('Pagar conta', x.descricao + (x.parcelas > 1 ? ' · parcela ' + x.parcela + '/' + x.parcelas : '') + ' · vence ' + dataBR(x.vencimento))}
+      <div class="linha-campos">
+        <label class="campo">Valor pago<input id="pc-valor" inputmode="decimal" value="${fmtNum(x.valor)}"></label>
+        <label class="campo">Data do pagamento<input id="pc-data" type="date" value="${hojeLocal()}"></label>
+      </div>
+      <label class="campo">Forma<select id="pc-forma"><option>Boleto</option><option>Pix</option><option>Transferência</option><option>Dinheiro</option><option>Débito</option><option>Cartão</option></select></label>
+      <div class="modal-dica" style="margin:0">Com juros ou desconto, ajuste o valor pago. Vai pro Fluxo de caixa como despesa nessa data.</div>
+      <div class="erro-modal" id="pc-erro"></div>
+      <button class="btn-primario btn-grande" id="pc-ok">Confirmar pagamento</button></div>`);
+    camada.querySelector('#pc-ok').onclick = (ev) => comBotao(ev.target, 'Lançando...', async () => {
+      const valor = parseNumBR(camada.querySelector('#pc-valor').value);
+      if (!Number.isFinite(valor) || valor <= 0) throw new Error('Valor inválido');
+      await api('/contas-pagar/' + x.id + '/pagar', { method: 'POST', body: { valorPago: valor, data: camada.querySelector('#pc-data').value, formaPagamento: camada.querySelector('#pc-forma').value } });
+      fecharModal(); toast('Pago — lançado no fluxo de caixa'); carregarDadosDaView('fluxo');
+      if (state.contasResumo) atualizarAvisoContas();
+    }, camada.querySelector('#pc-erro'));
+  }
+  function abrirEditarConta(x) {
+    const camada = abrirModal(`<div class="modal-card estreito">${cabecalhoModal('Editar conta', x.parcelas > 1 ? 'Parcela ' + x.parcela + '/' + x.parcelas : '')}
+      <label class="campo">Descrição<input id="ec-desc" type="text" value="${esc(x.descricao)}"></label>
+      <div class="linha-campos">
+        <label class="campo">Valor<input id="ec-valor" inputmode="decimal" value="${fmtNum(x.valor)}"></label>
+        <label class="campo">Vencimento<input id="ec-venc" type="date" value="${esc(x.vencimento)}"></label>
+      </div>
+      <label class="campo">Código do boleto (linha digitável)<input id="ec-cod" inputmode="numeric" value="${esc(x.codigo_barras || '')}"></label>
+      <label class="campo">Observação<input id="ec-obs" type="text" value="${esc(x.observacao || '')}"></label>
+      <div class="erro-modal" id="ec-erro"></div>
+      <button class="btn-primario btn-grande" id="ec-ok">Salvar</button></div>`);
+    camada.querySelector('#ec-ok').onclick = (ev) => comBotao(ev.target, 'Salvando...', async () => {
+      const valor = parseNumBR(camada.querySelector('#ec-valor').value);
+      if (!Number.isFinite(valor) || valor <= 0) throw new Error('Valor inválido');
+      await api('/contas-pagar/' + x.id, { method: 'PUT', body: { descricao: camada.querySelector('#ec-desc').value, valor, vencimento: camada.querySelector('#ec-venc').value,
+        codigoBarras: camada.querySelector('#ec-cod').value, observacao: camada.querySelector('#ec-obs').value } });
+      fecharModal(); toast('Conta atualizada'); carregarDadosDaView('fluxo');
+    }, camada.querySelector('#ec-erro'));
+  }
+  // Aviso no Início (Administrador): vencidas, de hoje e dos próximos 7 dias.
+  function atualizarAvisoContas() {
+    api('/contas-pagar/resumo').then(r => { state.contasResumo = r; if (state.view === 'inicio') renderAvisoContas(); }).catch(() => {});
+  }
+  function renderAvisoContas() {
+    const el = document.getElementById('aviso-contas');
+    if (!el) return;
+    const r = ehAdmin() ? state.contasResumo : null;
+    if (!r || !(r.vencidas.n || r.hoje.n || r.proximos7.n)) { el.innerHTML = ''; return; }
+    const partes = [];
+    if (r.vencidas.n) partes.push(`<b>${r.vencidas.n} vencida${r.vencidas.n > 1 ? 's' : ''}</b> (${fmt(r.vencidas.valor)})`);
+    if (r.hoje.n) partes.push(`<b>${r.hoje.n} vence${r.hoje.n > 1 ? 'm' : ''} hoje</b> (${fmt(r.hoje.valor)})`);
+    if (r.proximos7.n) partes.push(`${r.proximos7.n} nos próximos 7 dias (${fmt(r.proximos7.valor)})`);
+    const vermelho = r.vencidas.n ? 'background:var(--zero-bg);color:var(--zero-text);border-color:var(--zero-border)' : '';
+    el.innerHTML = `<div class="aviso-caixa" style="${vermelho}"><span>💳 Contas a pagar: ${partes.join(' · ')}</span><button class="btn-secundario" id="btn-ver-contas">Ver contas</button></div>`;
+    document.getElementById('btn-ver-contas').onclick = () => { state.fluxoAba = 'contas'; state.contasFiltro = 'abertas'; irPara('fluxo'); };
   }
 
   /* ================= Equipe ================= */

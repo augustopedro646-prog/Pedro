@@ -177,6 +177,17 @@ período anterior. "Este mês" compara com os mesmos dias do mês passado.
 
 Cada bloco tem **Baixar planilha** (abre direto no Excel).
 
+## Contas a pagar (Fluxo de caixa → "Contas a pagar")
+
+- **Boletos e parcelas com vencimento**: fornecedor, aluguel, máquina... Informe o total, quantas
+  parcelas e o 1º vencimento; as parcelas são geradas (todo mês no mesmo dia, ou a cada 30 dias) e
+  cada uma dá pra ajustar. Dá pra guardar a linha digitável do boleto e copiar na hora de pagar.
+- **Compra a prazo**: na entrada de nota, "Pagamento da nota" tem "A prazo (boletos)". Pelo **XML**,
+  os boletos da própria nota (vencimentos e valores) já vêm preenchidos.
+- **Pagar** lança a despesa no Fluxo de caixa na data do pagamento (com juros/desconto, ajuste o
+  valor). Lançou errado? "Desfazer" em "Pagas" tira a despesa e a conta volta a ficar em aberto.
+- O **Início** avisa as vencidas, as que vencem hoje e as dos próximos 7 dias (só Administrador).
+
 ## Domínio (site da loja na internet)
 
 Pelo **Cloudflare Tunnel**, como no Jabá. Não abre porta no roteador e o banco continua no

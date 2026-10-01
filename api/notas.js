@@ -66,6 +66,9 @@ function lerXmlNfe(xml) {
     chave: chave.length === 44 ? chave : null,
     data: /^\d{4}-\d{2}-\d{2}$/.test(dataEmissao) ? dataEmissao : null,
     total: inf.total && inf.total.ICMSTot ? num(inf.total.ICMSTot.vNF) : round2(itens.reduce((s, i) => s + i.qtd * i.custoUnitario, 0)),
+    // Boletos da nota (grupo cobr/dup): viram as parcelas das contas a pagar.
+    duplicatas: lista(inf.cobr && inf.cobr.dup).map((d) => ({ numero: String(d.nDup || '').trim(), vencimento: String(d.dVenc || '').slice(0, 10), valor: num(d.vDup) }))
+      .filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d.vencimento) && d.valor > 0),
     itens,
   };
 }

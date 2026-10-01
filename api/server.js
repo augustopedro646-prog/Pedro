@@ -1269,9 +1269,145 @@ app.post('/api/lojas/:lojaId/despesas', admin, rota(async (req, res) => {
 
 app.delete('/api/lojas/:lojaId/despesas/:id', admin, rota(async (req, res) => {
   await transacao(async (c) => {
+    const { rowCount: daConta } = await c.query('SELECT 1 FROM contas_pagar WHERE despesa_id = $1 AND loja_id = $2', [req.params.id, req.lojaId]);
+    if (daConta) falha(409, 'Essa despesa é o pagamento de uma conta a pagar — use "desfazer pagamento" em Contas a pagar');
     await c.query('UPDATE compras SET despesa_id = NULL WHERE despesa_id = $1 AND loja_id = $2', [req.params.id, req.lojaId]);
     const { rowCount } = await c.query('DELETE FROM despesas WHERE id = $1 AND loja_id = $2', [req.params.id, req.lojaId]);
     if (!rowCount) falha(404, 'despesa não encontrada');
+  });
+  res.json({ ok: true });
+}));
+
+/* ---------- Contas a pagar (boletos, parcelas) ---------- */
+
+function lerParcelas(lista) {
+  if (lista.length > 60) falha(400, 'No máximo 60 parcelas');
+  return lista.map((p, i) => ({
+    vencimento: dataISO(p && p.vencimento, 'vencimento da parcela ' + (i + 1)),
+    valor: numero(p && p.valor, 'valor da parcela ' + (i + 1), { minExclusivo: true, max: 1e8 }),
+    codigoBarras: soDigitos(p && p.codigoBarras),
+  }));
+}
+async function criarContas(c, req, { descricao, fornecedorId, compraId, categoria, observacao, parcelas }) {
+  const grupo = uid(), ids = [];
+  for (let i = 0; i < parcelas.length; i++) {
+    const p = parcelas[i], id = uid();
+    await c.query(
+      `INSERT INTO contas_pagar (id, loja_id, grupo, descricao, fornecedor_id, compra_id, categoria, parcela, parcelas, valor, vencimento, codigo_barras, observacao, criado_por)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)`,
+      [id, req.lojaId, grupo, descricao, fornecedorId || null, compraId || null, categoria || null, i + 1, parcelas.length,
+        p.valor, p.vencimento, p.codigoBarras || null, observacao || null, req.usuario.id]);
+    ids.push(id);
+  }
+  return ids;
+}
+async function acharOuCriarFornecedor(c, lojaId, nome) {
+  if (!nome) return null;
+  const { rows } = await c.query('SELECT id FROM fornecedores WHERE loja_id = $1 AND lower(nome) = lower($2) LIMIT 1', [lojaId, nome]);
+  if (rows.length) return rows[0].id;
+  const id = uid();
+  await c.query('INSERT INTO fornecedores (id, loja_id, nome) VALUES ($1,$2,$3)', [id, lojaId, nome]);
+  return id;
+}
+
+const SQL_CONTAS = `SELECT cp.id, cp.grupo, cp.descricao, cp.fornecedor_id, f.nome AS fornecedor_nome, cp.compra_id, cp.categoria,
+    cp.parcela, cp.parcelas, cp.valor::float AS valor, to_char(cp.vencimento, 'YYYY-MM-DD') AS vencimento, cp.codigo_barras, cp.observacao,
+    to_char(cp.pago_em, 'YYYY-MM-DD') AS pago_em, cp.valor_pago::float AS valor_pago, cp.forma_pagamento, cp.despesa_id
+  FROM contas_pagar cp LEFT JOIN fornecedores f ON f.id = cp.fornecedor_id`;
+
+// ?status=abertas (padrão) | pagas&mes=AAAA-MM. Abertas: todas, por vencimento.
+app.get('/api/lojas/:lojaId/contas-pagar', admin, rota(async (req, res) => {
+  const hoje = new Intl.DateTimeFormat('en-CA', { timeZone: TZ }).format(new Date());
+  if (req.query.status === 'pagas') {
+    const mes = /^\d{4}-\d{2}$/.test(String(req.query.mes || '')) ? req.query.mes : hoje.slice(0, 7);
+    const { rows } = await pool.query(SQL_CONTAS + ` WHERE cp.loja_id = $1 AND cp.pago_em IS NOT NULL
+      AND cp.pago_em >= ($2 || '-01')::date AND cp.pago_em < ($2 || '-01')::date + interval '1 month' ORDER BY cp.pago_em DESC, cp.descricao`, [req.lojaId, mes]);
+    return res.json({ contas: rows });
+  }
+  const { rows } = await pool.query(SQL_CONTAS + ' WHERE cp.loja_id = $1 AND cp.pago_em IS NULL ORDER BY cp.vencimento, cp.descricao, cp.parcela', [req.lojaId]);
+  res.json({ contas: rows, resumo: resumoContas(rows, hoje), hoje });
+}));
+function resumoContas(abertas, hoje) {
+  const em7 = new Date(Date.parse(hoje + 'T12:00:00Z') + 7 * 864e5).toISOString().slice(0, 10);
+  const soma = (l) => Math.round(l.reduce((t, c) => t + c.valor, 0) * 100) / 100;
+  const vencidas = abertas.filter((c) => c.vencimento < hoje), deHoje = abertas.filter((c) => c.vencimento === hoje);
+  const proximas = abertas.filter((c) => c.vencimento > hoje && c.vencimento <= em7);
+  return { vencidas: { n: vencidas.length, valor: soma(vencidas) }, hoje: { n: deHoje.length, valor: soma(deHoje) },
+    proximos7: { n: proximas.length, valor: soma(proximas) }, abertas: { n: abertas.length, valor: soma(abertas) } };
+}
+app.get('/api/lojas/:lojaId/contas-pagar/resumo', admin, rota(async (req, res) => {
+  const hoje = new Intl.DateTimeFormat('en-CA', { timeZone: TZ }).format(new Date());
+  const { rows } = await pool.query(SQL_CONTAS + ' WHERE cp.loja_id = $1 AND cp.pago_em IS NULL', [req.lojaId]);
+  res.json(resumoContas(rows, hoje));
+}));
+
+// Corpo: { descricao, fornecedorNome?, categoria?, observacao?, parcelas: [{vencimento, valor, codigoBarras?}] }
+app.post('/api/lojas/:lojaId/contas-pagar', admin, rota(async (req, res) => {
+  const body = req.body || {};
+  const descricao = texto(body.descricao, 'descrição', { max: 120 });
+  if (!Array.isArray(body.parcelas) || !body.parcelas.length) falha(400, 'Informe ao menos uma parcela (vencimento e valor)');
+  const parcelas = lerParcelas(body.parcelas);
+  const ids = await transacao(async (c) => {
+    const fornecedorId = await acharOuCriarFornecedor(c, req.lojaId, texto(body.fornecedorNome, 'fornecedor', { obrigatorio: false, max: 100 }));
+    return criarContas(c, req, { descricao, fornecedorId, categoria: texto(body.categoria, 'categoria', { obrigatorio: false, max: 60 }),
+      observacao: texto(body.observacao, 'observação', { obrigatorio: false, max: 300 }), parcelas });
+  });
+  res.status(201).json({ ids });
+}));
+
+// Editar uma conta ainda não paga (valor, vencimento, código do boleto, descrição).
+app.put('/api/lojas/:lojaId/contas-pagar/:id', admin, rota(async (req, res) => {
+  const body = req.body || {};
+  const { rowCount } = await pool.query(
+    `UPDATE contas_pagar SET descricao = COALESCE($1, descricao), valor = COALESCE($2, valor), vencimento = COALESCE($3, vencimento),
+       codigo_barras = COALESCE($4, codigo_barras), observacao = COALESCE($5, observacao)
+     WHERE id = $6 AND loja_id = $7 AND pago_em IS NULL`,
+    [body.descricao != null ? texto(body.descricao, 'descrição', { max: 120 }) : null,
+      body.valor != null ? numero(body.valor, 'valor', { minExclusivo: true, max: 1e8 }) : null,
+      body.vencimento != null ? dataISO(body.vencimento, 'vencimento') : null,
+      body.codigoBarras != null ? (soDigitos(body.codigoBarras) || '') : null,
+      body.observacao != null ? (texto(body.observacao, 'observação', { obrigatorio: false, max: 300 }) || '') : null, req.params.id, req.lojaId]);
+  if (!rowCount) falha(409, 'Conta não encontrada ou já paga (desfaça o pagamento pra editar)');
+  res.json({ ok: true });
+}));
+
+app.delete('/api/lojas/:lojaId/contas-pagar/:id', admin, rota(async (req, res) => {
+  const { rowCount } = await pool.query('DELETE FROM contas_pagar WHERE id = $1 AND loja_id = $2 AND pago_em IS NULL', [req.params.id, req.lojaId]);
+  if (!rowCount) falha(409, 'Conta não encontrada ou já paga (desfaça o pagamento antes de excluir)');
+  res.json({ ok: true });
+}));
+
+// Dar baixa: vira despesa no Fluxo de caixa na data do pagamento. Corpo: { data, valorPago?, formaPagamento? }
+app.post('/api/lojas/:lojaId/contas-pagar/:id/pagar', admin, rota(async (req, res) => {
+  const body = req.body || {};
+  const data = dataISO(body.data, 'data do pagamento');
+  const r = await transacao(async (c) => {
+    const { rows } = await c.query(SQL_CONTAS + ' WHERE cp.id = $1 AND cp.loja_id = $2 FOR UPDATE OF cp', [req.params.id, req.lojaId]);
+    const conta = rows[0];
+    if (!conta) falha(404, 'conta não encontrada');
+    if (conta.pago_em) falha(409, 'Essa conta já foi paga em ' + conta.pago_em.split('-').reverse().join('/'));
+    const valor = body.valorPago != null && body.valorPago !== '' ? numero(body.valorPago, 'valor pago', { minExclusivo: true, max: 1e8 }) : conta.valor;
+    const forma = texto(body.formaPagamento, 'forma de pagamento', { obrigatorio: false, max: 30 }) || 'Boleto';
+    const despesaId = uid();
+    const descricao = conta.descricao + (conta.parcelas > 1 ? ' (' + conta.parcela + '/' + conta.parcelas + ')' : '');
+    await c.query(
+      `INSERT INTO despesas (id, loja_id, data, descricao, categoria, forma_pagamento, valor, criado_por) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
+      [despesaId, req.lojaId, data, descricao.slice(0, 200), conta.categoria || 'Contas a pagar', forma, valor, req.usuario.id]);
+    await c.query('UPDATE contas_pagar SET pago_em = $1, valor_pago = $2, forma_pagamento = $3, despesa_id = $4 WHERE id = $5',
+      [data, valor, forma, despesaId, conta.id]);
+    return { ok: true, despesaId, valor };
+  });
+  res.json(r);
+}));
+
+// Desfazer pagamento (lançou errado): apaga a despesa e a conta volta a ficar em aberto.
+app.post('/api/lojas/:lojaId/contas-pagar/:id/desfazer', admin, rota(async (req, res) => {
+  await transacao(async (c) => {
+    const { rows } = await c.query('SELECT id, despesa_id, pago_em FROM contas_pagar WHERE id = $1 AND loja_id = $2 FOR UPDATE', [req.params.id, req.lojaId]);
+    if (!rows.length) falha(404, 'conta não encontrada');
+    if (!rows[0].pago_em) falha(409, 'Essa conta não está paga');
+    await c.query('UPDATE contas_pagar SET pago_em = NULL, valor_pago = NULL, forma_pagamento = NULL, despesa_id = NULL WHERE id = $1', [rows[0].id]);
+    if (rows[0].despesa_id) await c.query('DELETE FROM despesas WHERE id = $1 AND loja_id = $2', [rows[0].despesa_id, req.lojaId]);
   });
   res.json({ ok: true });
 }));
@@ -1307,6 +1443,9 @@ app.post('/api/lojas/:lojaId/compras', admin, rota(async (req, res) => {
   if (chaveNfe && chaveNfe.length !== 44) falha(400, 'chave da NF-e deve ter 44 dígitos');
   const fornecedorCnpj = soDigitos(body.fornecedorCnpj);
   const origem = ['manual', 'xml', 'pdf', 'foto'].includes(body.origem) ? body.origem : 'manual';
+  // A prazo: as parcelas (boletos) viram contas a pagar, em vez de despesa na hora.
+  const parcelas = Array.isArray(body.parcelas) && body.parcelas.length ? lerParcelas(body.parcelas) : null;
+  if (parcelas && body.lancarDespesa) falha(400, 'Escolha: pago agora (despesa) ou a prazo (contas a pagar)');
 
   const compra = await transacao(async (c) => {
     let fornecedorId = null, fornecedorNome = null;
@@ -1382,7 +1521,12 @@ app.post('/api/lojas/:lojaId/compras', admin, rota(async (req, res) => {
       );
       await c.query('UPDATE compras SET despesa_id = $1 WHERE id = $2', [despesaId, compraId]);
     }
-    return { id: compraId, total, despesaId, fornecedorId, ncmPreenchidos };
+    let contas = 0;
+    if (parcelas) {
+      const desc = 'Compra' + (fornecedorNome ? ' — ' + fornecedorNome : '') + (numeroNota ? ' (nota ' + numeroNota + ')' : '');
+      contas = (await criarContas(c, req, { descricao: desc, fornecedorId, compraId, categoria: 'Mercadoria', parcelas })).length;
+    }
+    return { id: compraId, total, despesaId, fornecedorId, ncmPreenchidos, contas };
   });
   res.status(201).json(compra);
 }));

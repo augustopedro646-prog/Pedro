@@ -480,3 +480,30 @@ ALTER TABLE lojas ADD COLUMN IF NOT EXISTS fiscal_cfop TEXT;
 ALTER TABLE lojas ADD COLUMN IF NOT EXISTS fiscal_csosn TEXT;
 ALTER TABLE lojas ADD COLUMN IF NOT EXISTS fiscal_origem TEXT NOT NULL DEFAULT '0';
 ALTER TABLE lojas ADD COLUMN IF NOT EXISTS nfce_automatica BOOLEAN NOT NULL DEFAULT false;
+
+-- Contas a pagar: boletos/parcelas com vencimento. Pagar uma conta lança a despesa no Fluxo de
+-- caixa (despesa_id); desfazer o pagamento apaga essa despesa. `grupo` junta as parcelas da mesma
+-- compra/conta (1/3, 2/3, 3/3).
+CREATE TABLE IF NOT EXISTS contas_pagar (
+  id TEXT PRIMARY KEY,
+  loja_id INTEGER NOT NULL REFERENCES lojas(id) ON DELETE CASCADE,
+  grupo TEXT NOT NULL,
+  descricao TEXT NOT NULL,
+  fornecedor_id TEXT REFERENCES fornecedores(id),
+  compra_id TEXT REFERENCES compras(id),
+  categoria TEXT,
+  parcela INTEGER NOT NULL DEFAULT 1,
+  parcelas INTEGER NOT NULL DEFAULT 1,
+  valor NUMERIC(12,2) NOT NULL CHECK (valor > 0),
+  vencimento DATE NOT NULL,
+  codigo_barras TEXT,
+  observacao TEXT,
+  pago_em DATE,
+  valor_pago NUMERIC(12,2),
+  forma_pagamento TEXT,
+  despesa_id TEXT REFERENCES despesas(id) ON DELETE SET NULL,
+  criado_por TEXT REFERENCES usuarios(id),
+  criado_em TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS contas_pagar_abertas_idx ON contas_pagar(loja_id, vencimento) WHERE pago_em IS NULL;
+CREATE INDEX IF NOT EXISTS contas_pagar_grupo_idx ON contas_pagar(grupo);
