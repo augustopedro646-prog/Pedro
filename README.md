@@ -177,6 +177,22 @@ período anterior. "Este mês" compara com os mesmos dias do mês passado.
 
 Cada bloco tem **Baixar planilha** (abre direto no Excel).
 
+## Crediário (venda a prazo na loja, "carnê")
+
+- No caixa, com a **cliente identificada**, aparece a forma **"Crediário"**. Pode ter entrada
+  (ex.: Pix 60 + Crediário 240). Escolha em quantas vezes e o 1º vencimento; as parcelas caem todo
+  mês no mesmo dia. No fim, **"Imprimir carnê"** sai na térmica com as parcelas pra ela assinar.
+- **Limite**: cada cliente tem um limite (o padrão da loja, em Equipe → Configurações, ou um
+  próprio no cadastro dela — só o Administrador muda). Passou do limite, pede PIN de
+  Administrador. O carrinho mostra quanto ela já deve e se tem parcela atrasada.
+- **Receber** (Clientes → "Crediário", ou no cadastro da cliente): escolha a forma (dinheiro,
+  Pix, cartão); dá pra ajustar o valor (juros/desconto). Entra no **caixa do dia** (em dinheiro,
+  soma na gaveta) e na receita do **mês em que recebeu** — a venda no crediário só vira receita
+  quando o dinheiro entra.
+- O **Início** avisa as parcelas atrasadas e as que vencem hoje; a lista tem "cobrar no WhatsApp".
+- Crediário não gera cashback (só a parte paga na hora). Venda no crediário com parcela já paga não
+  cancela (desfaça o recebimento antes).
+
 ## Condicional (cliente leva pra provar em casa)
 
 - No caixa, monte o carrinho e clique **"Enviar como condicional"**: escolha a cliente e até quando

@@ -84,6 +84,14 @@ async function transacao(fn) {
 
 // Aritmética de dinheiro em float acumula erro (39.9*3 = 119.69999999999999).
 function round2(n) { return Math.round((n + Number.EPSILON) * 100) / 100; }
+function hojeLoja() { return new Intl.DateTimeFormat('en-CA', { timeZone: TZ }).format(new Date()); }
+// Mesmo dia nos meses seguintes (31/01 + 1 mês = 28 ou 29/02).
+function somaMesesISO(iso, n) {
+  const [a, m, d] = iso.split('-').map(Number);
+  const alvo = new Date(Date.UTC(a, m - 1 + n, 1));
+  alvo.setUTCDate(Math.min(d, new Date(Date.UTC(alvo.getUTCFullYear(), alvo.getUTCMonth() + 1, 0)).getUTCDate()));
+  return alvo.toISOString().slice(0, 10);
+}
 
 function numero(valor, campo, { min = 0, minExclusivo = false, max = 1e9, inteiro = false } = {}) {
   const n = Number(valor);
@@ -138,7 +146,8 @@ const qualquer = auth();
 const admin = auth('administrador');
 
 const PAPEIS = ['administrador', 'caixa'];
-const FORMAS_PAGAMENTO = ['Dinheiro', 'Débito', 'Crédito', 'Pix', 'Cashback', 'Vale-troca'];
+const FORMAS_PAGAMENTO = ['Dinheiro', 'Débito', 'Crédito', 'Pix', 'Cashback', 'Vale-troca', 'Crediário'];
+const FORMAS_RECEBIMENTO = ['Dinheiro', 'Pix', 'Débito', 'Crédito'];
 const FORMAS_CREDITO = { 'Cashback': 'cashback', 'Vale-troca': 'vale_troca' };
 
 async function saldosCliente(db, clienteId) {
@@ -235,6 +244,7 @@ app.get('/api/lojas/:lojaId/config', qualquer, rota(async (req, res) => {
   if (!rows.length) falha(404, 'loja não encontrada');
   const l = rows[0];
   res.json({ nome: l.nome, cashbackPct: Number(l.cashback_pct), descontoLivrePct: Number(l.desconto_livre_pct), comissaoPct: Number(l.comissao_pct), leituraIA: !!anthropic,
+    crediario: { limitePadrao: Number(l.crediario_limite_padrao), maxParcelas: l.crediario_max_parcelas },
     cupomRodape: l.cupom_rodape || '', siteUrl: (process.env.SITE_URL || '').replace(/\/+$/, '') || null,
     fiscal: { cfop: l.fiscal_cfop || '', csosn: l.fiscal_csosn || '', origem: l.fiscal_origem || '0', automatica: !!l.nfce_automatica,
       ambiente: fiscal.ambiente(), faltandoNoServidor: fiscal.faltandoNoServidor(),
@@ -251,6 +261,12 @@ app.put('/api/lojas/:lojaId/config', admin, rota(async (req, res) => {
     'UPDATE lojas SET cashback_pct = COALESCE($1, cashback_pct), desconto_livre_pct = COALESCE($2, desconto_livre_pct) WHERE id = $3',
     [cashback, desconto, req.lojaId]
   );
+  if (body.crediario && typeof body.crediario === 'object') {
+    const cr = body.crediario;
+    await pool.query('UPDATE lojas SET crediario_limite_padrao = COALESCE($1, crediario_limite_padrao), crediario_max_parcelas = COALESCE($2, crediario_max_parcelas) WHERE id = $3',
+      [cr.limitePadrao != null ? numero(cr.limitePadrao, 'limite padrão do crediário', { max: 1e6 }) : null,
+        cr.maxParcelas != null ? numero(cr.maxParcelas, 'máximo de parcelas', { min: 1, max: 24, inteiro: true }) : null, req.lojaId]);
+  }
   if (body.comissaoPct != null) {
     await pool.query('UPDATE lojas SET comissao_pct = $1 WHERE id = $2', [numero(body.comissaoPct, 'comissão', { max: 50 }), req.lojaId]);
   }
@@ -542,6 +558,69 @@ app.post('/api/lojas/:lojaId/variacoes/:id/ajuste-estoque', admin, rota(async (r
   res.json({ ok: true, ...r });
 }));
 
+/* ---------- Crediário (parcelas a receber) ---------- */
+
+const SQL_CRED = `SELECT cp.id, cp.venda_id, cp.cliente_id, cl.nome AS cliente_nome, cl.telefone AS cliente_telefone, cp.parcela, cp.parcelas,
+    cp.valor::float AS valor, to_char(cp.vencimento, 'YYYY-MM-DD') AS vencimento, cp.pago_em, cp.valor_pago::float AS valor_pago, cp.forma_recebimento,
+    v.criado_em AS venda_em
+  FROM crediario_parcelas cp JOIN clientes cl ON cl.id = cp.cliente_id JOIN vendas v ON v.id = cp.venda_id`;
+
+// ?status=abertas (padrão) | recebidas (do mês ?mes=AAAA-MM)
+app.get('/api/lojas/:lojaId/crediario', qualquer, rota(async (req, res) => {
+  if (req.query.status === 'recebidas') {
+    const mes = /^\d{4}-\d{2}$/.test(String(req.query.mes || '')) ? req.query.mes : hojeLoja().slice(0, 7);
+    const { rows } = await pool.query(SQL_CRED + ` WHERE cp.loja_id = $1 AND cp.pago_em IS NOT NULL
+      AND (cp.pago_em AT TIME ZONE $3)::date >= ($2 || '-01')::date AND (cp.pago_em AT TIME ZONE $3)::date < ($2 || '-01')::date + interval '1 month'
+      ORDER BY cp.pago_em DESC`, [req.lojaId, mes, TZ]);
+    return res.json({ parcelas: rows });
+  }
+  const { rows } = await pool.query(SQL_CRED + ' WHERE cp.loja_id = $1 AND cp.pago_em IS NULL ORDER BY cp.vencimento, cl.nome, cp.parcela', [req.lojaId]);
+  res.json({ parcelas: rows, hoje: hojeLoja() });
+}));
+
+app.get('/api/lojas/:lojaId/crediario/resumo', qualquer, rota(async (req, res) => {
+  const hoje = hojeLoja();
+  const { rows } = await pool.query(
+    `SELECT count(*) FILTER (WHERE vencimento < $2::date)::int AS atrasadas, COALESCE(SUM(valor) FILTER (WHERE vencimento < $2::date), 0)::float AS valor_atrasado,
+            count(*) FILTER (WHERE vencimento = $2::date)::int AS hoje, COALESCE(SUM(valor) FILTER (WHERE vencimento = $2::date), 0)::float AS valor_hoje,
+            COALESCE(SUM(valor), 0)::float AS a_receber, count(DISTINCT cliente_id)::int AS clientes
+     FROM crediario_parcelas WHERE loja_id = $1 AND pago_em IS NULL`, [req.lojaId, hoje]);
+  res.json(rows[0]);
+}));
+
+// Receber uma parcela: entra no caixa aberto. Corpo: { forma, valor? (com juros/desconto) }
+app.post('/api/lojas/:lojaId/crediario/:id/receber', qualquer, rota(async (req, res) => {
+  const body = req.body || {};
+  if (!FORMAS_RECEBIMENTO.includes(body.forma)) falha(400, 'Forma de recebimento inválida');
+  const r = await transacao(async (c) => {
+    const sessao = await sessaoAberta(c, req.lojaId, 'SHARE');
+    if (!sessao) falha(409, 'Caixa fechado — abra o caixa pra receber', { codigo: 'caixa_fechado' });
+    const { rows } = await c.query('SELECT * FROM crediario_parcelas WHERE id = $1 AND loja_id = $2 FOR UPDATE', [req.params.id, req.lojaId]);
+    const p = rows[0];
+    if (!p) falha(404, 'parcela não encontrada');
+    if (p.pago_em) falha(409, 'Essa parcela já foi recebida');
+    const valor = body.valor != null && body.valor !== '' ? numero(body.valor, 'valor recebido', { minExclusivo: true, max: 1e6 }) : Number(p.valor);
+    await c.query('UPDATE crediario_parcelas SET pago_em = now(), valor_pago = $1, forma_recebimento = $2, caixa_sessao_id = $3, recebido_por = $4 WHERE id = $5',
+      [valor, body.forma, sessao.id, req.usuario.id, p.id]);
+    const { rows: rest } = await c.query('SELECT COALESCE(SUM(valor), 0)::float AS devendo FROM crediario_parcelas WHERE cliente_id = $1 AND pago_em IS NULL', [p.cliente_id]);
+    return { ok: true, valor, devendo: rest[0].devendo };
+  });
+  res.json(r);
+}));
+
+// Desfazer recebimento (Administrador), só enquanto o caixa em que entrou estiver aberto.
+app.post('/api/lojas/:lojaId/crediario/:id/desfazer', admin, rota(async (req, res) => {
+  await transacao(async (c) => {
+    const { rows } = await c.query('SELECT * FROM crediario_parcelas WHERE id = $1 AND loja_id = $2 FOR UPDATE', [req.params.id, req.lojaId]);
+    if (!rows.length) falha(404, 'parcela não encontrada');
+    if (!rows[0].pago_em) falha(409, 'Essa parcela não está recebida');
+    const sessao = await sessaoAberta(c, req.lojaId, 'SHARE');
+    if (!sessao || sessao.id !== rows[0].caixa_sessao_id) falha(409, 'O caixa em que essa parcela entrou já foi fechado — não dá pra desfazer');
+    await c.query('UPDATE crediario_parcelas SET pago_em = NULL, valor_pago = NULL, forma_recebimento = NULL, caixa_sessao_id = NULL, recebido_por = NULL WHERE id = $1', [rows[0].id]);
+  });
+  res.json({ ok: true });
+}));
+
 /* ---------- Condicional (cliente leva pra provar em casa) ---------- */
 
 const SQL_COND = `SELECT c.id, c.numero, c.cliente_id, cl.nome AS cliente_nome, cl.telefone AS cliente_telefone, c.status,
@@ -830,6 +909,15 @@ async function resumoSessao(db, sessao) {
      FROM caixa_movimentos m JOIN usuarios u ON u.id = m.criado_por WHERE m.sessao_id = $1 ORDER BY m.criado_em`,
     [sessao.id]
   );
+  // Parcelas de crediário recebidas nesse caixa aparecem como entradas (só as em dinheiro mexem na gaveta).
+  const { rows: recebidos } = await db.query(
+    `SELECT cp.id, cp.valor_pago, cp.forma_recebimento, cp.pago_em, cp.parcela, cp.parcelas, cl.nome AS cliente_nome, u.nome AS criado_por_nome
+     FROM crediario_parcelas cp JOIN clientes cl ON cl.id = cp.cliente_id LEFT JOIN usuarios u ON u.id = cp.recebido_por
+     WHERE cp.caixa_sessao_id = $1 AND cp.pago_em IS NOT NULL`, [sessao.id]);
+  const dinheiroCrediario = round2(recebidos.filter((r) => r.forma_recebimento === 'Dinheiro').reduce((t, r) => t + Number(r.valor_pago), 0));
+  movimentos.push(...recebidos.map((r) => ({ id: r.id, tipo: 'recebimento', valor: r.valor_pago, criado_em: r.pago_em, criado_por_nome: r.criado_por_nome || '',
+    descricao: 'Crediário ' + r.cliente_nome + ' (' + r.parcela + '/' + r.parcelas + ') · ' + r.forma_recebimento })));
+  movimentos.sort((a, b) => new Date(a.criado_em) - new Date(b.criado_em));
   const soma = (tipo) => movimentos.filter((m) => m.tipo === tipo).reduce((s, m) => s + Number(m.valor), 0);
   const dinheiroVendas = Number((porForma.find((f) => f.forma === 'Dinheiro') || {}).total || 0);
   const suprimentos = round2(soma('suprimento'));
@@ -841,7 +929,8 @@ async function resumoSessao(db, sessao) {
     movimentos,
     suprimentos,
     sangrias,
-    dinheiroEsperado: round2(Number(sessao.dinheiro_inicial) + dinheiroVendas + suprimentos - sangrias),
+    recebimentosCrediario: round2(recebidos.reduce((t, r) => t + Number(r.valor_pago), 0)),
+    dinheiroEsperado: round2(Number(sessao.dinheiro_inicial) + dinheiroVendas + dinheiroCrediario + suprimentos - sangrias),
   };
 }
 
@@ -923,7 +1012,9 @@ app.get('/api/lojas/:lojaId/caixa/sessoes', admin, rota(async (req, res) => {
 
 const SQL_SALDOS = `
   COALESCE((SELECT SUM(valor) FROM cliente_creditos cc WHERE cc.cliente_id = c.id AND cc.tipo = 'cashback'), 0) AS saldo_cashback,
-  COALESCE((SELECT SUM(valor) FROM cliente_creditos cc WHERE cc.cliente_id = c.id AND cc.tipo = 'vale_troca'), 0) AS saldo_vale_troca`;
+  COALESCE((SELECT SUM(valor) FROM cliente_creditos cc WHERE cc.cliente_id = c.id AND cc.tipo = 'vale_troca'), 0) AS saldo_vale_troca,
+  COALESCE((SELECT SUM(valor) FROM crediario_parcelas cp WHERE cp.cliente_id = c.id AND cp.pago_em IS NULL), 0)::float AS crediario_devendo,
+  (SELECT count(*) FROM crediario_parcelas cp WHERE cp.cliente_id = c.id AND cp.pago_em IS NULL AND cp.vencimento < (now() AT TIME ZONE '${TZ}')::date)::int AS crediario_atrasadas`;
 
 app.get('/api/lojas/:lojaId/clientes', qualquer, rota(async (req, res) => {
   const busca = typeof req.query.busca === 'string' ? req.query.busca.trim().slice(0, 60) : '';
@@ -979,6 +1070,11 @@ app.put('/api/lojas/:lojaId/clientes/:id', qualquer, rota(async (req, res) => {
     if (e.code === '23505') falha(409, 'Já existe cliente com esse telefone ou CPF');
     throw e;
   }
+  // Limite do crediário: só o Administrador muda. Vazio = usa o limite padrão da loja.
+  if (body.limiteCrediario !== undefined && req.usuario.papel === 'administrador') {
+    const lim = body.limiteCrediario === null || body.limiteCrediario === '' ? null : numero(body.limiteCrediario, 'limite do crediário', { max: 1e6 });
+    await pool.query('UPDATE clientes SET limite_crediario = $1 WHERE id = $2 AND loja_id = $3', [lim, req.params.id, req.lojaId]);
+  }
   res.json({ ok: true });
 }));
 
@@ -996,7 +1092,11 @@ app.get('/api/lojas/:lojaId/clientes/:id', qualquer, rota(async (req, res) => {
     [req.params.id]
   );
   const c = rows[0];
-  res.json({ ...c, saldo_cashback: Number(c.saldo_cashback), saldo_vale_troca: Number(c.saldo_vale_troca), extrato, compras });
+  const { rows: parcelas } = await pool.query(SQL_CRED + ' WHERE cp.cliente_id = $1 ORDER BY (cp.pago_em IS NULL) DESC, cp.vencimento LIMIT 60', [req.params.id]);
+  const { rows: cfg } = await pool.query('SELECT crediario_limite_padrao FROM lojas WHERE id = $1', [req.lojaId]);
+  const limite = c.limite_crediario != null ? Number(c.limite_crediario) : Number(cfg[0].crediario_limite_padrao);
+  res.json({ ...c, saldo_cashback: Number(c.saldo_cashback), saldo_vale_troca: Number(c.saldo_vale_troca), extrato, compras,
+    crediario: { limite, limiteProprio: c.limite_crediario != null, devendo: c.crediario_devendo, disponivel: round2(Math.max(0, limite - c.crediario_devendo)), parcelas } });
 }));
 
 /* ---------- Vendas ---------- */
@@ -1104,6 +1204,33 @@ app.post('/api/lojas/:lojaId/vendas', qualquer, rota(async (req, res) => {
       if (!rows.length) falha(404, 'cliente não encontrado');
       clienteId = rows[0].id;
     }
+    // Crediário: parcelas no nome da cliente, dentro do limite dela (acima, só com PIN de Administrador).
+    let parcelasCrediario = null;
+    if (pagPorForma.has('Crediário')) {
+      if (!clienteId) falha(400, 'Crediário só com a cliente identificada', { codigo: 'cliente_obrigatorio' });
+      const valorCred = pagPorForma.get('Crediário');
+      const cr = body.crediario || {};
+      const { rows: cfgCred } = await c.query('SELECT crediario_limite_padrao, crediario_max_parcelas FROM lojas WHERE id = $1', [req.lojaId]);
+      const n = numero(cr.parcelas, 'número de parcelas', { min: 1, max: cfgCred[0].crediario_max_parcelas, inteiro: true });
+      const primeiro = dataISO(cr.primeiroVencimento, '1º vencimento');
+      if (primeiro < hojeLoja()) falha(400, 'O 1º vencimento já passou');
+      const { rows: lim } = await c.query(
+        `SELECT c.nome, c.limite_crediario, COALESCE((SELECT SUM(valor) FROM crediario_parcelas cp WHERE cp.cliente_id = c.id AND cp.pago_em IS NULL), 0) AS devendo
+         FROM clientes c WHERE c.id = $1`, [clienteId]);
+      const limite = lim[0].limite_crediario != null ? Number(lim[0].limite_crediario) : Number(cfgCred[0].crediario_limite_padrao);
+      const disponivel = round2(limite - Number(lim[0].devendo));
+      if (valorCred > disponivel + 0.005 && req.usuario.papel !== 'administrador' && !aprovadoPor) {
+        const ap = body.aprovacao || {};
+        const msg = 'Crediário de R$ ' + valorCred.toFixed(2) + ' passa do limite disponível de ' + lim[0].nome + ' (R$ ' + Math.max(0, disponivel).toFixed(2) + ') — precisa do PIN de um Administrador';
+        if (typeof ap.usuarioId !== 'string' || typeof ap.pin !== 'string') falha(403, msg, { codigo: 'aprovacao_necessaria' });
+        const { rows } = await c.query("SELECT id, nome, pin_hash FROM usuarios WHERE id = $1 AND loja_id = $2 AND ativo AND papel = 'administrador'", [ap.usuarioId, req.lojaId]);
+        if (!rows.length || !conferirPin(req, rows[0], ap.pin)) falha(403, 'PIN de Administrador incorreto', { codigo: 'aprovacao_invalida' });
+        aprovadoPor = rows[0].id;
+      }
+      const base = Math.floor((valorCred / n) * 100) / 100;
+      parcelasCrediario = Array.from({ length: n }, (_, i) => ({ parcela: i + 1, parcelas: n, vencimento: somaMesesISO(primeiro, i),
+        valor: i === n - 1 ? round2(valorCred - base * (n - 1)) : base }));
+    }
     let usadoCredito = 0;
     for (const [forma, valor] of pagPorForma) {
       const tipo = FORMAS_CREDITO[forma];
@@ -1148,6 +1275,12 @@ app.post('/api/lojas/:lojaId/vendas', qualquer, rota(async (req, res) => {
       }
     }
 
+    if (parcelasCrediario) {
+      for (const p of parcelasCrediario) {
+        await c.query('INSERT INTO crediario_parcelas (id, loja_id, venda_id, cliente_id, parcela, parcelas, valor, vencimento) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)',
+          [uid(), req.lojaId, vendaId, clienteId, p.parcela, p.parcelas, p.valor, p.vencimento]);
+      }
+    }
     if (condicional) {
       for (const it of gravar) {
         await c.query('UPDATE condicional_itens SET qtd_comprada = LEAST(qtd, $1) WHERE condicional_id = $2 AND variacao_id = $3', [it.qtd, condicional.id, it.variacaoId]);
@@ -1159,7 +1292,8 @@ app.post('/api/lojas/:lojaId/vendas', qualquer, rota(async (req, res) => {
     // cashback/vale-troca), creditado uma única vez — índice único garante no banco.
     let cashbackGerado = 0;
     if (clienteId && cashbackPct > 0) {
-      cashbackGerado = round2(Math.max(0, total - usadoCredito) * cashbackPct / 100);
+      // Crediário não gera cashback na venda (o dinheiro ainda não entrou).
+      cashbackGerado = round2(Math.max(0, total - usadoCredito - (pagPorForma.get('Crediário') || 0)) * cashbackPct / 100);
       if (cashbackGerado > 0) {
         await c.query(
           `INSERT INTO cliente_creditos (id, loja_id, cliente_id, tipo, valor, origem, referencia_id, criado_por)
@@ -1173,7 +1307,7 @@ app.post('/api/lojas/:lojaId/vendas', qualquer, rota(async (req, res) => {
     return {
       id: vendaId, subtotal: bruto, desconto: descontoTotal, total, troco, criadoEm: new Date().toISOString(),
       pagamentos: [...pagPorForma].map(([forma, valor]) => ({ forma, valor })),
-      cashbackGerado, clienteId,
+      cashbackGerado, clienteId, crediario: parcelasCrediario,
       saldosCliente: clienteId ? await saldosCliente(c, clienteId) : null,
       itens: gravar.map((it) => ({ variacaoId: it.variacaoId, produtoNome: it.produtoNome, tamanho: it.tamanho, cor: it.cor, qtd: it.qtd, precoUnit: it.precoUnit, precoCheio: it.precoCheio, descontoItem: it.descontoItem })),
     };
@@ -1233,6 +1367,9 @@ app.post('/api/lojas/:lojaId/vendas/:id/cancelar', admin, rota(async (req, res) 
     if (!venda) falha(404, 'venda não encontrada');
     if (venda.cancelada) falha(409, 'Essa venda já foi cancelada');
     const { rowCount: devs } = await c.query('SELECT 1 FROM devolucoes WHERE venda_id = $1', [venda.id]);
+    const { rowCount: credPagas } = await c.query('SELECT 1 FROM crediario_parcelas WHERE venda_id = $1 AND pago_em IS NOT NULL', [venda.id]);
+    if (credPagas) falha(409, 'Essa venda no crediário já tem parcela paga — desfaça o recebimento das parcelas antes de cancelar');
+    await c.query('DELETE FROM crediario_parcelas WHERE venda_id = $1 AND pago_em IS NULL', [venda.id]);
     if (devs) falha(409, 'Essa venda já teve troca/devolução — não dá pra cancelar (o cliente já recebeu vale-troca). Faça a troca/devolução do restante.');
 
     const aberta = await sessaoAberta(c, req.lojaId, 'SHARE');
@@ -1547,11 +1684,17 @@ app.get('/api/lojas/:lojaId/fluxo', admin, rota(async (req, res) => {
   );
   // Receita = dinheiro que entrou. Cashback/vale-troca usados não são entrada (o dinheiro
   // daquilo já tinha entrado na venda original) — aparecem à parte pra conferência.
-  const receita = round2(porForma.filter((f) => !FORMAS_CREDITO[f.forma]).reduce((s, f) => s + Number(f.total), 0));
+  // Crediário entra na receita quando a parcela é recebida (no mês do recebimento), não na venda.
+  const { rows: recCred } = await pool.query(
+    `SELECT COALESCE(SUM(valor_pago), 0)::float AS total FROM crediario_parcelas WHERE loja_id = $1 AND pago_em IS NOT NULL
+       AND (pago_em AT TIME ZONE $3)::date >= $2::date AND (pago_em AT TIME ZONE $3)::date < ($2::date + interval '1 month')`, [req.lojaId, inicio, TZ]);
+  const crediarioRecebido = round2(recCred[0].total);
+  const crediarioVendido = round2(porForma.filter((f) => f.forma === 'Crediário').reduce((s, f) => s + Number(f.total), 0));
+  const receita = round2(porForma.filter((f) => !FORMAS_CREDITO[f.forma] && f.forma !== 'Crediário').reduce((s, f) => s + Number(f.total), 0) + crediarioRecebido);
   const creditosUsados = round2(porForma.filter((f) => FORMAS_CREDITO[f.forma]).reduce((s, f) => s + Number(f.total), 0));
   const totalDespesas = round2(despesas.reduce((s, d) => s + Number(d.valor), 0));
   res.json({
-    mes, receita, creditosUsados, totalDespesas, saldo: round2(receita - totalDespesas),
+    mes, receita, creditosUsados, totalDespesas, saldo: round2(receita - totalDespesas), crediarioVendido, crediarioRecebido,
     porForma: porForma.map((f) => ({ forma: f.forma, total: Number(f.total) })),
     despesas: despesas.map((d) => ({ ...d, valor: Number(d.valor) })),
   });

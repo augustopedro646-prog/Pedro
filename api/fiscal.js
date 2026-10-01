@@ -34,7 +34,7 @@ function faltandoNoServidor() {
 
 // Tabela oficial tPag (NFC-e 4.00). Cashback e vale-troca são crédito da própria loja (05).
 // Confirmar com a contadora antes de produção.
-const FORMA_SEFAZ = { 'Dinheiro': '01', 'Crédito': '03', 'Débito': '04', 'Pix': '17', 'Cashback': '05', 'Vale-troca': '05' };
+const FORMA_SEFAZ = { 'Dinheiro': '01', 'Crédito': '03', 'Débito': '04', 'Pix': '17', 'Cashback': '05', 'Vale-troca': '05', 'Crediário': '05' };
 const FORMAS_CARTAO = ['03', '04', '17']; // pedem "tipo de integração": 2 = maquininha não ligada ao sistema
 
 const HOMOLOG_ITEM = 'NOTA FISCAL EMITIDA EM AMBIENTE DE HOMOLOGACAO - SEM VALOR FISCAL';

@@ -439,6 +439,7 @@
       <div id="aviso-backup"></div>
       <div id="aviso-contas"></div>
       <div id="aviso-condicionais"></div>
+      <div id="aviso-crediario"></div>
       <div class="painel" id="livro-caixa"></div>
       <div class="stats-row" id="inicio-stats" style="margin-top:20px"></div>
       <div class="paineis-duas-colunas">
@@ -484,7 +485,7 @@
     <div class="view page" id="view-clientes">
       <div class="page-topo">
         <div><h1 class="titulo">Clientes</h1><p class="sub">Cadastro, cashback e vale-troca</p></div>
-        <button class="btn-primario" id="btn-novo-cliente">+ Novo cliente</button>
+        <div style="display:flex;gap:6px"><button class="btn-secundario" id="btn-crediario">Crediário</button><button class="btn-primario" id="btn-novo-cliente">+ Novo cliente</button></div>
       </div>
       <input id="clientes-busca" class="input-busca" type="text" placeholder="Buscar por nome, telefone ou CPF" style="max-width:420px;margin-bottom:14px">
       <div class="painel"><div id="clientes-lista"></div></div>
@@ -745,7 +746,7 @@
     pedidosOnline: null, onlineNovos: 0, ultimoPedidoVisto: null,
     wa: { status: null, conversas: null, sel: null, detalhe: null, erro: null },
     backup: null,
-    condicional: null, condicionaisResumo: null,
+    condicional: null, condicionaisResumo: null, crediario: null, crediarioResumo: null,
     contas: null, contasFiltro: 'abertas', contasResumo: null, fluxoAba: 'mes',
     rel: null, relFiltro: null, relPedido: null, relCarregando: false, relVer: {}, relTodos: {},
     tema: temaInicial, sidebarCollapsed: false,
@@ -836,6 +837,7 @@
         if (ehAdmin()) api('/backup').then(b => { state.backup = b; if (state.view === 'inicio') renderAvisoBackup(); }).catch(() => {});
         if (ehAdmin()) atualizarAvisoContas();
         carregarResumoCondicionais();
+        carregarResumoCrediario();
       } else if (view === 'venda') {
         await Promise.all([carregarProdutos(), carregarCaixa(), carregarConfig()]);
         carregarResumoCondicionais();
@@ -1145,6 +1147,7 @@
     renderAvisoBackup();
     renderAvisoContas();
     renderAvisoCondicionais();
+    renderAvisoCrediario();
     document.getElementById('inicio-ola').textContent = 'Olá, ' + state.logado.nome.split(' ')[0] + ' — resumo de hoje';
     renderLivroCaixa();
 
@@ -1452,7 +1455,7 @@
     const btnId = document.getElementById('btn-identificar-cliente');
     if (btnId) btnId.onclick = async () => { const c = await escolherCliente(); if (c) setState({ cliente: c, pagamentos: [] }); };
     const btnRem = document.getElementById('btn-remover-cliente');
-    if (btnRem) btnRem.onclick = () => setState({ cliente: null, pagamentos: state.pagamentos.filter(p => !TIPO_CREDITO[p.forma]) });
+    if (btnRem) btnRem.onclick = () => setState({ cliente: null, pagamentos: state.pagamentos.filter(p => !TIPO_CREDITO[p.forma] && p.forma !== 'Crediário') });
 
     const acimaLimite = calc.pctDesconto > limite + 1e-9 && !ehAdmin();
     document.getElementById('carrinho-totais').innerHTML = `
@@ -1466,6 +1469,8 @@
     const formasDisponiveis = FORMAS_DINHEIRO.slice();
     if (cli && cli.saldo_cashback > 0) formasDisponiveis.push('Cashback');
     if (cli && cli.saldo_vale_troca > 0) formasDisponiveis.push('Vale-troca');
+    if (cli) formasDisponiveis.push('Crediário');
+    const valorCrediario = state.pagamentos.filter(p => p.forma === 'Crediário').reduce((t, p) => t + p.valor, 0);
     document.getElementById('carrinho-pagamentos').innerHTML = !state.cart.length ? '' : `
       <div style="font-size:11px;color:var(--text-2)">Pagamento ${state.pagamentos.length ? '' : '— toque na forma'}</div>
       ${state.pagamentos.map((p, i) => `
@@ -1473,10 +1478,12 @@
           <input type="text" inputmode="decimal" data-pag="${i}" value="${fmtNum(p.valor)}">
           <button data-rem-pag="${i}" aria-label="Remover">×</button></div>`).join('')}
       <div class="formas">${formasDisponiveis.map(f => `<button class="forma ${TIPO_CREDITO[f] ? 'credito' : ''}" data-forma="${f}">+ ${f}${TIPO_CREDITO[f] ? ' (' + fmt(cli[TIPO_CREDITO[f]]) + ')' : ''}</button>`).join('')}</div>
+      ${valorCrediario > 0 ? htmlCrediarioCarrinho(round2(valorCrediario)) : ''}
       ${pag.restante > 0.005 ? `<div class="linha-total"><span>Falta</span><span style="color:var(--zero-text);font-weight:700">${fmt(pag.restante)}</span></div>` : ''}
       ${pag.troco > 0.005 ? `<div class="linha-total grande"><span>Troco</span><span style="color:var(--ok-text)">${fmt(pag.troco)}</span></div>` : ''}
       ${pag.excesso ? `<div class="modal-dica" style="color:var(--zero-text)">Os pagamentos passam do total — ajuste os valores.</div>` : ''}`;
     document.querySelectorAll('#carrinho-pagamentos [data-forma]').forEach(b => b.addEventListener('click', () => adicionarPagamento(b.dataset.forma, calc.total)));
+    ligarCrediarioCarrinho();
     document.querySelectorAll('#carrinho-pagamentos [data-rem-pag]').forEach(b => b.addEventListener('click', () => {
       setState({ pagamentos: state.pagamentos.filter((_, i) => i !== Number(b.dataset.remPag)) });
     }));
@@ -1541,6 +1548,7 @@
       pagamentos: pag.aplicados, clienteId: state.cliente ? state.cliente.id : undefined, aprovacao,
       troco: pag.troco > 0.005 ? pag.troco : undefined,
       condicionalId: state.condicional ? state.condicional.id : undefined,
+      crediario: pag.aplicados.some(p => p.forma === 'Crediário') ? { parcelas: (state.crediario || crediarioPadrao()).parcelas, primeiroVencimento: (state.crediario || crediarioPadrao()).primeiro } : undefined,
     };
     try {
       const r = await api('/vendas', { method: 'POST', body: corpo });
@@ -1548,7 +1556,8 @@
       const troco = pag.troco;
       r.clienteNome = state.cliente ? state.cliente.nome : null;
       r.clienteCpf = state.cliente ? (state.cliente.cpf || '') : '';
-      Object.assign(state, { cart: [], pagamentos: [], cliente: null, condicional: null });
+      Object.assign(state, { cart: [], pagamentos: [], cliente: null, condicional: null, crediario: null });
+      if (r.crediario) carregarResumoCrediario();
       await Promise.all([carregarProdutos(), carregarCaixa()]);
       render();
       mostrarRecibo(r, troco);
@@ -1581,6 +1590,8 @@
         <div style="font-size:13px;color:var(--text-2)">${venda.pagamentos.map(p => esc(p.forma) + ' ' + fmt(p.valor)).join(' + ')}</div>
         ${troco > 0.005 ? `<div class="stat-valor" style="color:var(--ok-text)">Troco: ${fmt(troco)}</div>` : ''}
         ${venda.cashbackGerado ? `<div style="font-size:13px">Cliente ganhou <b>${fmt(venda.cashbackGerado)}</b> de cashback (saldo ${fmt(venda.saldosCliente.cashback)})</div>` : ''}
+        ${venda.crediario ? `<div class="cliente-box" style="display:block;text-align:left"><b>Crediário ${venda.crediario.length}x</b>: ${venda.crediario.map(p => dataBR(p.vencimento).slice(0, 5) + ' ' + fmt(p.valor)).join(' · ')}
+          <div style="margin-top:6px"><button class="btn-secundario" id="btn-carne">🖨 Imprimir carnê</button></div></div>` : ''}
         ${fiscalPronto() ? '<div id="nfce-area"></div>' : ''}
         <div style="display:flex;gap:8px"><button class="btn-secundario" id="btn-cupom" style="flex:1">🖨 Imprimir cupom</button><button class="btn-primario btn-grande" id="btn-nova-venda" style="flex:2">Nova venda</button></div>
         <label style="font-size:12px;color:var(--text-2);display:flex;gap:6px;align-items:center;justify-content:center"><input type="checkbox" id="cupom-auto" ${cfg.auto ? 'checked' : ''}> Imprimir cupom automaticamente em toda venda (neste computador)</label>
@@ -1591,6 +1602,7 @@
     document.getElementById('btn-cupom').onclick = () => imprimirCupom(cupom);
     document.getElementById('cupom-auto').onchange = (e) => salvarConfigCupom(Object.assign(configCupom(), { auto: e.target.checked }));
     if (cfg.auto) imprimirCupom(cupom);
+    if (venda.crediario) document.getElementById('btn-carne').onclick = () => imprimirCarne(venda, venda.crediario, venda.clienteNome);
     if (fiscalPronto()) areaNfce(document.getElementById('nfce-area'), venda.id, venda.clienteCpf, null, state.config.fiscal.automatica);
   }
 
@@ -1703,6 +1715,111 @@
       <hr><div class="c p">O crédito fica no cadastro do cliente (pelo telefone) e pode ser usado em qualquer compra na loja.</div>
       ${state.config.cupomRodape ? `<div class="c p" style="margin-top:2mm">${esc(state.config.cupomRodape)}</div>` : ''}
     </body></html>`, largura);
+  }
+
+  /* ================= Crediário (venda a prazo na loja) ================= */
+  function crediarioPadrao() { return { parcelas: 2, primeiro: somaDiasISO(hojeLocal(), 30) }; }
+  function parcelasCrediario(valor, n, primeiro) {
+    const base = Math.floor((valor / n) * 100) / 100;
+    return Array.from({ length: n }, (_, i) => ({ parcela: i + 1, parcelas: n, vencimento: somaMesesISO(primeiro, i), valor: i === n - 1 ? round2(valor - base * (n - 1)) : base }));
+  }
+  // Bloco no carrinho quando há pagamento no crediário: quantas parcelas e o 1º vencimento.
+  function htmlCrediarioCarrinho(valor) {
+    const cr = state.crediario || (state.crediario = crediarioPadrao());
+    const max = (state.config.crediario && state.config.crediario.maxParcelas) || 6;
+    if (cr.parcelas > max) cr.parcelas = max;
+    const cli = state.cliente;
+    const ps = parcelasCrediario(valor, cr.parcelas, cr.primeiro);
+    return `<div class="cliente-box" style="display:block;margin-top:6px">
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:12px">Crediário em
+        <select id="cr-n" style="padding:4px 6px;border-radius:6px;border:1px solid var(--border)">${Array.from({ length: max }, (_, i) => `<option value="${i + 1}" ${cr.parcelas === i + 1 ? 'selected' : ''}>${i + 1}x</option>`).join('')}</select>
+        1º vencimento <input id="cr-primeiro" type="date" value="${cr.primeiro}" min="${hojeLocal()}" style="padding:4px 6px;border-radius:6px;border:1px solid var(--border)"></div>
+      <div style="font-size:12px;margin-top:4px">${ps.map(p => `${p.parcela}ª ${dataBR(p.vencimento).slice(0, 5)}: <b>${fmt(p.valor)}</b>`).join(' · ')}</div>
+      ${cli && cli.crediario_devendo > 0 ? `<div style="font-size:12px;color:var(--text-2);margin-top:2px">Ela já deve ${fmt(cli.crediario_devendo)} no crediário${cli.crediario_atrasadas ? ` · <b class="valor-neg">${cli.crediario_atrasadas} parcela(s) atrasada(s)</b>` : ''}</div>` : ''}</div>`;
+  }
+  function ligarCrediarioCarrinho() {
+    const n = document.getElementById('cr-n'), pr = document.getElementById('cr-primeiro');
+    if (n) n.onchange = () => { state.crediario.parcelas = Number(n.value); renderCarrinho(); };
+    if (pr) pr.onchange = () => { if (pr.value) { state.crediario.primeiro = pr.value; renderCarrinho(); } };
+  }
+  function imprimirCarne(venda, parcelas, clienteNome) {
+    const largura = configCupom().largura;
+    imprimirDocumento(`<!doctype html><html><head><meta charset="utf-8"><title>Carnê</title><style>${estiloCupom(largura)}</style></head><body>
+      ${cabecalhoCupom()}<hr><div class="c t">CARNÊ — CREDIÁRIO</div>
+      <div class="l p"><span>Venda ${numeroVenda(venda.id)}</span><span>${dataHora(venda.criadoEm || new Date().toISOString())}</span></div>
+      <div>Cliente: <b>${esc(clienteNome || '')}</b></div><hr>
+      ${parcelas.map(p => `<div class="l"><span>Parcela ${p.parcela}/${p.parcelas} — vence ${dataBR(p.vencimento)}</span><span class="b">${fmt(p.valor)}</span></div>`).join('')}
+      <hr><div class="l t"><span>TOTAL</span><span>${fmt(parcelas.reduce((t, p) => t + p.valor, 0))}</span></div>
+      <hr><div class="p">Pague na loja até o vencimento (Pix, cartão ou dinheiro).</div>
+      <div style="margin-top:9mm;border-top:1px solid #000" class="c p">Assinatura</div>
+    </body></html>`, largura);
+  }
+  function msgCobrancaCrediario(p) {
+    return `Oi, ${p.cliente_nome.split(' ')[0]}! Aqui é da Loja Gutto 😊 Passando pra lembrar da parcela ${p.parcela}/${p.parcelas} do crediário, de ${fmt(p.valor)}, que ${p.vencimento < hojeLocal() ? 'venceu' : 'vence'} em ${dataBR(p.vencimento)}. Pode pagar na loja ou por Pix — é só chamar!`;
+  }
+  async function abrirCrediario(recebidas) {
+    const camada = abrirModal(`<div class="modal-card largo">${cabecalhoModal('Crediário', 'Parcelas das vendas a prazo')}
+      <div id="cr-resumo"></div>
+      <div class="chips"><button class="chip ${recebidas ? '' : 'ativo'}" data-crl="abertas">A receber</button><button class="chip ${recebidas ? 'ativo' : ''}" data-crl="recebidas">Recebidas no mês</button></div>
+      <div id="cr-corpo"><div class="carregando">Carregando...</div></div></div>`);
+    camada.querySelectorAll('[data-crl]').forEach(b => b.onclick = () => abrirCrediario(b.dataset.crl === 'recebidas'));
+    let dados, resumo;
+    try { [dados, resumo] = await Promise.all([api('/crediario' + (recebidas ? '?status=recebidas' : '')), api('/crediario/resumo')]); } catch (e) { toast(e.message, 'erro'); return; }
+    if (!camada.querySelector('#cr-corpo')) return;
+    camada.querySelector('#cr-resumo').innerHTML = `<div class="stats-row">
+      <div class="stat-card"><div class="stat-label">Atrasadas</div><div class="stat-valor ${resumo.atrasadas ? 'valor-neg' : ''}">${fmt(resumo.valor_atrasado)}</div><div class="stat-label">${resumo.atrasadas} parcela(s)</div></div>
+      <div class="stat-card"><div class="stat-label">Vencem hoje</div><div class="stat-valor">${fmt(resumo.valor_hoje)}</div><div class="stat-label">${resumo.hoje} parcela(s)</div></div>
+      <div class="stat-card"><div class="stat-label">Total a receber</div><div class="stat-valor">${fmt(resumo.a_receber)}</div><div class="stat-label">${resumo.clientes} cliente(s)</div></div></div>`;
+    const ps = dados.parcelas;
+    camada.querySelector('#cr-corpo').innerHTML = ps.length ? `<div class="tabela-scroll"><table class="tabela">
+      ${recebidas ? `<tr><th>Recebida</th><th>Cliente</th><th>Parcela</th><th>Forma</th><th style="text-align:right">Valor</th><th></th></tr>
+        ${ps.map(p => `<tr><td>${dataHora(p.pago_em)}</td><td>${esc(p.cliente_nome)}</td><td>${p.parcela}/${p.parcelas}</td><td>${esc(p.forma_recebimento)}</td><td style="text-align:right">${fmt(p.valor_pago)}</td>
+          <td>${ehAdmin() ? `<button class="link-btn" data-cr-desf="${p.id}">desfazer</button>` : ''}</td></tr>`).join('')}`
+      : `<tr><th>Vencimento</th><th>Cliente</th><th>Parcela</th><th style="text-align:right">Valor</th><th></th></tr>
+        ${ps.map(p => `<tr><td style="white-space:nowrap">${dataBR(p.vencimento)}<div>${rotuloVencimento(p.vencimento, dados.hoje)}</div></td>
+          <td>${esc(p.cliente_nome)}<div style="font-size:11px;color:var(--text-2)">compra de ${dataBR(new Intl.DateTimeFormat('en-CA', { timeZone: TZ }).format(new Date(p.venda_em)))}</div></td>
+          <td>${p.parcela}/${p.parcelas}</td><td style="text-align:right;font-weight:600">${fmt(p.valor)}</td>
+          <td style="white-space:nowrap"><button class="btn-primario" data-cr-receber="${p.id}">Receber</button>
+            ${waLink(p.cliente_telefone, '') ? ` <a class="link-btn" href="${waLink(p.cliente_telefone, msgCobrancaCrediario(p))}" target="_blank" rel="noopener">cobrar no WhatsApp</a>` : ''}</td></tr>`).join('')}`}
+      </table></div>` : `<div class="vazio">${recebidas ? 'Nenhuma parcela recebida nesse mês.' : 'Nenhuma parcela a receber.'}</div>`;
+    const acha = (id) => ps.find(p => p.id === id);
+    camada.querySelectorAll('[data-cr-receber]').forEach(b => b.onclick = () => abrirReceberParcela(acha(b.dataset.crReceber)));
+    camada.querySelectorAll('[data-cr-desf]').forEach(b => b.onclick = async () => {
+      if (!confirm('Desfazer esse recebimento? A parcela volta a ficar em aberto e sai do caixa.')) return;
+      try { await api('/crediario/' + b.dataset.crDesf + '/desfazer', { method: 'POST' }); toast('Recebimento desfeito'); carregarResumoCrediario(); abrirCrediario(true); } catch (e) { toast(e.message, 'erro'); }
+    });
+  }
+  function abrirReceberParcela(p, depois) {
+    const camada = abrirModal(`<div class="modal-card estreito">${cabecalhoModal('Receber parcela ' + p.parcela + '/' + p.parcelas, p.cliente_nome + ' · vence ' + dataBR(p.vencimento))}
+      <label class="campo">Valor recebido<input id="rp-valor" inputmode="decimal" value="${fmtNum(p.valor)}"></label>
+      <div class="chips" id="rp-formas">${['Dinheiro', 'Pix', 'Débito', 'Crédito'].map((f, i) => `<button class="chip ${i === 1 ? 'ativo' : ''}" data-rp="${f}" type="button">${f}</button>`).join('')}</div>
+      <div class="modal-dica" style="margin:0">Entra no caixa aberto de hoje (em dinheiro, soma na gaveta) e na receita do mês.</div>
+      <div class="erro-modal" id="rp-erro"></div>
+      <button class="btn-primario btn-grande" id="rp-ok">Confirmar recebimento</button></div>`);
+    let forma = 'Pix';
+    camada.querySelectorAll('[data-rp]').forEach(b => b.onclick = () => { forma = b.dataset.rp; camada.querySelectorAll('[data-rp]').forEach(x => x.classList.toggle('ativo', x === b)); });
+    camada.querySelector('#rp-ok').onclick = (ev) => comBotao(ev.target, 'Recebendo...', async () => {
+      const valor = parseNumBR(camada.querySelector('#rp-valor').value);
+      if (!Number.isFinite(valor) || valor <= 0) throw new Error('Valor inválido');
+      const r = await api('/crediario/' + p.id + '/receber', { method: 'POST', body: { forma, valor } });
+      toast('Parcela recebida' + (r.devendo > 0 ? ' — ainda deve ' + fmt(r.devendo) : ' — crediário quitado 🎉'));
+      carregarResumoCrediario(); carregarCaixa().catch(() => {});
+      if (depois) depois(); else abrirCrediario(false);
+    }, camada.querySelector('#rp-erro'));
+  }
+  function carregarResumoCrediario() {
+    api('/crediario/resumo').then(r => { state.crediarioResumo = r; if (state.view === 'inicio') renderAvisoCrediario(); }).catch(() => {});
+  }
+  function renderAvisoCrediario() {
+    const el = document.getElementById('aviso-crediario');
+    if (!el) return;
+    const r = state.crediarioResumo;
+    if (!r || !(r.atrasadas || r.hoje)) { el.innerHTML = ''; return; }
+    const partes = [];
+    if (r.atrasadas) partes.push(`<b>${r.atrasadas} parcela${r.atrasadas > 1 ? 's' : ''} atrasada${r.atrasadas > 1 ? 's' : ''}</b> (${fmt(r.valor_atrasado)})`);
+    if (r.hoje) partes.push(`${r.hoje} vence${r.hoje > 1 ? 'm' : ''} hoje (${fmt(r.valor_hoje)})`);
+    el.innerHTML = `<div class="aviso-caixa" style="${r.atrasadas ? 'background:var(--zero-bg);color:var(--zero-text);border-color:var(--zero-border)' : ''}"><span>🧾 Crediário: ${partes.join(' · ')}</span><button class="btn-secundario" id="btn-ver-crediario">Ver crediário</button></div>`;
+    document.getElementById('btn-ver-crediario').onclick = () => abrirCrediario(false);
   }
 
   /* ================= Condicional (levar pra provar em casa) ================= */
@@ -2282,9 +2399,14 @@
         <div class="stat-card"><div class="stat-label">Cashback</div><div class="stat-valor" style="color:var(--accent)">${fmt(c.saldo_cashback)}</div></div>
         <div class="stat-card"><div class="stat-label">Vale-troca</div><div class="stat-valor" style="color:var(--teal)">${fmt(c.saldo_vale_troca)}</div></div>
         <div class="stat-card"><div class="stat-label">Compras</div><div class="stat-valor">${c.compras.length}${c.compras.length === 20 ? '+' : ''}</div></div>
+        <div class="stat-card"><div class="stat-label">Crediário: deve</div><div class="stat-valor ${c.crediario.devendo > 0 ? 'valor-neg' : ''}">${fmt(c.crediario.devendo)}</div><div class="stat-label">limite ${fmt(c.crediario.limite)}${c.crediario.limiteProprio ? '' : ' (padrão)'} · disponível ${fmt(c.crediario.disponivel)}</div></div>
       </div>
+      ${c.crediario.parcelas.length ? `<div class="painel" style="padding:12px 14px"><div class="painel-titulo">Parcelas do crediário</div>
+        ${c.crediario.parcelas.map(p => `<div class="linha-simples" style="font-size:13px"><span style="flex:1">${p.parcela}/${p.parcelas} · vence ${dataBR(p.vencimento)} ${p.pago_em ? '<span class="tag ok">paga</span>' : rotuloVencimento(p.vencimento, hojeLocal())}</span>
+          <b>${fmt(p.pago_em ? p.valor_pago : p.valor)}</b>${p.pago_em ? '' : ` <button class="btn-secundario" data-cl-receber="${p.id}">Receber</button>`}</div>`).join('')}</div>` : ''}
       <details><summary style="cursor:pointer;font-weight:600;font-size:13px">Editar dados</summary>
         <div style="display:flex;flex-direction:column;gap:10px;margin-top:10px">${formClienteHtml(c)}
+        ${ehAdmin() ? `<label class="campo">Limite do crediário (R$) — vazio = padrão da loja (${fmt((state.config.crediario || {}).limitePadrao || 0)})<input id="fc-limite" inputmode="decimal" value="${c.crediario.limiteProprio ? fmtNum(c.crediario.limite) : ''}"></label>` : ''}
         <div class="erro-modal" id="cl-erro"></div><button class="btn-primario" id="cl-salvar">Salvar</button></div></details>
       <div class="paineis-duas-colunas" style="margin-top:0">
         <div class="painel"><div class="painel-titulo">Extrato de crédito</div>
@@ -2296,9 +2418,17 @@
             : '<div class="vazio">Nenhuma compra ainda.</div>'}</div>
       </div></div>`);
     camada.querySelector('#cl-salvar').onclick = (ev) => comBotao(ev.target, 'Salvando...', async () => {
-      await api('/clientes/' + id, { method: 'PUT', body: lerFormCliente(camada) });
+      const corpo = lerFormCliente(camada);
+      const lim = camada.querySelector('#fc-limite');
+      if (lim) {
+        const v = lim.value.trim() ? parseNumBR(lim.value) : null;
+        if (v !== null && !(v >= 0)) throw new Error('Limite inválido');
+        corpo.limiteCrediario = v;
+      }
+      await api('/clientes/' + id, { method: 'PUT', body: corpo });
       fecharModal(); toast('Dados salvos'); carregarDadosDaView('clientes');
     }, camada.querySelector('#cl-erro'));
+    camada.querySelectorAll('[data-cl-receber]').forEach(b => b.onclick = () => abrirReceberParcela(Object.assign({ cliente_nome: c.nome }, c.crediario.parcelas.find(p => p.id === b.dataset.clReceber)), () => abrirCliente(id)));
   }
 
   /* ================= Estoque ================= */
@@ -3238,9 +3368,10 @@
       </div>
       <div class="paineis-duas-colunas">
         <div class="painel" style="flex:1"><div class="painel-titulo">Receita por forma</div>
-          ${f.porForma.length ? f.porForma.map(x => `<div class="barra-linha"><div class="barra-label">${esc(x.forma)}</div><div class="barra-trilho"><div class="barra-fill" style="width:${(x.total / maxForma * 100).toFixed(0)}%;background:${TIPO_CREDITO[x.forma] ? 'var(--border)' : 'var(--teal)'}"></div></div><div class="barra-valor">${fmt(x.total)}</div></div>`).join('')
+          ${f.porForma.length ? f.porForma.map(x => `<div class="barra-linha"><div class="barra-label">${esc(x.forma)}</div><div class="barra-trilho"><div class="barra-fill" style="width:${(x.total / maxForma * 100).toFixed(0)}%;background:${TIPO_CREDITO[x.forma] || x.forma === 'Crediário' ? 'var(--border)' : 'var(--teal)'}"></div></div><div class="barra-valor">${fmt(x.total)}</div></div>`).join('')
             : '<div class="vazio">Sem vendas no mês.</div>'}
           ${f.creditosUsados ? `<div class="modal-dica">Cashback e vale-troca usados (${fmt(f.creditosUsados)}) não contam como receita — o dinheiro entrou na venda original.</div>` : ''}
+          ${f.crediarioVendido || f.crediarioRecebido ? `<div class="modal-dica">Crediário: vendido no mês ${fmt(f.crediarioVendido)} (entra na receita quando recebe) · recebido no mês <b>${fmt(f.crediarioRecebido)}</b> (já está na receita).</div>` : ''}
         </div>
         <div class="painel" style="flex:2"><div class="painel-titulo-linha"><div class="painel-titulo">Despesas</div><button class="btn-primario" id="btn-nova-despesa">+ Nova despesa</button></div>
           ${f.despesas.length ? `<div class="tabela-scroll"><table class="tabela"><tr><th>Data</th><th>Descrição</th><th>Categoria</th><th>Forma</th><th style="text-align:right">Valor</th><th></th></tr>
@@ -3789,6 +3920,11 @@
         <label class="campo">Desconto que o Caixa dá sem PIN (%)<input id="cfg-desconto" inputmode="decimal" value="${String(cfg.descontoLivrePct).replace('.', ',')}"></label>
         <label class="campo">Comissão sobre o vendido (%)<input id="cfg-comissao" inputmode="decimal" value="${String(cfg.comissaoPct || 0).replace('.', ',')}"></label>
       </div>
+      <div class="linha-campos" style="max-width:520px;align-items:flex-end;margin-top:10px">
+        <label class="campo">Crediário: limite padrão por cliente (R$)<input id="cfg-cred-limite" inputmode="decimal" value="${fmtNum((cfg.crediario || {}).limitePadrao || 0)}"></label>
+        <label class="campo">Crediário: máximo de parcelas<input id="cfg-cred-max" inputmode="numeric" value="${(cfg.crediario || {}).maxParcelas || 6}"></label>
+      </div>
+      <div class="modal-dica" style="margin:4px 0 0">Acima do limite da cliente, o crediário pede PIN de Administrador. Dá pra dar um limite diferente pra cada cliente no cadastro dela.</div>
       <div class="painel-titulo" style="margin:18px 0 8px;font-size:14px">Cupom da venda</div>
       <div class="linha-campos" style="max-width:720px;align-items:flex-end">
         <label class="campo" style="flex:3">Rodapé do cupom (ex.: política de troca)<input id="cfg-cupom-rodape" maxlength="300" value="${esc(cfg.cupomRodape || '')}" placeholder="Trocas em até 30 dias com a etiqueta e o cupom."></label>
@@ -3819,13 +3955,15 @@
     document.getElementById('cfg-salvar').onclick = (ev) => comBotao(ev.target, 'Salvando...', async () => {
       const cashbackPct = parseNumBR(document.getElementById('cfg-cashback').value), descontoLivrePct = parseNumBR(document.getElementById('cfg-desconto').value);
       const comissaoPct = parseNumBR(document.getElementById('cfg-comissao').value || '0');
+      const crediario = { limitePadrao: parseNumBR(document.getElementById('cfg-cred-limite').value || '0'), maxParcelas: parseInt(document.getElementById('cfg-cred-max').value, 10) };
+      if (!(crediario.limitePadrao >= 0) || !(crediario.maxParcelas >= 1 && crediario.maxParcelas <= 24)) throw new Error('Confira o limite e as parcelas do crediário (1 a 24)');
       if (!Number.isFinite(cashbackPct) || !Number.isFinite(descontoLivrePct) || !Number.isFinite(comissaoPct)) throw new Error('Valores inválidos');
       const taxa = parseNumBR(document.getElementById('cfg-site-taxa').value || '0');
       if (!Number.isFinite(taxa) || taxa < 0) throw new Error('Taxa de entrega inválida');
       salvarConfigCupom(Object.assign(configCupom(), { largura: Number(document.getElementById('cfg-cupom-largura').value) }));
       const fiscalCorpo = document.getElementById('cfg-cfop') ? { cfop: document.getElementById('cfg-cfop').value, csosn: document.getElementById('cfg-csosn').value,
         origem: document.getElementById('cfg-origem').value, automatica: document.getElementById('cfg-nfce-auto').checked } : undefined;
-      await api('/config', { method: 'PUT', body: { cashbackPct, descontoLivrePct, comissaoPct, fiscal: fiscalCorpo, cupomRodape: document.getElementById('cfg-cupom-rodape').value, site: {
+      await api('/config', { method: 'PUT', body: { cashbackPct, descontoLivrePct, comissaoPct, crediario, fiscal: fiscalCorpo, cupomRodape: document.getElementById('cfg-cupom-rodape').value, site: {
         ativo: document.getElementById('cfg-site-ativo').checked, aceitaRetirada: document.getElementById('cfg-site-retirada').checked,
         aceitaEntrega: document.getElementById('cfg-site-entrega').checked, taxaEntrega: taxa, whatsapp: document.getElementById('cfg-site-whats').value,
         endereco: document.getElementById('cfg-site-endereco').value, mensagem: document.getElementById('cfg-site-msg').value } } });
@@ -4671,6 +4809,7 @@
   document.getElementById('btn-enviar-condicional').addEventListener('click', () => enviarComoCondicional());
   document.getElementById('btn-limpar-carrinho').addEventListener('click', () => { if (!state.cart.length || confirm('Limpar o carrinho?')) setState({ cart: [], pagamentos: [], cliente: null, condicional: null }); });
   document.getElementById('btn-novo-cliente').addEventListener('click', abrirNovoCliente);
+  document.getElementById('btn-crediario').addEventListener('click', () => abrirCrediario(false));
   document.getElementById('btn-nova-compra').addEventListener('click', abrirNovaCompra);
   document.getElementById('btn-ler-nota').addEventListener('click', () => document.getElementById('input-nota').click());
   document.getElementById('input-nota').addEventListener('change', (e) => {

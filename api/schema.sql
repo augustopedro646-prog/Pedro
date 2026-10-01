@@ -587,3 +587,32 @@ CREATE TABLE IF NOT EXISTS condicional_itens (
   qtd_comprada INTEGER NOT NULL DEFAULT 0
 );
 CREATE INDEX IF NOT EXISTS condicional_itens_cond_idx ON condicional_itens(condicional_id);
+
+-- Crediário (venda a prazo na loja, "carnê"). A parte da venda paga no crediário vira parcelas a
+-- receber no nome da cliente. Receber uma parcela entra no caixa do dia (caixa_sessao_id) e no
+-- Fluxo de caixa do mês do recebimento — não no da venda.
+ALTER TABLE venda_pagamentos DROP CONSTRAINT IF EXISTS venda_pagamentos_forma_check;
+ALTER TABLE venda_pagamentos ADD CONSTRAINT venda_pagamentos_forma_check
+  CHECK (forma IN ('Dinheiro', 'Débito', 'Crédito', 'Pix', 'Cashback', 'Vale-troca', 'Crediário'));
+ALTER TABLE clientes ADD COLUMN IF NOT EXISTS limite_crediario NUMERIC(12,2);
+ALTER TABLE lojas ADD COLUMN IF NOT EXISTS crediario_limite_padrao NUMERIC(12,2) NOT NULL DEFAULT 0;
+ALTER TABLE lojas ADD COLUMN IF NOT EXISTS crediario_max_parcelas INTEGER NOT NULL DEFAULT 6;
+CREATE TABLE IF NOT EXISTS crediario_parcelas (
+  id TEXT PRIMARY KEY,
+  loja_id INTEGER NOT NULL REFERENCES lojas(id) ON DELETE CASCADE,
+  venda_id TEXT NOT NULL REFERENCES vendas(id),
+  cliente_id TEXT NOT NULL REFERENCES clientes(id),
+  parcela INTEGER NOT NULL,
+  parcelas INTEGER NOT NULL,
+  valor NUMERIC(12,2) NOT NULL CHECK (valor > 0),
+  vencimento DATE NOT NULL,
+  pago_em TIMESTAMPTZ,
+  valor_pago NUMERIC(12,2),
+  forma_recebimento TEXT,
+  caixa_sessao_id TEXT REFERENCES caixa_sessoes(id),
+  recebido_por TEXT REFERENCES usuarios(id),
+  criado_em TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS crediario_abertas_idx ON crediario_parcelas(loja_id, vencimento) WHERE pago_em IS NULL;
+CREATE INDEX IF NOT EXISTS crediario_cliente_idx ON crediario_parcelas(cliente_id);
+CREATE INDEX IF NOT EXISTS crediario_sessao_idx ON crediario_parcelas(caixa_sessao_id);
