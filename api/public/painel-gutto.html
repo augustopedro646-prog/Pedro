@@ -492,7 +492,7 @@
         <div class="lista-topo">
           <div class="lista-topo-head">
             <h2 class="titulo">Produtos</h2>
-            <div style="display:flex;gap:6px"><button class="btn-secundario" id="btn-promocoes">Promoções</button><button class="btn-primario" id="btn-novo-produto">+ Novo produto</button></div>
+            <div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end"><button class="btn-secundario" id="btn-contagem">Contagem</button><button class="btn-secundario" id="btn-promocoes">Promoções</button><button class="btn-primario" id="btn-novo-produto">+ Novo produto</button></div>
           </div>
           <input id="busca" data-leitor class="input-busca" type="text" placeholder="Buscar produto ou código de barras...">
           <div class="chips" id="categorias-chips"></div>
@@ -3097,6 +3097,170 @@
     }, camada.querySelector('#nd-erro'));
   }
 
+  /* ================= Contagem de estoque (bipador) ================= */
+  // Bipe curto pra confirmar sem olhar a tela (grave = erro).
+  let audioCtx = null;
+  function bip(ok) {
+    try {
+      audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+      const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+      o.frequency.value = ok ? 1200 : 300; g.gain.value = 0.08;
+      o.connect(g); g.connect(audioCtx.destination); o.start(); o.stop(audioCtx.currentTime + (ok ? 0.08 : 0.35));
+    } catch (e) {}
+  }
+  async function abrirContagem() {
+    let dados;
+    try { dados = await api('/contagens/aberta'); } catch (e) { toast(e.message, 'erro'); return; }
+    if (!dados.contagem) return abrirNovaContagem();
+    telaContagem(dados);
+  }
+  async function abrirNovaContagem() {
+    if (!ehAdmin()) { toast('Nenhuma contagem aberta — peça a um Administrador pra começar uma', 'erro'); return; }
+    let historico = [];
+    try { historico = await api('/contagens'); } catch (e) {}
+    if (!state.produtos.length) await carregarProdutos();
+    const cats = categoriasUnicas();
+    const camada = abrirModal(`<div class="modal-card">${cabecalhoModal('Contagem de estoque', 'Bipe as peças da prateleira; no fim o sistema mostra o que sobrou ou faltou e ajusta o estoque.')}
+      <div class="chips"><button class="chip ativo" data-ce="tudo" type="button">Loja inteira</button><button class="chip" data-ce="categoria" type="button">Uma categoria</button><button class="chip" data-ce="produto" type="button">Um produto</button></div>
+      <label class="campo" id="ce-cat-box" style="display:none">Categoria<select id="ce-cat">${cats.map(c => `<option>${esc(c)}</option>`).join('')}</select></label>
+      <label class="campo" id="ce-prod-box" style="display:none">Produto<select id="ce-prod">${state.produtos.filter(p => p.ativo).map(p => `<option value="${p.id}">${esc(p.nome)}</option>`).join('')}</select></label>
+      <div class="modal-dica">Melhor com a loja fechada (ou sem vender) durante a contagem: peça vendida no meio confunde a conta. Dá pra contar em mais de um computador/celular ao mesmo tempo.</div>
+      <div class="erro-modal" id="ce-erro"></div>
+      <button class="btn-primario btn-grande" id="ce-ok">Começar contagem</button>
+      ${historico.length ? `<details><summary style="cursor:pointer;font-size:13px;font-weight:600">Contagens anteriores</summary>
+        ${historico.map(h => `<div class="linha-simples" style="font-size:12px"><span style="flex:1">${dataHora(h.criado_em)} · ${esc(h.descricao)}</span>
+          <span>${h.status === 'cancelada' ? '<span class="tag cinza">cancelada</span>' : h.resumo ? `${h.resumo.sobras + h.resumo.faltas} ajuste(s) · ${h.resumo.valorDiferenca >= 0 ? '+' : '−'}${fmt(Math.abs(h.resumo.valorDiferenca))}` : ''}</span></div>`).join('')}</details>` : ''}</div>`);
+    let escopo = 'tudo';
+    camada.querySelectorAll('[data-ce]').forEach(b => b.onclick = () => {
+      escopo = b.dataset.ce;
+      camada.querySelectorAll('[data-ce]').forEach(x => x.classList.toggle('ativo', x === b));
+      camada.querySelector('#ce-cat-box').style.display = escopo === 'categoria' ? '' : 'none';
+      camada.querySelector('#ce-prod-box').style.display = escopo === 'produto' ? '' : 'none';
+    });
+    camada.querySelector('#ce-ok').onclick = (ev) => comBotao(ev.target, 'Começando...', async () => {
+      await api('/contagens', { method: 'POST', body: { escopo, categoria: camada.querySelector('#ce-cat').value, produtoId: camada.querySelector('#ce-prod').value } });
+      telaContagem(await api('/contagens/aberta'));
+    }, camada.querySelector('#ce-erro'));
+  }
+  function telaContagem(dados) {
+    let { contagem, itens } = dados;
+    let filtro = 'todas', ultimo = null, timer = null;
+    const camada = abrirModal(`<div class="modal-card largo" style="max-width:980px">
+      ${cabecalhoModal('Contagem: ' + contagem.descricao, 'Começou ' + dataHora(contagem.criado_em))}
+      <div id="ct-aviso"></div>
+      <input id="ct-bipar" data-leitor class="input-busca" type="text" autocomplete="off" placeholder="Bipe cada peça aqui (ou digite o código e Enter)" style="font-size:16px;padding:14px">
+      <div id="ct-ultimo" style="min-height:22px;font-size:14px"></div>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><div class="chips" id="ct-filtros"></div><span style="flex:1"></span><b id="ct-progresso" style="font-size:13px"></b></div>
+      <div class="tabela-scroll" style="max-height:42vh" id="ct-tabela"></div>
+      <div class="modal-acoes">${ehAdmin() ? '<button class="link-btn" id="ct-cancelar" style="color:var(--zero-text);margin-right:auto">cancelar contagem</button>' : ''}
+        <button class="btn-secundario" id="ct-sair">Continuar depois</button>${ehAdmin() ? '<button class="btn-primario btn-grande" id="ct-concluir">Concluir e ajustar estoque</button>' : ''}</div></div>`,
+      () => clearInterval(timer));
+    const $ = (q) => camada.querySelector(q);
+    const contados = () => itens.filter(i => i.contado != null);
+    const comDif = () => contados().filter(i => i.contado !== i.sistema);
+    const desenhar = () => {
+      const lista = filtro === 'diferenca' ? comDif() : filtro === 'nao' ? itens.filter(i => i.contado == null) : itens;
+      $('#ct-filtros').innerHTML = [['todas', 'Todas (' + itens.length + ')'], ['diferenca', 'Com diferença (' + comDif().length + ')'], ['nao', 'Não contadas (' + itens.filter(i => i.contado == null).length + ')']]
+        .map(([k, r]) => `<button class="chip ${filtro === k ? 'ativo' : ''}" data-ctf="${k}" type="button">${r}</button>`).join('');
+      $('#ct-filtros').querySelectorAll('[data-ctf]').forEach(b => b.onclick = () => { filtro = b.dataset.ctf; desenhar(); $('#ct-bipar').focus(); });
+      const pecas = contados().reduce((t, i) => t + i.contado, 0);
+      $('#ct-progresso').textContent = pecas + ' peça' + (pecas === 1 ? '' : 's') + ' contada' + (pecas === 1 ? '' : 's') + ' · ' + contados().length + ' de ' + itens.length + ' tamanhos/cores conferidos';
+      $('#ct-tabela').innerHTML = lista.length ? `<table class="tabela"><tr><th>Peça</th><th style="text-align:right">No sistema</th><th style="width:110px">Contado</th><th style="text-align:right">Diferença</th></tr>
+        ${lista.map(i => {
+          const dif = i.contado == null ? null : i.contado - i.sistema;
+          return `<tr style="${ultimo === i.variacao_id ? 'background:var(--ok-bg)' : ''}"><td>${esc(i.produto)} · <b>${esc(i.tamanho)}</b>${i.cor ? ' · ' + esc(i.cor) : ''}<div class="mono" style="font-size:10px;color:var(--text-2)">${esc(i.codigo_barras || '')}</div></td>
+            <td style="text-align:right">${i.sistema}</td>
+            <td><input data-ct-qtd="${i.variacao_id}" inputmode="numeric" value="${i.contado == null ? '' : i.contado}" placeholder="—" style="text-align:center"></td>
+            <td style="text-align:right;font-weight:700">${dif == null ? '<span style="color:var(--text-2);font-weight:400">não contada</span>' : dif === 0 ? '<span class="valor-ok">✓ certo</span>' : `<span class="${dif > 0 ? 'valor-ok' : 'valor-neg'}">${dif > 0 ? '▲ sobra ' + dif : '▼ falta ' + (-dif)}</span>`}</td></tr>`;
+        }).join('')}</table>` : '<div class="vazio">Nada aqui.</div>';
+      $('#ct-tabela').querySelectorAll('[data-ct-qtd]').forEach(inp => inp.onchange = async () => {
+        const n = parseInt(inp.value, 10);
+        if (!(n >= 0)) { toast('Quantidade inválida', 'erro'); return; }
+        try { await api('/contagens/' + contagem.id + '/itens/' + inp.dataset.ctQtd, { method: 'PUT', body: { contado: n } }); itens.find(i => i.variacao_id === inp.dataset.ctQtd).contado = n; desenhar(); }
+        catch (e) { toast(e.message, 'erro'); }
+      });
+    };
+    const avisoVendas = (n) => { $('#ct-aviso').innerHTML = n ? `<div class="aviso-caixa">⚠ ${n} venda(s) feita(s) desde que a contagem começou: confira as peças vendidas antes de concluir.</div>` : ''; };
+    const recarregar = async () => {
+      if (!$('#ct-tabela')) { clearInterval(timer); return; } // a janela da contagem já foi trocada/fechada
+      try {
+        const d = await api('/contagens/aberta');
+        if (!d.contagem || d.contagem.id !== contagem.id) { clearInterval(timer); fecharModal(); toast('A contagem foi encerrada em outro computador'); return; }
+        if (!$('#ct-tabela')) return;
+        itens = d.itens; avisoVendas(d.vendasDesdeInicio);
+        if (!camada.querySelector('[data-ct-qtd]:focus')) desenhar();
+      } catch (e) {}
+    };
+    const biparCodigo = async (codigo) => {
+      try {
+        const r = await api('/contagens/' + contagem.id + '/bipar', { method: 'POST', body: { codigo } });
+        const it = itens.find(i => i.variacao_id === r.variacaoId);
+        if (it) it.contado = r.contado;
+        ultimo = r.variacaoId; bip(true);
+        $('#ct-ultimo').innerHTML = `<span class="valor-ok">✓</span> <b>${esc(r.peca)}</b> — ${r.contado} contada${r.contado === 1 ? '' : 's'} <button class="link-btn" id="ct-desfazer">desfazer</button>`;
+        $('#ct-desfazer').onclick = async () => {
+          try { const d = await api('/contagens/' + contagem.id + '/bipar', { method: 'POST', body: { codigo, qtd: -1 } }); const x = itens.find(i => i.variacao_id === d.variacaoId); if (x) x.contado = d.contado; $('#ct-ultimo').textContent = 'Desfeito: ' + d.peca + ' — ' + d.contado; desenhar(); }
+          catch (e) { toast(e.message, 'erro'); }
+          $('#ct-bipar').focus();
+        };
+        desenhar();
+      } catch (e) {
+        bip(false);
+        $('#ct-ultimo').innerHTML = `<span class="valor-neg" style="font-weight:700">✗ ${esc(e.message)}</span>`;
+      }
+    };
+    $('#ct-bipar').addEventListener('keydown', (e) => {
+      if (e.key !== 'Enter' && e.key !== 'Tab') return;
+      const codigo = $('#ct-bipar').value.trim();
+      if (!codigo) return;
+      e.preventDefault();
+      $('#ct-bipar').value = '';
+      biparCodigo(codigo);
+    });
+    $('#ct-sair').onclick = () => { clearInterval(timer); fecharModal(); };
+    if ($('#ct-cancelar')) $('#ct-cancelar').onclick = async () => {
+      if (!confirm('Cancelar a contagem? Nada do que foi contado ajusta o estoque.')) return;
+      try { await api('/contagens/' + contagem.id + '/cancelar', { method: 'POST' }); clearInterval(timer); fecharModal(); toast('Contagem cancelada'); } catch (e) { toast(e.message, 'erro'); }
+    };
+    if ($('#ct-concluir')) $('#ct-concluir').onclick = () => confirmarContagem(contagem, itens, () => clearInterval(timer));
+    avisoVendas(dados.vendasDesdeInicio);
+    desenhar();
+    $('#ct-bipar').focus();
+    timer = setInterval(recarregar, 5000);
+  }
+  function confirmarContagem(contagem, itens, parar) {
+    const contados = itens.filter(i => i.contado != null);
+    const naoContadas = itens.filter(i => i.contado == null);
+    const pecasNaoContadas = naoContadas.reduce((t, i) => t + Math.max(0, i.sistema), 0);
+    const dif = contados.filter(i => i.contado !== i.sistema);
+    const sobra = dif.filter(i => i.contado > i.sistema).reduce((t, i) => t + i.contado - i.sistema, 0);
+    const falta = dif.filter(i => i.contado < i.sistema).reduce((t, i) => t + i.sistema - i.contado, 0);
+    const camada = abrirModal(`<div class="modal-card">${cabecalhoModal('Concluir contagem', contagem.descricao)}
+      <div style="font-size:14px;line-height:1.8">
+        <div>${contados.length} tamanho(s)/cor(es) conferido(s)</div>
+        <div><span class="valor-ok">▲ ${sobra} peça(s) sobrando</span> · <span class="valor-neg">▼ ${falta} peça(s) faltando</span> em ${dif.length} tamanho(s)/cor(es)</div>
+      </div>
+      ${naoContadas.length ? `<div class="aviso-caixa" style="display:block"><b>${naoContadas.length} tamanho(s)/cor(es) não foram contados</b> (${pecasNaoContadas} peça(s) no sistema).
+        <label style="display:flex;gap:6px;align-items:center;margin-top:8px;font-weight:400"><input type="checkbox" id="cc-zerar"> Zerar o estoque deles (não achei essas peças)</label>
+        <div style="font-weight:400;font-size:12px;margin-top:4px">Sem marcar, eles ficam como estão no sistema.</div></div>` : ''}
+      <div class="modal-dica">Cada ajuste fica no histórico do produto (Estoque → editar).</div>
+      <div class="erro-modal" id="cc-erro"></div>
+      <div class="modal-acoes"><button class="btn-secundario" id="cc-voltar">Voltar pra contagem</button><button class="btn-primario btn-grande" id="cc-ok">Ajustar estoque</button></div></div>`);
+    camada.querySelector('#cc-voltar').onclick = () => { parar(); abrirContagem(); };
+    camada.querySelector('#cc-ok').onclick = (ev) => comBotao(ev.target, 'Ajustando...', async () => {
+      const zerar = !!(camada.querySelector('#cc-zerar') && camada.querySelector('#cc-zerar').checked);
+      const r = await api('/contagens/' + contagem.id + '/concluir', { method: 'POST', body: { zerarNaoContadas: zerar } });
+      parar();
+      await carregarProdutos(); render();
+      const s = r.resumo;
+      abrirModal(`<div class="modal-card estreito" style="text-align:center">${cabecalhoModal('Estoque ajustado', '')}
+        <div style="font-size:14px;line-height:1.8">${s.sobras + s.faltas ? `${s.sobras + s.faltas} tamanho(s)/cor(es) ajustado(s): <span class="valor-ok">+${s.pecasSobrando}</span> / <span class="valor-neg">−${s.pecasFaltando}</span> peças` : 'Tudo bateu com o sistema. 👏'}
+          <div>Diferença a preço de custo: <b class="${s.valorDiferenca < 0 ? 'valor-neg' : 'valor-ok'}">${s.valorDiferenca < 0 ? '−' : '+'}${fmt(Math.abs(s.valorDiferenca))}</b></div>
+          ${s.naoContadas ? `<div style="color:var(--text-2)">${s.naoContadas} não contado(s) ficaram como estavam.</div>` : ''}</div>
+        <button class="btn-primario" data-fechar>Ok</button></div>`);
+    }, camada.querySelector('#cc-erro'));
+  }
+
   /* ================= Promoções ================= */
   function rotuloPromo(pr) { return pr ? '−' + String(pr.pct).replace('.', ',') + '%' : ''; }
   function htmlPrecoProduto(p) {
@@ -4318,6 +4482,7 @@
   document.getElementById('confirmar').addEventListener('click', () => confirmarVenda());
   document.getElementById('btn-novo-produto').addEventListener('click', () => abrirNovoProduto());
   document.getElementById('btn-promocoes').addEventListener('click', () => abrirPromocoes());
+  document.getElementById('btn-contagem').addEventListener('click', () => abrirContagem());
   document.getElementById('btn-troca').addEventListener('click', () => abrirTroca(false));
   document.getElementById('btn-limpar-carrinho').addEventListener('click', () => { if (!state.cart.length || confirm('Limpar o carrinho?')) setState({ cart: [], pagamentos: [], cliente: null }); });
   document.getElementById('btn-novo-cliente').addEventListener('click', abrirNovoCliente);

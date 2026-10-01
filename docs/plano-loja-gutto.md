@@ -179,6 +179,10 @@ Plano fechado — pronto pra começar a Fase 1.
     - Script do Cloudflare Tunnel.
     - Pela internet só o site da loja aparece; o painel fica na rede da loja.
     - Limites por visitante e bloqueio por PIN errado.
+  - Contas a pagar: boletos com vencimento, compra a prazo (boletos lidos do XML), aviso no Início.
+  - Promoções: % por período em produtos, categoria ou loja, com preço automático no caixa, site e
+    WhatsApp; liquidação a partir dos parados.
+  - Contagem de estoque com o bipador, com resumo antes de ajustar.
 - **Próximas**:
   - Ligar a NFC-e (acima).
   - Rodar o script do túnel quando o domínio estiver na Cloudflare.

@@ -177,6 +177,21 @@ período anterior. "Este mês" compara com os mesmos dias do mês passado.
 
 Cada bloco tem **Baixar planilha** (abre direto no Excel).
 
+## Contagem de estoque (Estoque → "Contagem")
+
+- Escolha o que contar: **loja inteira**, **uma categoria** ou **um produto**. Depois é só **bipar
+  cada peça** da prateleira. Cada bip soma 1, com um apito curto (grave = erro: código desconhecido
+  ou peça que não é dessa contagem). "Desfazer" tira o último bip; também dá pra digitar a
+  quantidade direto na tabela.
+- A tabela mostra **no sistema × contado × diferença** ("falta 2", "sobra 1", "certo"), com filtros
+  "com diferença" e "não contadas".
+- A contagem fica salva: dá pra **continuar depois** e contar em **mais de um computador/celular**
+  ao mesmo tempo. O Caixa pode bipar; começar e concluir é com o Administrador.
+- **Concluir** mostra o resumo antes de mexer no estoque. Os tamanhos/cores que ninguém bipou ficam
+  como estão, ou são zerados se você marcar "não achei essas peças". Cada ajuste vai pro histórico
+  do produto e aparece a diferença em dinheiro (a preço de custo).
+- Melhor contar com a loja fechada: o sistema avisa se houve venda durante a contagem.
+
 ## Promoções (Estoque → "Promoções")
 
 - **Desconto em %** com data de começo e fim, em **produtos escolhidos**, numa **categoria** ou na

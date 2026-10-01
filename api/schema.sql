@@ -530,3 +530,27 @@ ALTER TABLE vendas_itens ADD COLUMN IF NOT EXISTS preco_cheio NUMERIC(12,2);
 ALTER TABLE vendas_itens ADD COLUMN IF NOT EXISTS promocao_id TEXT REFERENCES promocoes(id) ON DELETE SET NULL;
 ALTER TABLE pedidos_online_itens ADD COLUMN IF NOT EXISTS preco_cheio NUMERIC(12,2);
 ALTER TABLE pedidos_online_itens ADD COLUMN IF NOT EXISTS promocao_id TEXT REFERENCES promocoes(id) ON DELETE SET NULL;
+
+-- Contagem de estoque (inventário) com o bipador. Uma aberta por vez; os itens guardam quanto foi
+-- contado de cada variação. Concluir ajusta o estoque (movimento 'ajuste', referência 'contagem').
+CREATE TABLE IF NOT EXISTS contagens (
+  id TEXT PRIMARY KEY,
+  loja_id INTEGER NOT NULL REFERENCES lojas(id) ON DELETE CASCADE,
+  escopo TEXT NOT NULL CHECK (escopo IN ('tudo', 'categoria', 'produto')),
+  categoria TEXT,
+  produto_id TEXT REFERENCES produtos(id) ON DELETE SET NULL,
+  status TEXT NOT NULL DEFAULT 'aberta' CHECK (status IN ('aberta', 'concluida', 'cancelada')),
+  resumo JSONB,
+  criado_por TEXT REFERENCES usuarios(id),
+  criado_em TIMESTAMPTZ NOT NULL DEFAULT now(),
+  concluida_por TEXT REFERENCES usuarios(id),
+  concluida_em TIMESTAMPTZ
+);
+CREATE UNIQUE INDEX IF NOT EXISTS contagens_uma_aberta_idx ON contagens(loja_id) WHERE status = 'aberta';
+CREATE TABLE IF NOT EXISTS contagem_itens (
+  contagem_id TEXT NOT NULL REFERENCES contagens(id) ON DELETE CASCADE,
+  variacao_id TEXT NOT NULL REFERENCES produto_variacoes(id) ON DELETE CASCADE,
+  contado INTEGER NOT NULL DEFAULT 0 CHECK (contado >= 0),
+  atualizado_em TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (contagem_id, variacao_id)
+);

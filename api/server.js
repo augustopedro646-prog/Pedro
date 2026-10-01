@@ -537,6 +537,153 @@ app.post('/api/lojas/:lojaId/variacoes/:id/ajuste-estoque', admin, rota(async (r
   res.json({ ok: true, ...r });
 }));
 
+/* ---------- Contagem de estoque (inventário com o bipador) ---------- */
+
+// Variações que entram na contagem (só peças ativas de produtos ativos).
+function filtroEscopo(ct) {
+  if (ct.escopo === 'categoria') return { sql: "AND COALESCE(NULLIF(p.categoria, ''), 'Sem categoria') = $2", params: [ct.categoria] };
+  if (ct.escopo === 'produto') return { sql: 'AND p.id = $2', params: [ct.produto_id] };
+  return { sql: '', params: [] };
+}
+async function itensDaContagem(db, ct) {
+  const f = filtroEscopo(ct);
+  const { rows } = await db.query(
+    `SELECT v.id AS variacao_id, p.id AS produto_id, p.nome AS produto, p.categoria, v.tamanho, v.cor, v.codigo_barras,
+            v.estoque::int AS sistema, v.custo_unitario::float AS custo, ci.contado, g.tamanhos AS ordem
+     FROM produto_variacoes v JOIN produtos p ON p.id = v.produto_id
+     LEFT JOIN grades_tamanho g ON g.id = p.grade_tamanho_id
+     LEFT JOIN contagem_itens ci ON ci.variacao_id = v.id AND ci.contagem_id = $${f.params.length + 2}
+     WHERE v.loja_id = $1 AND v.ativo AND p.ativo ${f.sql}
+     ORDER BY p.nome, v.cor`, [ct.loja_id, ...f.params, ct.id]);
+  return rows.map(({ ordem, ...r }) => ({ ...r, ordemTamanho: ordem ? ordem.indexOf(r.tamanho) : -1 }))
+    .sort((a, b) => a.produto.localeCompare(b.produto) || (a.ordemTamanho - b.ordemTamanho) || a.tamanho.localeCompare(b.tamanho) || a.cor.localeCompare(b.cor));
+}
+async function contagemAberta(db, lojaId, trava) {
+  const { rows } = await db.query(`SELECT * FROM contagens WHERE loja_id = $1 AND status = 'aberta'${trava ? ' FOR UPDATE' : ''}`, [lojaId]);
+  return rows[0] || null;
+}
+function descreverEscopo(ct, nomeProduto) {
+  return ct.escopo === 'tudo' ? 'Loja inteira' : ct.escopo === 'categoria' ? 'Categoria ' + ct.categoria : 'Produto ' + (nomeProduto || '');
+}
+
+app.get('/api/lojas/:lojaId/contagens/aberta', qualquer, rota(async (req, res) => {
+  const ct = await contagemAberta(pool, req.lojaId);
+  if (!ct) return res.json({ contagem: null });
+  const itens = await itensDaContagem(pool, ct);
+  const { rows: v } = await pool.query('SELECT count(*)::int AS n FROM vendas WHERE loja_id = $1 AND NOT cancelada AND criado_em > $2', [req.lojaId, ct.criado_em]);
+  const nomeProd = ct.produto_id ? (itens[0] && itens[0].produto) : null;
+  res.json({ contagem: { ...ct, descricao: descreverEscopo(ct, nomeProd) }, itens, vendasDesdeInicio: v[0].n });
+}));
+
+app.get('/api/lojas/:lojaId/contagens', admin, rota(async (req, res) => {
+  const { rows } = await pool.query(
+    `SELECT c.id, c.escopo, c.categoria, c.status, c.resumo, c.criado_em, c.concluida_em, p.nome AS produto_nome, u.nome AS concluida_por_nome
+     FROM contagens c LEFT JOIN produtos p ON p.id = c.produto_id LEFT JOIN usuarios u ON u.id = c.concluida_por
+     WHERE c.loja_id = $1 AND c.status <> 'aberta' ORDER BY c.criado_em DESC LIMIT 20`, [req.lojaId]);
+  res.json(rows.map((c) => ({ ...c, descricao: descreverEscopo(c, c.produto_nome) })));
+}));
+
+// Corpo: { escopo: 'tudo'|'categoria'|'produto', categoria?, produtoId? }
+app.post('/api/lojas/:lojaId/contagens', admin, rota(async (req, res) => {
+  const body = req.body || {};
+  if (!['tudo', 'categoria', 'produto'].includes(body.escopo)) falha(400, 'Escolha o que vai ser contado');
+  const categoria = body.escopo === 'categoria' ? texto(body.categoria, 'categoria', { max: 60 }) : null;
+  let produtoId = null;
+  if (body.escopo === 'produto') {
+    const { rows } = await pool.query('SELECT id FROM produtos WHERE id = $1 AND loja_id = $2', [body.produtoId, req.lojaId]);
+    if (!rows.length) falha(404, 'produto não encontrado');
+    produtoId = rows[0].id;
+  }
+  const id = uid();
+  try {
+    await pool.query('INSERT INTO contagens (id, loja_id, escopo, categoria, produto_id, criado_por) VALUES ($1,$2,$3,$4,$5,$6)',
+      [id, req.lojaId, body.escopo, categoria, produtoId, req.usuario.id]);
+  } catch (e) {
+    if (e.code === '23505') falha(409, 'Já tem uma contagem aberta — continue ou cancele ela antes', { codigo: 'contagem_aberta' });
+    throw e;
+  }
+  res.status(201).json({ id });
+}));
+
+// Bipou uma peça: soma `qtd` (padrão 1; -1 desfaz) na variação com esse código.
+app.post('/api/lojas/:lojaId/contagens/:id/bipar', qualquer, rota(async (req, res) => {
+  const body = req.body || {};
+  const codigo = soDigitos(body.codigo) || texto(body.codigo, 'código', { max: 60 });
+  const qtd = body.qtd != null ? numero(body.qtd, 'qtd', { inteiro: true, min: -1000, max: 1000 }) : 1;
+  const r = await transacao(async (c) => {
+    const ct = await contagemAberta(c, req.lojaId);
+    if (!ct || ct.id !== req.params.id) falha(409, 'Essa contagem não está mais aberta', { codigo: 'contagem_fechada' });
+    const { rows } = await c.query(
+      `SELECT v.id, p.nome, v.tamanho, v.cor, p.categoria, p.id AS produto_id, v.ativo, p.ativo AS produto_ativo FROM produto_variacoes v JOIN produtos p ON p.id = v.produto_id
+       WHERE v.loja_id = $1 AND (v.codigo_barras = $2 OR v.sku = $2)`, [req.lojaId, codigo]);
+    const v = rows[0];
+    if (!v) falha(404, 'Código ' + codigo + ' não é de nenhuma peça cadastrada', { codigo: 'codigo_desconhecido' });
+    const peca = v.nome + ' ' + v.tamanho + (v.cor ? ' ' + v.cor : '');
+    if (!v.ativo || !v.produto_ativo) falha(409, peca + ' está desativada no cadastro', { codigo: 'fora_escopo' });
+    const fora = (ct.escopo === 'categoria' && String(v.categoria || 'Sem categoria') !== ct.categoria) || (ct.escopo === 'produto' && v.produto_id !== ct.produto_id);
+    if (fora) falha(409, peca + ' não faz parte dessa contagem (' + descreverEscopo(ct) + ')', { codigo: 'fora_escopo' });
+    const { rows: it } = await c.query(
+      `INSERT INTO contagem_itens (contagem_id, variacao_id, contado) VALUES ($1, $2, GREATEST($3, 0))
+       ON CONFLICT (contagem_id, variacao_id) DO UPDATE SET contado = GREATEST(contagem_itens.contado + $3, 0), atualizado_em = now()
+       RETURNING contado`, [ct.id, v.id, qtd]);
+    return { variacaoId: v.id, peca, contado: it[0].contado };
+  });
+  res.json(r);
+}));
+
+// Digitou a quantidade contada (sem bipar). Corpo: { contado }
+app.put('/api/lojas/:lojaId/contagens/:id/itens/:variacaoId', qualquer, rota(async (req, res) => {
+  const contado = numero((req.body || {}).contado, 'quantidade contada', { inteiro: true, max: 100000 });
+  await transacao(async (c) => {
+    const ct = await contagemAberta(c, req.lojaId);
+    if (!ct || ct.id !== req.params.id) falha(409, 'Essa contagem não está mais aberta', { codigo: 'contagem_fechada' });
+    const itens = await itensDaContagem(c, ct);
+    if (!itens.some((i) => i.variacao_id === req.params.variacaoId)) falha(409, 'Essa peça não faz parte dessa contagem');
+    await c.query(
+      `INSERT INTO contagem_itens (contagem_id, variacao_id, contado) VALUES ($1,$2,$3)
+       ON CONFLICT (contagem_id, variacao_id) DO UPDATE SET contado = EXCLUDED.contado, atualizado_em = now()`, [ct.id, req.params.variacaoId, contado]);
+  });
+  res.json({ ok: true, contado });
+}));
+
+// Concluir: ajusta o estoque de cada peça pro que foi contado. Corpo: { zerarNaoContadas: bool }
+// (peças da contagem que ninguém bipou: com true viram 0; com false ficam como estão).
+app.post('/api/lojas/:lojaId/contagens/:id/concluir', admin, rota(async (req, res) => {
+  const zerar = (req.body || {}).zerarNaoContadas === true;
+  const r = await transacao(async (c) => {
+    const ct = await contagemAberta(c, req.lojaId, true);
+    if (!ct || ct.id !== req.params.id) falha(409, 'Essa contagem não está mais aberta');
+    const itens = await itensDaContagem(c, ct);
+    const resumo = { conferidas: 0, sobras: 0, faltas: 0, pecasSobrando: 0, pecasFaltando: 0, valorDiferenca: 0, naoContadas: 0, zeradas: 0 };
+    for (const it of [...itens].sort((a, b) => (a.variacao_id < b.variacao_id ? -1 : 1))) {
+      if (it.contado == null && !zerar) { resumo.naoContadas++; continue; }
+      const { rows } = await c.query('SELECT estoque::int AS estoque, custo_unitario::float AS custo FROM produto_variacoes WHERE id = $1 FOR UPDATE', [it.variacao_id]);
+      const contado = it.contado == null ? 0 : it.contado;
+      const dif = contado - rows[0].estoque;
+      resumo.conferidas++;
+      if (it.contado == null) resumo.zeradas++;
+      if (!dif) continue;
+      if (dif > 0) { resumo.sobras++; resumo.pecasSobrando += dif; } else { resumo.faltas++; resumo.pecasFaltando -= dif; }
+      resumo.valorDiferenca = round2(resumo.valorDiferenca + dif * rows[0].custo);
+      await c.query('UPDATE produto_variacoes SET estoque = $1 WHERE id = $2', [contado, it.variacao_id]);
+      await c.query(
+        `INSERT INTO movimentos_estoque_produto (id, loja_id, variacao_id, tipo, quantidade, custo_unitario, valor_total, referencia_tipo, referencia_id, observacao, criado_por)
+         VALUES ($1,$2,$3,'ajuste',$4,$5,$6,'contagem',$7,$8,$9)`,
+        [uid(), req.lojaId, it.variacao_id, dif, rows[0].custo, round2(dif * rows[0].custo), ct.id, 'Contagem de estoque', req.usuario.id]);
+    }
+    await c.query("UPDATE contagens SET status = 'concluida', resumo = $1, concluida_por = $2, concluida_em = now() WHERE id = $3", [JSON.stringify(resumo), req.usuario.id, ct.id]);
+    return resumo;
+  });
+  res.json({ ok: true, resumo: r });
+}));
+
+app.post('/api/lojas/:lojaId/contagens/:id/cancelar', admin, rota(async (req, res) => {
+  const { rowCount } = await pool.query("UPDATE contagens SET status = 'cancelada', concluida_por = $1, concluida_em = now() WHERE id = $2 AND loja_id = $3 AND status = 'aberta'",
+    [req.usuario.id, req.params.id, req.lojaId]);
+  if (!rowCount) falha(409, 'Essa contagem não está mais aberta');
+  res.json({ ok: true });
+}));
+
 /* ---------- Caixa (livro caixa do turno) ---------- */
 
 async function resumoSessao(db, sessao) {
