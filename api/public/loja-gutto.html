@@ -64,6 +64,9 @@
   .card-cat { font-size: 11px; color: var(--text-2); font-weight: 600; text-transform: uppercase; letter-spacing: .04em; }
   .card-nome { font-family: 'Baloo 2'; font-weight: 600; font-size: 16px; line-height: 1.2; }
   .card-preco { font-weight: 700; color: var(--accent); }
+  .preco-de { color: var(--text-2); font-weight: 400; text-decoration: line-through; font-size: .85em; margin-right: 4px; }
+  .selo-promo { position: absolute; top: 8px; right: 8px; background: var(--accent); color: #fff; font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 999px; }
+  .promo-faixa { font-size: 13px; font-weight: 600; color: var(--accent); }
   .card-tams { font-size: 12px; color: var(--text-2); }
   .vazio { text-align: center; color: var(--text-2); padding: 50px 16px; grid-column: 1 / -1; }
 
@@ -215,10 +218,12 @@
       const disp = p.variacoes.filter(v => v.disponivel > 0);
       const tams = [...new Set(disp.map(v => v.tamanho))];
       const ultimas = disp.reduce((s, v) => s + v.disponivel, 0) <= 2;
+      const promo = disp.find(v => v.precoCheio);
+      const de = promo ? Math.min(...disp.filter(v => v.precoCheio).map(v => v.precoCheio)) : null;
       return `<button class="card" data-prod="${p.id}">
-        <div class="card-foto" style="${p.fotos.length ? `background-image:url('${foto(p.fotos[0])}')` : ''}">${p.fotos.length ? '' : `<div class="placeholder" style="background:${corDe(p.nome)}">${esc(p.nome.charAt(0))}</div>`}${ultimas ? '<span class="selo">Últimas peças</span>' : ''}</div>
+        <div class="card-foto" style="${p.fotos.length ? `background-image:url('${foto(p.fotos[0])}')` : ''}">${p.fotos.length ? '' : `<div class="placeholder" style="background:${corDe(p.nome)}">${esc(p.nome.charAt(0))}</div>`}${ultimas ? '<span class="selo">Últimas peças</span>' : ''}${promo ? `<span class="selo-promo">${esc(promo.promocao)}</span>` : ''}</div>
         <div class="card-info"><div class="card-cat">${esc(p.categoria)}</div><div class="card-nome">${esc(p.nome)}</div>
-          <div class="card-preco">${min === max ? brl(min) : 'a partir de ' + brl(min)}</div><div class="card-tams">Tam. ${tams.map(esc).join(' · ')}</div></div>
+          <div class="card-preco">${de ? `<span class="preco-de">${brl(de)}</span>` : ''}${min === max ? brl(min) : 'a partir de ' + brl(min)}</div><div class="card-tams">Tam. ${tams.map(esc).join(' · ')}</div></div>
       </button>`;
     }).join('');
     el.querySelectorAll('[data-prod]').forEach(b => b.onclick = () => abrirProduto(b.dataset.prod));
@@ -256,13 +261,15 @@
       const v = daCor.find(x => x.tamanho === tamanho && x.disponivel > 0);
       if (!v) tamanho = tamanho && daCor.some(x => x.tamanho === tamanho && x.disponivel > 0) ? tamanho : null;
       const preco = v ? v.preco : precoDe(p).min;
+      const vPromo = v ? (v.precoCheio ? v : null) : p.variacoes.find(x => x.precoCheio && x.disponivel > 0);
       const naSacola = v ? (state.sacola.find(i => i.variacaoId === v.id) || { qtd: 0 }).qtd : 0;
       const maximo = v ? v.disponivel - naSacola : 0;
       if (qtd > Math.max(1, maximo)) qtd = Math.max(1, maximo);
       const folha = abrirFolha(`${topoFolha(esc(p.nome), esc(p.categoria))}
         <div class="galeria">${p.fotos.length ? `<div class="galeria-trilho" id="trilho">${p.fotos.map(f => `<img src="${foto(f)}" alt="${esc(p.nome)}" loading="lazy">`).join('')}</div>${p.fotos.length > 1 ? `<div class="pontos">${p.fotos.map((_, i) => `<i class="${i ? '' : 'on'}"></i>`).join('')}</div>` : ''}`
           : `<div style="height:100%;display:flex;align-items:center;justify-content:center"><div class="placeholder" style="background:${corDe(p.nome)}">${esc(p.nome.charAt(0))}</div></div>`}</div>
-        <div class="preco-grande">${brl(preco)}</div>
+        <div class="preco-grande">${v && v.precoCheio ? `<span class="preco-de">${brl(v.precoCheio)}</span>` : ''}${brl(preco)}</div>
+        ${vPromo ? `<div class="promo-faixa">🏷 ${esc(vPromo.promocao)} — até ${vPromo.promocaoAte.split('-').reverse().join('/')}</div>` : ''}
         ${p.descricao ? `<div class="desc">${esc(p.descricao)}</div>` : ''}
         ${cores.length > 1 || cores[0] ? `<div><div class="rotulo">Cor${cor ? ': ' + esc(cor) : ''}</div><div class="opcoes">${cores.map(c => { const tem = p.variacoes.some(x => x.cor === c && x.disponivel > 0); return `<button class="opcao ${c === cor ? 'sel' : ''} ${tem ? '' : 'sem'}" data-cor="${esc(c)}" ${tem ? '' : 'disabled'}>${esc(c || 'Única')}</button>`; }).join('')}</div></div>` : ''}
         <div><div class="rotulo">Tamanho</div><div class="opcoes">${daCor.map(x => `<button class="opcao ${x.tamanho === tamanho ? 'sel' : ''} ${x.disponivel > 0 ? '' : 'sem'}" data-tam="${esc(x.tamanho)}" ${x.disponivel > 0 ? '' : 'disabled'}>${esc(x.tamanho)}</button>`).join('')}</div>

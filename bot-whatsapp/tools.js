@@ -98,7 +98,8 @@ const execucoes = {
       encontrados: lista.length,
       produtos: lista.slice(0, 25).map((p) => ({
         id: p.id, nome: p.nome, categoria: p.categoria, descricao: p.descricao || undefined, temFoto: p.fotos.length > 0,
-        variacoes: p.variacoes.filter((v) => v.disponivel > 0).map((v) => ({ variacaoId: v.id, tamanho: v.tamanho, cor: v.cor, preco: v.preco, disponivel: v.disponivel })),
+        variacoes: p.variacoes.filter((v) => v.disponivel > 0).map((v) => ({ variacaoId: v.id, tamanho: v.tamanho, cor: v.cor, preco: v.preco, disponivel: v.disponivel,
+          ...(v.precoCheio ? { emPromocao: v.promocao, precoSemPromocao: v.precoCheio, promocaoAte: v.promocaoAte } : {}) })),
       })),
     };
   },

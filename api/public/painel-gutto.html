@@ -492,7 +492,7 @@
         <div class="lista-topo">
           <div class="lista-topo-head">
             <h2 class="titulo">Produtos</h2>
-            <button class="btn-primario" id="btn-novo-produto">+ Novo produto</button>
+            <div style="display:flex;gap:6px"><button class="btn-secundario" id="btn-promocoes">Promoções</button><button class="btn-primario" id="btn-novo-produto">+ Novo produto</button></div>
           </div>
           <input id="busca" data-leitor class="input-busca" type="text" placeholder="Buscar produto ou código de barras...">
           <div class="chips" id="categorias-chips"></div>
@@ -790,9 +790,12 @@
       id: v.id, tamanho: v.tamanho, cor: v.cor, corHex: hashColor(v.cor), codigoBarras: v.codigo_barras || '',
       estoque: Number(v.estoque), estoqueMinimo: Number(v.estoque_minimo), ativo: v.ativo,
       preco: Number(v.preco_venda), custoUnitario: Number(v.custo_unitario),
+      // preco = preço da tabela (o que se edita); precoVenda = o que o cliente paga hoje (com promoção).
+      precoVenda: v.preco_promo != null ? Number(v.preco_promo) : Number(v.preco_venda), promocao: v.promocao || null,
     }));
     const ativas = variacoes.filter(v => v.ativo);
     const precos = ativas.map(v => v.preco);
+    const precosVenda = ativas.map(v => v.precoVenda);
     const custos = ativas.map(v => v.custoUnitario);
     return {
       id: p.id, nome: p.nome, categoria: p.categoria || 'Sem categoria', ncm: p.ncm || '', ativo: p.ativo,
@@ -800,6 +803,9 @@
       swatch: hashColor(p.nome), grade, tamanhos, cores, variacoes,
       precoBase: precos.length ? Math.min.apply(null, precos) : 0,
       precoMax: precos.length ? Math.max.apply(null, precos) : 0,
+      precoVendaMin: precosVenda.length ? Math.min.apply(null, precosVenda) : 0,
+      precoVendaMax: precosVenda.length ? Math.max.apply(null, precosVenda) : 0,
+      promocao: (ativas.find(v => v.promocao) || {}).promocao || null,
       custoUnitario: custos.length ? custos.reduce((s, n) => s + n, 0) / custos.length : 0,
       estoqueTotal: ativas.reduce((s, v) => s + v.estoque, 0),
     };
@@ -905,6 +911,7 @@
       if (window.matchMedia('(max-width: 860px)').matches) document.getElementById('sidebar').classList.remove('mobile-open');
     }));
     document.getElementById('btn-novo-produto').style.display = ehAdmin() ? '' : 'none';
+    document.getElementById('btn-promocoes').style.display = ehAdmin() ? '' : 'none';
     document.getElementById('btn-novo-evento').style.display = ehAdmin() ? '' : 'none';
     document.getElementById('btn-escalar').style.display = ehAdmin() ? '' : 'none';
     iniciarAvisoPedidos();
@@ -1169,7 +1176,7 @@
         const cls = 'cel ' + (grande ? 'cel-lg ' : '') + (semEstoque ? 'esgotado' : baixo ? 'baixo' : 'normal');
         return `<button class="${cls}" data-variacao="${v.id}" ${semEstoque && !grande ? 'disabled' : ''} title="${esc(v.codigoBarras)}">
           <div class="cel-num">${semEstoque && !grande ? '—' : v.estoque}</div>
-          <div class="cel-legenda">${semEstoque ? 'esgotado' : grande ? fmt(v.preco) : 'unid.'}</div>
+          <div class="cel-legenda">${semEstoque ? 'esgotado' : grande ? fmt(v.precoVenda) : 'unid.'}</div>
         </button>`;
       }).join('');
       return `<div class="grade-row"><div class="grade-tamanho">${esc(tamanho)}</div>${cels}</div>`;
@@ -1199,7 +1206,7 @@
           ${p.fotos.length ? `<div class="produto-thumb" style="background:#fff url('${API_BASE}/fotos/${p.fotos[0]}') center/cover no-repeat"></div>` : `<div class="produto-thumb" style="background:${p.swatch}22"><div class="produto-avatar" style="background:${p.swatch}">${esc(p.nome.charAt(0))}</div></div>`}
           <div class="produto-nome">${esc(p.nome)}</div>
           <div class="produto-meta">${esc(p.categoria)} · ${p.estoqueTotal} em estoque</div>
-          <div class="produto-preco">${p.precoBase === p.precoMax ? fmt(p.precoBase) : 'a partir de ' + fmt(p.precoBase)}</div>
+          <div class="produto-preco">${htmlPrecoProduto(p)}</div>
         </button>`).join('');
       grid.querySelectorAll('.produto-card').forEach(btn => btn.addEventListener('click', () => abrirGradeVenda(btn.dataset.id)));
     }
@@ -1211,7 +1218,7 @@
     if (!produto) return;
     const camada = abrirModal(`
       <div class="modal-card">
-        ${cabecalhoModal(produto.nome, produto.categoria + ' · ' + (produto.precoBase === produto.precoMax ? fmt(produto.precoBase) : fmt(produto.precoBase) + ' a ' + fmt(produto.precoMax)))}
+        ${cabecalhoModal(produto.nome, produto.categoria + ' · ' + (produto.promocao ? produto.promocao.nome + ' ' + rotuloPromo(produto.promocao) + ' · ' : '') + (produto.precoVendaMin === produto.precoVendaMax ? fmt(produto.precoVendaMin) : fmt(produto.precoVendaMin) + ' a ' + fmt(produto.precoVendaMax)))}
         <div class="modal-dica">Toque no tamanho/cor pra pôr no carrinho</div>
         <div style="overflow-x:auto">${gradeHtml(produto, { grande: false })}</div>
       </div>`, () => document.getElementById('venda-busca').focus());
@@ -1231,7 +1238,7 @@
     const cart = state.cart.slice();
     const idx = cart.findIndex(l => l.variacaoId === v.id);
     if (idx >= 0) cart[idx] = Object.assign({}, cart[idx], { qtd: cart[idx].qtd + 1 });
-    else cart.push({ variacaoId: v.id, produtoNome: produto.nome, tamanho: v.tamanho, cor: v.cor, corHex: v.corHex, precoUnit: v.preco, qtd: 1, descPct: 0 });
+    else cart.push({ variacaoId: v.id, produtoNome: produto.nome, tamanho: v.tamanho, cor: v.cor, corHex: v.corHex, precoUnit: v.precoVenda, precoCheio: v.preco, promocao: v.promocao, qtd: 1, descPct: 0 });
     setState({ cart, pagamentos: [] });
     toast(produto.nome + ' ' + v.tamanho + (v.cor ? ' ' + v.cor : '') + ' no carrinho');
   }
@@ -1401,7 +1408,7 @@
       <div class="carrinho-linha">
         <div class="carrinho-linha-topo">
           <span class="dot" style="background:${l.corHex}"></span>
-          <div class="carrinho-info"><div class="carrinho-nome">${esc(l.produtoNome)}</div><div class="carrinho-detalhe">Tam ${esc(l.tamanho)}${l.cor ? ' · ' + esc(l.cor) : ''} · ${fmt(l.precoUnit)}</div></div>
+          <div class="carrinho-info"><div class="carrinho-nome">${esc(l.produtoNome)}</div><div class="carrinho-detalhe">Tam ${esc(l.tamanho)}${l.cor ? ' · ' + esc(l.cor) : ''} · ${l.promocao && l.precoCheio > l.precoUnit ? `<s>${fmt(l.precoCheio)}</s> ${fmt(l.precoUnit)} <span class="tag aviso">${rotuloPromo(l.promocao)}</span>` : fmt(l.precoUnit)}</div></div>
           <div class="carrinho-qtd">
             <button data-menos="${i}" aria-label="Diminuir">−</button><span>${l.qtd}</span><button data-mais="${i}" aria-label="Aumentar">+</button>
           </div>
@@ -2136,7 +2143,7 @@
       const cor = p.estoqueTotal <= 0 ? 'var(--zero-text)' : temBaixo || temZero ? 'var(--baixo-text)' : 'var(--ok-text)';
       return `<button class="produto-row ${p.id === state.estoqueSelecionadoId ? 'ativo' : ''}" data-id="${p.id}">
         <div class="produto-row-avatar" style="background:${p.fotos.length ? `#fff url('${API_BASE}/fotos/${p.fotos[0]}') center/cover` : p.swatch}">${p.fotos.length ? '' : esc(p.nome.charAt(0))}</div>
-        <div class="produto-row-info"><div class="produto-row-nome">${esc(p.nome)}${p.ativo ? '' : ' <span class="tag cinza">inativo</span>'}${p.ativo && !p.publicado ? ' <span class="tag cinza">fora do site</span>' : ''}</div><div class="produto-row-meta">${esc(p.categoria)} · ${fmt(p.precoBase)}</div></div>
+        <div class="produto-row-info"><div class="produto-row-nome">${esc(p.nome)}${p.ativo ? '' : ' <span class="tag cinza">inativo</span>'}${p.ativo && !p.publicado ? ' <span class="tag cinza">fora do site</span>' : ''}</div><div class="produto-row-meta">${esc(p.categoria)} · ${fmt(p.precoBase)}${p.promocao ? ' <span class="tag aviso">' + rotuloPromo(p.promocao) + '</span>' : ''}</div></div>
         <div class="produto-row-estoque"><div style="color:${cor};font-weight:700">${p.estoqueTotal} un.</div>${temZero && p.estoqueTotal > 0 ? '<div class="baixo-tag">tem tamanho esgotado</div>' : temBaixo ? '<div class="baixo-tag">estoque baixo</div>' : ''}</div>
       </button>`;
     }).join('') : '<div class="vazio">Nenhum produto encontrado.</div>';
@@ -2505,7 +2512,7 @@
     return `<div class="et" style="width:${cfg.largura}mm;height:${cfg.altura}mm">
       ${cfg.loja ? '<div class="et-loja">LOJA GUTTO</div>' : ''}
       <div class="et-nome">${esc(e.nome)}</div>
-      <div class="et-linha"><span class="et-tam">${esc(e.tamanho)}</span><span class="et-cor">${esc(e.cor || '')}</span>${cfg.preco ? `<span class="et-preco">${fmt(e.preco)}</span>` : ''}</div>
+      <div class="et-linha"><span class="et-tam">${esc(e.tamanho)}</span><span class="et-cor">${esc(e.cor || '')}</span>${cfg.preco ? (cfg.usarPromo && e.precoPromo != null ? `<span class="et-preco"><s style="font-weight:400;font-size:.75em">${fmt(e.preco)}</s> ${fmt(e.precoPromo)}</span>` : `<span class="et-preco">${fmt(e.preco)}</span>`) : ''}</div>
       <div class="et-barras">${svgBarras(e.codigo, cfg.largura - 3, barrasAlt)}</div></div>`;
   }
   function documentoEtiquetas(lista, cfg) {
@@ -2562,6 +2569,7 @@
       <div class="tabela-scroll" style="max-height:34vh"><table class="tabela"><tr><th>Peça</th><th>Código</th><th style="width:90px">Etiquetas</th></tr>
         ${itens.map((e, k) => `<tr><td>${esc(e.nome)} · <b>${esc(e.tamanho)}</b>${e.cor ? ' · ' + esc(e.cor) : ''}</td><td class="mono">${esc(e.codigo)}</td><td><input data-et="${k}" inputmode="numeric" value="${e.qtd}"></td></tr>`).join('')}
       </table></div>
+      ${itens.some(e => e.precoPromo != null) ? `<label style="display:flex;gap:6px;align-items:center;font-size:13px"><input type="checkbox" id="et-usar-promo"> Imprimir com o preço da promoção ("de/por") nas peças em promoção</label>` : ''}
       <details id="et-config"><summary style="cursor:pointer;font-size:13px;font-weight:600">Tamanho da etiqueta (${cfg.largura}×${cfg.altura} mm, ${cfg.colunas} coluna${cfg.colunas > 1 ? 's' : ''}) — salvo neste computador</summary>
         <div class="linha-campos" style="margin-top:10px">
           <label class="campo">Largura (mm)<input id="et-larg" inputmode="decimal" value="${cfg.largura}"></label>
@@ -2578,7 +2586,8 @@
     const lerCfg = () => {
       const n = (id, min, max) => { const v = parseNumBR(camada.querySelector(id).value); return Number.isFinite(v) ? Math.min(max, Math.max(min, v)) : null; };
       const novo = { largura: n('#et-larg', 15, 120), altura: n('#et-alt', 10, 100), colunas: Math.round(n('#et-col', 1, 5) || 1), espaco: n('#et-esp', 0, 10),
-        preco: camada.querySelector('#et-preco').checked, loja: camada.querySelector('#et-loja').checked };
+        preco: camada.querySelector('#et-preco').checked, loja: camada.querySelector('#et-loja').checked,
+        usarPromo: !!(camada.querySelector('#et-usar-promo') && camada.querySelector('#et-usar-promo').checked) };
       if (Object.values(novo).some(v => v === null)) return null;
       return novo;
     };
@@ -2597,7 +2606,7 @@
       quadro.querySelector('iframe').srcdoc = documentoEtiquetas([Object.assign({}, exemplo, { qtd: cfg.colunas })], cfg);
     };
     camada.querySelectorAll('[data-et]').forEach(inp => inp.addEventListener('input', () => { const q = Math.floor(parseNumBR(inp.value)); itens[Number(inp.dataset.et)].qtd = Number.isFinite(q) && q >= 0 ? Math.min(q, 500) : 0; previa(); }));
-    camada.querySelectorAll('#et-config input').forEach(inp => inp.addEventListener('input', previa));
+    camada.querySelectorAll('#et-config input, #et-usar-promo').forEach(inp => inp.addEventListener('input', previa));
     previa();
     camada.querySelector('#et-imprimir').onclick = () => {
       const lista2 = itens.filter(e => e.qtd > 0);
@@ -2609,12 +2618,12 @@
   function etiquetasDoProduto(p, qtdPor) {
     const ordem = p.tamanhos;
     return p.variacoes.filter(v => v.ativo).sort((a, b) => ordem.indexOf(a.tamanho) - ordem.indexOf(b.tamanho) || a.cor.localeCompare(b.cor))
-      .map(v => ({ variacaoId: v.id, nome: p.nome, tamanho: v.tamanho, cor: v.cor, preco: v.preco, codigo: v.codigoBarras, qtd: qtdPor ? qtdPor(v) : Math.max(0, v.estoque) }));
+      .map(v => ({ variacaoId: v.id, nome: p.nome, tamanho: v.tamanho, cor: v.cor, preco: v.preco, precoPromo: v.promocao ? v.precoVenda : null, codigo: v.codigoBarras, qtd: qtdPor ? qtdPor(v) : Math.max(0, v.estoque) }));
   }
   function etiquetasDeItens(itensNota) {
     const porVar = {};
     itensNota.forEach(i => { porVar[i.variacaoId] = (porVar[i.variacaoId] || 0) + Number(i.qtd); });
-    return Object.keys(porVar).map(id => { const a = acharVariacao(id); return a ? { variacaoId: id, nome: a.produto.nome, tamanho: a.variacao.tamanho, cor: a.variacao.cor, preco: a.variacao.preco, codigo: a.variacao.codigoBarras, qtd: porVar[id] } : null; }).filter(Boolean);
+    return Object.keys(porVar).map(id => { const a = acharVariacao(id); return a ? { variacaoId: id, nome: a.produto.nome, tamanho: a.variacao.tamanho, cor: a.variacao.cor, preco: a.variacao.preco, precoPromo: a.variacao.promocao ? a.variacao.precoVenda : null, codigo: a.variacao.codigoBarras, qtd: porVar[id] } : null; }).filter(Boolean);
   }
 
   /* ================= Compras ================= */
@@ -3086,6 +3095,96 @@
         categoria: camada.querySelector('#nd-cat').value, formaPagamento: camada.querySelector('#nd-forma').value } });
       fecharModal(); toast('Despesa lançada'); carregarDadosDaView('fluxo');
     }, camada.querySelector('#nd-erro'));
+  }
+
+  /* ================= Promoções ================= */
+  function rotuloPromo(pr) { return pr ? '−' + String(pr.pct).replace('.', ',') + '%' : ''; }
+  function htmlPrecoProduto(p) {
+    const faixa = (a, b) => (a === b ? fmt(a) : 'a partir de ' + fmt(a));
+    if (!p.promocao) return faixa(p.precoBase, p.precoMax);
+    return `<span class="tag aviso" title="${esc(p.promocao.nome)}">${rotuloPromo(p.promocao)}</span> <s style="color:var(--text-2);font-weight:400">${fmt(p.precoBase)}</s> ${faixa(p.precoVendaMin, p.precoVendaMax)}`;
+  }
+  async function abrirPromocoes() {
+    let lista;
+    try { lista = await api('/promocoes'); } catch (e) { toast(e.message, 'erro'); return; }
+    const onde = (p) => p.alvo === 'loja' ? 'Loja inteira' : p.alvo === 'categoria' ? 'Categoria ' + esc(p.categoria) : p.produto_ids.length + ' produto' + (p.produto_ids.length > 1 ? 's' : '');
+    const SIT = { ativa: '<span class="tag ok">ativa</span>', agendada: '<span class="tag aviso">agendada</span>', encerrada: '<span class="tag cinza">encerrada</span>' };
+    const camada = abrirModal(`<div class="modal-card largo">${cabecalhoModal('Promoções', 'O desconto entra sozinho no caixa, no site e no WhatsApp durante o período. Não somam: vale a maior.')}
+      <div style="display:flex;justify-content:flex-end"><button class="btn-primario" id="pr-nova">+ Nova promoção</button></div>
+      ${lista.length ? `<div class="tabela-scroll"><table class="tabela"><tr><th>Promoção</th><th>Onde</th><th>Período</th><th>Situação</th><th style="text-align:right">Peças vendidas</th><th></th></tr>
+        ${lista.map(p => `<tr style="${p.situacao === 'encerrada' ? 'opacity:.6' : ''}"><td><b>${esc(p.nome)}</b> <span class="tag aviso">${rotuloPromo({ pct: p.desconto_pct })}</span></td><td>${onde(p)}</td>
+          <td style="white-space:nowrap">${dataBR(p.inicio)} a ${dataBR(p.fim)}</td><td>${SIT[p.situacao]}</td><td style="text-align:right">${p.pecas_vendidas}</td>
+          <td style="white-space:nowrap"><button class="link-btn" data-pr-editar="${p.id}">editar</button>${p.situacao !== 'encerrada' ? ` <button class="link-btn" data-pr-encerrar="${p.id}">encerrar agora</button>` : ''} <button class="link-btn" data-pr-excluir="${p.id}">excluir</button></td></tr>`).join('')}
+      </table></div>` : '<div class="vazio">Nenhuma promoção ainda. Dica: em Relatórios, "Parados no estoque" tem um botão pra criar uma liquidação com os produtos que não estão vendendo.</div>'}</div>`);
+    const recarregar = async () => { await carregarProdutos(); render(); abrirPromocoes(); };
+    camada.querySelector('#pr-nova').onclick = () => abrirFormPromocao(null);
+    camada.querySelectorAll('[data-pr-editar]').forEach(b => b.onclick = () => abrirFormPromocao(lista.find(p => p.id === b.dataset.prEditar)));
+    camada.querySelectorAll('[data-pr-encerrar]').forEach(b => b.onclick = async () => {
+      if (!confirm('Encerrar a promoção agora? Os preços voltam ao normal na hora.')) return;
+      try { await api('/promocoes/' + b.dataset.prEncerrar + '/encerrar', { method: 'POST' }); toast('Promoção encerrada'); recarregar(); } catch (e) { toast(e.message, 'erro'); }
+    });
+    camada.querySelectorAll('[data-pr-excluir]').forEach(b => b.onclick = async () => {
+      if (!confirm('Excluir a promoção? As vendas já feitas continuam com o preço que tiveram.')) return;
+      try { await api('/promocoes/' + b.dataset.prExcluir, { method: 'DELETE' }); toast('Promoção excluída'); recarregar(); } catch (e) { toast(e.message, 'erro'); }
+    });
+  }
+  // `p`: promoção existente (editar) ou null; `preset`: { nome, pct, alvo, produtoIds } pra começar preenchido.
+  async function abrirFormPromocao(p, preset) {
+    if (!state.produtos.length) await carregarProdutos();
+    preset = preset || {};
+    const sel = new Set(p ? p.produto_ids : (preset.produtoIds || []));
+    const alvo0 = p ? p.alvo : (preset.alvo || 'produtos');
+    const hoje = hojeLocal();
+    const cats = categoriasUnicas().filter(c => c !== 'Sem categoria');
+    const ativos = state.produtos.filter(x => x.ativo);
+    const camada = abrirModal(`<div class="modal-card largo">${cabecalhoModal(p ? 'Editar promoção' : 'Nova promoção', '')}
+      <div class="linha-campos">
+        <label class="campo" style="flex:2">Nome (aparece pro cliente no site)<input id="fp-nome" type="text" maxlength="60" value="${esc(p ? p.nome : (preset.nome || ''))}" placeholder="Ex.: Liquidação de inverno"></label>
+        <label class="campo">Desconto (%)<input id="fp-pct" inputmode="decimal" value="${p ? String(p.desconto_pct).replace('.', ',') : (preset.pct || '')}" placeholder="20"></label>
+      </div>
+      <div class="linha-campos">
+        <label class="campo">Começa<input id="fp-ini" type="date" value="${p ? p.inicio : hoje}"></label>
+        <label class="campo">Termina (inclusive)<input id="fp-fim" type="date" value="${p ? p.fim : somaDiasISO(hoje, 7)}"></label>
+      </div>
+      <div class="chips" style="margin:4px 0"><button class="chip" data-fp-alvo="produtos" type="button">Produtos escolhidos</button><button class="chip" data-fp-alvo="categoria" type="button">Uma categoria</button><button class="chip" data-fp-alvo="loja" type="button">Loja inteira</button></div>
+      <div id="fp-cat-box"><label class="campo">Categoria<select id="fp-cat">${cats.map(c => `<option ${p && p.categoria === c ? 'selected' : ''}>${esc(c)}</option>`).join('')}</select></label></div>
+      <div id="fp-prod-box">
+        <input id="fp-busca" class="input-busca" type="text" placeholder="Buscar produto..." style="margin-bottom:6px">
+        <div style="max-height:30vh;overflow-y:auto;border:1px solid var(--border);border-radius:10px;padding:4px 10px" id="fp-lista">
+          ${ativos.map(x => `<label class="linha-simples" data-fp-nome="${esc(x.nome.toLowerCase())}" style="cursor:pointer"><input type="checkbox" data-fp-prod="${x.id}" ${sel.has(x.id) ? 'checked' : ''}>
+            <span style="flex:1">${esc(x.nome)} <span style="color:var(--text-2);font-size:12px">${esc(x.categoria)}</span></span><span style="font-size:12px">${fmt(x.precoBase)}</span></label>`).join('')}
+        </div>
+        <div class="modal-dica" id="fp-qtd" style="margin:4px 0 0"></div>
+      </div>
+      <div class="modal-dica" id="fp-exemplo"></div>
+      <div class="erro-modal" id="fp-erro"></div>
+      <button class="btn-primario btn-grande" id="fp-salvar">${p ? 'Salvar' : 'Criar promoção'}</button></div>`);
+    let alvo = alvo0;
+    const $ = (q) => camada.querySelector(q);
+    const atualizar = () => {
+      camada.querySelectorAll('[data-fp-alvo]').forEach(b => b.classList.toggle('ativo', b.dataset.fpAlvo === alvo));
+      $('#fp-cat-box').style.display = alvo === 'categoria' ? '' : 'none';
+      $('#fp-prod-box').style.display = alvo === 'produtos' ? '' : 'none';
+      $('#fp-qtd').textContent = sel.size + ' produto' + (sel.size === 1 ? '' : 's') + ' escolhido' + (sel.size === 1 ? '' : 's');
+      const pct = parseNumBR($('#fp-pct').value);
+      const ex = alvo === 'produtos' ? ativos.find(x => sel.has(x.id)) : alvo === 'categoria' ? ativos.find(x => x.categoria === $('#fp-cat').value) : ativos[0];
+      $('#fp-exemplo').innerHTML = ex && pct > 0 && pct <= 90 ? `Exemplo: <b>${esc(ex.nome)}</b> de ${fmt(ex.precoBase)} por <b>${fmt(Math.round(ex.precoBase * (1 - pct / 100) * 100) / 100)}</b>` : '';
+    };
+    camada.querySelectorAll('[data-fp-alvo]').forEach(b => b.onclick = () => { alvo = b.dataset.fpAlvo; atualizar(); });
+    camada.querySelectorAll('[data-fp-prod]').forEach(c => c.onchange = () => { if (c.checked) sel.add(c.dataset.fpProd); else sel.delete(c.dataset.fpProd); atualizar(); });
+    $('#fp-busca').oninput = () => { const t = $('#fp-busca').value.trim().toLowerCase(); camada.querySelectorAll('[data-fp-nome]').forEach(l => { l.style.display = !t || l.dataset.fpNome.includes(t) ? '' : 'none'; }); };
+    $('#fp-pct').oninput = atualizar; $('#fp-cat').onchange = atualizar;
+    atualizar();
+    $('#fp-nome').focus();
+    $('#fp-salvar').onclick = (ev) => comBotao(ev.target, 'Salvando...', async () => {
+      const pct = parseNumBR($('#fp-pct').value);
+      if (!(pct > 0 && pct <= 90)) throw new Error('Desconto entre 1% e 90%');
+      const corpo = { nome: $('#fp-nome').value, descontoPct: pct, alvo, categoria: $('#fp-cat').value, produtoIds: [...sel], inicio: $('#fp-ini').value, fim: $('#fp-fim').value };
+      if (p) await api('/promocoes/' + p.id, { method: 'PUT', body: corpo }); else await api('/promocoes', { method: 'POST', body: corpo });
+      toast(p ? 'Promoção atualizada' : 'Promoção criada');
+      await carregarProdutos(); render();
+      abrirPromocoes();
+    }, $('#fp-erro'));
   }
 
   /* ================= Contas a pagar ================= */
@@ -4048,7 +4147,7 @@
         ${kpi('Ticket médio', brl(s.ticketMedio), relDelta(s.ticketMedio, a.ticketMedio))}
         ${kpi('Peças vendidas', inteiro(s.pecas), relDelta(s.pecas, a.pecas))}
         ${kpi('Lucro bruto', brl(s.lucroBruto), relDelta(s.lucroBruto, a.lucroBruto), s.margem != null ? 'margem ' + pct1(s.margem) + ' · custo ' + brl(s.custo) : '')}
-        ${kpi('Descontos dados', brl(s.descontos), relDelta(s.descontos, a.descontos, true), s.vendido > 0 ? pct1(s.descontos / (s.vendido + s.descontos)) + ' do valor cheio' : '')}
+        ${kpi('Descontos dados', brl(s.descontos), relDelta(s.descontos, a.descontos, true), [s.vendido > 0 ? pct1(s.descontos / (s.vendido + s.descontos)) + ' do valor cheio' : '', s.descontoPromocoes > 0 ? '+ ' + brl(s.descontoPromocoes) + ' em promoções' : ''].filter(Boolean).join(' · '))}
       </div>`;
 
     // Vendas por dia/mês
@@ -4100,7 +4199,7 @@
         ${relLimite('parados', parados, 15).map(p => `<tr><td>${esc(p.nome)}${p.categoria ? `<div style="font-size:11px;color:var(--text-2)">${esc(p.categoria)}</div>` : ''}</td><td class="num">${inteiro(p.estoque)}</td><td class="num">${brl(p.valorCusto)}</td><td class="num">${brl(p.valorVenda)}</td>
           <td>${p.ultimaVenda ? dataBR(new Intl.DateTimeFormat('en-CA', { timeZone: TZ }).format(new Date(p.ultimaVenda))) + ` <span style="color:var(--text-2);font-size:12px">(${inteiro(p.diasSemVender)} dias)</span>` : '<span style="color:var(--text-2)">nunca vendeu</span>'}</td></tr>`).join('')}
         </tbody></table></div>${relVerTodos('parados', parados.length, 15)}` : '<div class="vazio">Todo produto com estoque vendeu alguma coisa nesse período. 👏</div>',
-      parados.length ? relBtnCSV('parados') : '',
+      parados.length ? `<button class="btn-secundario" id="rel-liquidar">Criar liquidação com esses</button>` + relBtnCSV('parados') : '',
       parados.length ? `<p class="rel-resumo-linha">${inteiro(parados.length)} produto${parados.length > 1 ? 's' : ''} · <b>${brl(custoParado)}</b> de custo parado (${brl(vendaParado)} a preço de venda). Bons candidatos a promoção ou vitrine.</p>` : '');
 
     // Reposição
@@ -4120,6 +4219,8 @@
     el.querySelectorAll('[data-rel-tabela]').forEach(b => b.onclick = () => { state.relVer = Object.assign({}, state.relVer, { [b.dataset.relTabela]: !(state.relVer && state.relVer[b.dataset.relTabela]) }); renderRelatorios(); });
     el.querySelectorAll('[data-rel-todos]').forEach(b => b.onclick = () => { state.relTodos = Object.assign({}, state.relTodos, { [b.dataset.relTodos]: !(state.relTodos && state.relTodos[b.dataset.relTodos]) }); renderRelatorios(); });
     el.querySelectorAll('[data-rel-csv]').forEach(b => b.onclick = () => csvRelatorio(b.dataset.relCsv));
+    const liq = document.getElementById('rel-liquidar');
+    if (liq) liq.onclick = () => abrirFormPromocao(null, { nome: 'Liquidação', pct: 30, alvo: 'produtos', produtoIds: r.parados.map(p => p.produtoId) });
   }
 
   function desenharColunasDia(el, r) {
@@ -4216,6 +4317,7 @@
   document.getElementById('btn-escalar').addEventListener('click', () => abrirFormAgenda('escala'));
   document.getElementById('confirmar').addEventListener('click', () => confirmarVenda());
   document.getElementById('btn-novo-produto').addEventListener('click', () => abrirNovoProduto());
+  document.getElementById('btn-promocoes').addEventListener('click', () => abrirPromocoes());
   document.getElementById('btn-troca').addEventListener('click', () => abrirTroca(false));
   document.getElementById('btn-limpar-carrinho').addEventListener('click', () => { if (!state.cart.length || confirm('Limpar o carrinho?')) setState({ cart: [], pagamentos: [], cliente: null }); });
   document.getElementById('btn-novo-cliente').addEventListener('click', abrirNovoCliente);

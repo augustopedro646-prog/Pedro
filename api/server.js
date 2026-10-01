@@ -10,6 +10,7 @@ const notas = require('./notas');
 const backup = require('./backup');
 const relatorios = require('./relatorios');
 const seguranca = require('./seguranca');
+const promocoes = require('./promocoes');
 const fiscal = require('./fiscal');
 const ExcelJS = require('exceljs');
 const Anthropic = require('@anthropic-ai/sdk');
@@ -352,10 +353,15 @@ app.get('/api/lojas/:lojaId/produtos', qualquer, rota(async (req, res) => {
   const porProduto = {};
   variacoes.forEach((v) => { (porProduto[v.produto_id] = porProduto[v.produto_id] || []).push(v); });
   const fotosPorProduto = await fotosDosProdutos(req.lojaId);
+  const promos = await promocoes.ativas(pool, req.lojaId, TZ);
   res.json(produtos.map((p) => ({
     ...p,
     grade: p.grade_id ? { id: p.grade_id, nome: p.grade_nome, tamanhos: p.grade_tamanhos } : null,
-    variacoes: porProduto[p.id] || [],
+    // preco_venda = preço da tabela (o que se edita); preco_promo = o que o cliente paga hoje.
+    variacoes: (porProduto[p.id] || []).map((v) => {
+      const pr = promocoes.precoComPromo(promos, p.id, p.categoria, v.preco_venda);
+      return pr.promo ? { ...v, preco_promo: pr.preco, promocao: { id: pr.promo.id, nome: pr.promo.nome, pct: pr.promo.pct, fim: pr.promo.fim } } : v;
+    }),
     fotos: fotosPorProduto[p.id] || [],
   })));
 }));
@@ -757,9 +763,10 @@ app.post('/api/lojas/:lojaId/vendas', qualquer, rota(async (req, res) => {
 
     let bruto = 0, descontoTotal = 0;
     const gravar = [];
+    const promos = await promocoes.ativas(c, req.lojaId, TZ);
     for (const it of itens) {
       const { rows } = await c.query(
-        `SELECT v.id, v.tamanho, v.cor, v.estoque, v.preco_venda, v.custo_unitario, v.ativo, p.nome AS produto_nome
+        `SELECT v.id, v.tamanho, v.cor, v.estoque, v.preco_venda, v.custo_unitario, v.ativo, p.nome AS produto_nome, p.id AS produto_id, p.categoria
          FROM produto_variacoes v JOIN produtos p ON p.id = v.produto_id
          WHERE v.id = $1 AND v.loja_id = $2 FOR UPDATE OF v`,
         [it.variacaoId, req.lojaId]
@@ -770,12 +777,13 @@ app.post('/api/lojas/:lojaId/vendas', qualquer, rota(async (req, res) => {
         falha(409, 'Estoque insuficiente: ' + v.produto_nome + ' ' + v.tamanho + (v.cor ? ' ' + v.cor : ''),
           { codigo: 'estoque_insuficiente', variacaoId: v.id, disponivel: Number(v.estoque) });
       }
-      const precoUnit = Number(v.preco_venda);
+      const pr = promocoes.precoComPromo(promos, v.produto_id, v.categoria, v.preco_venda);
+      const precoUnit = pr.preco;
       const linha = round2(precoUnit * it.qtd);
       if (it.descontoItem > linha) falha(400, 'Desconto maior que o valor do item ' + v.produto_nome);
       bruto = round2(bruto + linha);
       descontoTotal = round2(descontoTotal + it.descontoItem);
-      gravar.push({ ...it, precoUnit, custo: Number(v.custo_unitario), produtoNome: v.produto_nome, tamanho: v.tamanho, cor: v.cor });
+      gravar.push({ ...it, precoUnit, precoCheio: pr.precoCheio, promocaoId: pr.promo ? pr.promo.id : null, custo: Number(v.custo_unitario), produtoNome: v.produto_nome, tamanho: v.tamanho, cor: v.cor });
     }
     const total = round2(bruto - descontoTotal);
 
@@ -830,9 +838,9 @@ app.post('/api/lojas/:lojaId/vendas', qualquer, rota(async (req, res) => {
     for (const it of gravar) {
       await c.query('UPDATE produto_variacoes SET estoque = estoque - $1 WHERE id = $2', [it.qtd, it.variacaoId]);
       await c.query(
-        `INSERT INTO vendas_itens (id, venda_id, variacao_id, produto_nome, tamanho, cor, qtd, preco_unit, desconto_item)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
-        [uid(), vendaId, it.variacaoId, it.produtoNome, it.tamanho, it.cor, it.qtd, it.precoUnit, it.descontoItem]
+        `INSERT INTO vendas_itens (id, venda_id, variacao_id, produto_nome, tamanho, cor, qtd, preco_unit, desconto_item, preco_cheio, promocao_id)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
+        [uid(), vendaId, it.variacaoId, it.produtoNome, it.tamanho, it.cor, it.qtd, it.precoUnit, it.descontoItem, it.precoCheio, it.promocaoId]
       );
       await c.query(
         `INSERT INTO movimentos_estoque_produto
@@ -872,7 +880,7 @@ app.post('/api/lojas/:lojaId/vendas', qualquer, rota(async (req, res) => {
       pagamentos: [...pagPorForma].map(([forma, valor]) => ({ forma, valor })),
       cashbackGerado, clienteId,
       saldosCliente: clienteId ? await saldosCliente(c, clienteId) : null,
-      itens: gravar.map((it) => ({ variacaoId: it.variacaoId, produtoNome: it.produtoNome, tamanho: it.tamanho, cor: it.cor, qtd: it.qtd, precoUnit: it.precoUnit, descontoItem: it.descontoItem })),
+      itens: gravar.map((it) => ({ variacaoId: it.variacaoId, produtoNome: it.produtoNome, tamanho: it.tamanho, cor: it.cor, qtd: it.qtd, precoUnit: it.precoUnit, precoCheio: it.precoCheio, descontoItem: it.descontoItem })),
     };
   });
   res.status(201).json(venda);
@@ -1275,6 +1283,65 @@ app.delete('/api/lojas/:lojaId/despesas/:id', admin, rota(async (req, res) => {
     const { rowCount } = await c.query('DELETE FROM despesas WHERE id = $1 AND loja_id = $2', [req.params.id, req.lojaId]);
     if (!rowCount) falha(404, 'despesa não encontrada');
   });
+  res.json({ ok: true });
+}));
+
+/* ---------- Promoções ---------- */
+
+function lerPromocao(body) {
+  const alvo = ['produtos', 'categoria', 'loja'].includes(body.alvo) ? body.alvo : falha(400, 'Escolha onde vale a promoção');
+  const inicio = dataISO(body.inicio, 'data de início'), fim = dataISO(body.fim, 'data de fim');
+  if (fim < inicio) falha(400, 'A promoção termina antes de começar');
+  const produtoIds = alvo === 'produtos' ? (Array.isArray(body.produtoIds) ? [...new Set(body.produtoIds.filter((x) => typeof x === 'string'))] : []) : [];
+  if (alvo === 'produtos' && !produtoIds.length) falha(400, 'Escolha os produtos da promoção');
+  if (produtoIds.length > 2000) falha(400, 'Produtos demais');
+  return {
+    nome: texto(body.nome, 'nome da promoção', { max: 60 }),
+    pct: numero(body.descontoPct, 'desconto (%)', { minExclusivo: true, max: 90 }),
+    alvo, inicio, fim, produtoIds,
+    categoria: alvo === 'categoria' ? texto(body.categoria, 'categoria', { max: 60 }) : null,
+  };
+}
+
+app.get('/api/lojas/:lojaId/promocoes', admin, rota(async (req, res) => {
+  const hoje = promocoes.hojeNaLoja(TZ);
+  const { rows } = await pool.query(
+    `SELECT pr.id, pr.nome, pr.desconto_pct::float AS desconto_pct, pr.alvo, pr.categoria, pr.produto_ids,
+            to_char(pr.inicio, 'YYYY-MM-DD') AS inicio, to_char(pr.fim, 'YYYY-MM-DD') AS fim, pr.encerrada_em,
+            (SELECT COALESCE(SUM(vi.qtd), 0)::int FROM vendas_itens vi JOIN vendas v ON v.id = vi.venda_id WHERE vi.promocao_id = pr.id AND NOT v.cancelada) AS pecas_vendidas
+     FROM promocoes pr WHERE pr.loja_id = $1 ORDER BY (pr.encerrada_em IS NULL AND pr.fim >= $2::date) DESC, pr.inicio DESC`, [req.lojaId, hoje]);
+  res.json(rows.map((p) => ({ ...p,
+    situacao: p.encerrada_em || p.fim < hoje ? 'encerrada' : p.inicio > hoje ? 'agendada' : 'ativa' })));
+}));
+
+app.post('/api/lojas/:lojaId/promocoes', admin, rota(async (req, res) => {
+  const d = lerPromocao(req.body || {});
+  const id = uid();
+  await pool.query(
+    `INSERT INTO promocoes (id, loja_id, nome, desconto_pct, alvo, categoria, produto_ids, inicio, fim, criado_por) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
+    [id, req.lojaId, d.nome, d.pct, d.alvo, d.categoria, d.produtoIds, d.inicio, d.fim, req.usuario.id]);
+  res.status(201).json({ id });
+}));
+
+app.put('/api/lojas/:lojaId/promocoes/:id', admin, rota(async (req, res) => {
+  const d = lerPromocao(req.body || {});
+  const { rowCount } = await pool.query(
+    `UPDATE promocoes SET nome = $1, desconto_pct = $2, alvo = $3, categoria = $4, produto_ids = $5, inicio = $6, fim = $7, encerrada_em = NULL
+     WHERE id = $8 AND loja_id = $9`, [d.nome, d.pct, d.alvo, d.categoria, d.produtoIds, d.inicio, d.fim, req.params.id, req.lojaId]);
+  if (!rowCount) falha(404, 'promoção não encontrada');
+  res.json({ ok: true });
+}));
+
+// Encerrar agora (antes da data de fim). As vendas já feitas continuam com o preço da promoção.
+app.post('/api/lojas/:lojaId/promocoes/:id/encerrar', admin, rota(async (req, res) => {
+  const { rowCount } = await pool.query('UPDATE promocoes SET encerrada_em = now() WHERE id = $1 AND loja_id = $2 AND encerrada_em IS NULL', [req.params.id, req.lojaId]);
+  if (!rowCount) falha(404, 'promoção não encontrada ou já encerrada');
+  res.json({ ok: true });
+}));
+
+app.delete('/api/lojas/:lojaId/promocoes/:id', admin, rota(async (req, res) => {
+  const { rowCount } = await pool.query('DELETE FROM promocoes WHERE id = $1 AND loja_id = $2', [req.params.id, req.lojaId]);
+  if (!rowCount) falha(404, 'promoção não encontrada');
   res.json({ ok: true });
 }));
 
@@ -1806,8 +1873,14 @@ app.get('/api/lojas/:lojaId/loja/catalogo', rota(async (req, res) => {
      FROM produto_variacoes v JOIN produtos p ON p.id = v.produto_id
      WHERE v.loja_id = $1 AND v.ativo AND p.ativo AND p.publicado AND v.preco_venda > 0`, [req.lojaId]);
   const fotos = await fotosDosProdutos(req.lojaId);
+  const promos = await promocoes.ativas(pool, req.lojaId, TZ);
+  const catDe = Object.fromEntries(produtos.map((p) => [p.id, p.categoria]));
   const porProduto = {};
-  variacoes.forEach((v) => { (porProduto[v.produto_id] = porProduto[v.produto_id] || []).push({ id: v.id, tamanho: v.tamanho, cor: v.cor, preco: Number(v.preco_venda), disponivel: v.disponivel }); });
+  variacoes.forEach((v) => {
+    const pr = promocoes.precoComPromo(promos, v.produto_id, catDe[v.produto_id], v.preco_venda);
+    (porProduto[v.produto_id] = porProduto[v.produto_id] || []).push({ id: v.id, tamanho: v.tamanho, cor: v.cor, preco: pr.preco, disponivel: v.disponivel,
+      ...(pr.promo ? { precoCheio: pr.precoCheio, promocao: pr.promo.nome, promocaoAte: pr.promo.fim } : {}) });
+  });
   res.set('Cache-Control', 'no-store');
   res.json({
     config,
@@ -1850,9 +1923,10 @@ app.post('/api/lojas/:lojaId/loja/pedidos', limitePedidoSite, rota(async (req, r
     if (body.tipo === 'retirada' && !config.aceitaRetirada) falha(400, 'Retirada na loja indisponível agora');
     let subtotal = 0;
     const gravar = [];
+    const promos = await promocoes.ativas(c, req.lojaId, TZ);
     for (const it of itens) {
       const { rows } = await c.query(
-        `SELECT v.id, v.tamanho, v.cor, v.estoque, v.preco_venda, v.custo_unitario, p.nome AS produto_nome
+        `SELECT v.id, v.tamanho, v.cor, v.estoque, v.preco_venda, v.custo_unitario, p.nome AS produto_nome, p.id AS produto_id, p.categoria
          FROM produto_variacoes v JOIN produtos p ON p.id = v.produto_id
          WHERE v.id = $1 AND v.loja_id = $2 AND v.ativo AND p.ativo AND p.publicado AND v.preco_venda > 0 FOR UPDATE OF v`,
         [it.variacaoId, req.lojaId]);
@@ -1862,9 +1936,10 @@ app.post('/api/lojas/:lojaId/loja/pedidos', limitePedidoSite, rota(async (req, r
         falha(409, 'Só temos ' + Math.max(0, Number(v.estoque)) + ' de ' + v.produto_nome + ' ' + v.tamanho + (v.cor ? ' ' + v.cor : ''),
           { codigo: 'estoque_insuficiente', variacaoId: v.id, disponivel: Math.max(0, Number(v.estoque)) });
       }
-      const preco = Number(v.preco_venda);
+      const pr = promocoes.precoComPromo(promos, v.produto_id, v.categoria, v.preco_venda);
+      const preco = pr.preco;
       subtotal = round2(subtotal + preco * it.qtd);
-      gravar.push({ ...it, preco, custo: Number(v.custo_unitario), produtoNome: v.produto_nome, tamanho: v.tamanho, cor: v.cor });
+      gravar.push({ ...it, preco, precoCheio: pr.precoCheio, promocaoId: pr.promo ? pr.promo.id : null, custo: Number(v.custo_unitario), produtoNome: v.produto_nome, tamanho: v.tamanho, cor: v.cor });
     }
     const taxa = body.tipo === 'entrega' ? config.taxaEntrega : 0;
     const total = round2(subtotal + taxa);
@@ -1891,8 +1966,8 @@ app.post('/api/lojas/:lojaId/loja/pedidos', limitePedidoSite, rota(async (req, r
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)`,
       [id, req.lojaId, numeroPedido, token, clienteId, nome, telefone, body.tipo, endereco, body.pagamento, trocoPara, observacao, subtotal, taxa, total, origem]);
     for (const it of gravar) {
-      await c.query('INSERT INTO pedidos_online_itens (id, pedido_id, variacao_id, produto_nome, tamanho, cor, qtd, preco_unit) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)',
-        [uid(), id, it.variacaoId, it.produtoNome, it.tamanho, it.cor, it.qtd, it.preco]);
+      await c.query('INSERT INTO pedidos_online_itens (id, pedido_id, variacao_id, produto_nome, tamanho, cor, qtd, preco_unit, preco_cheio, promocao_id) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)',
+        [uid(), id, it.variacaoId, it.produtoNome, it.tamanho, it.cor, it.qtd, it.preco, it.precoCheio, it.promocaoId]);
       await c.query('UPDATE produto_variacoes SET estoque = estoque - $1 WHERE id = $2', [it.qtd, it.variacaoId]);
       await c.query(
         `INSERT INTO movimentos_estoque_produto (id, loja_id, variacao_id, tipo, quantidade, custo_unitario, valor_total, referencia_tipo, referencia_id, observacao)
@@ -1909,7 +1984,7 @@ async function detalhePedido(db, where, params) {
   const { rows } = await db.query(`SELECT * FROM pedidos_online WHERE ${where}`, params);
   if (!rows.length) return null;
   const p = rows[0];
-  const { rows: itens } = await db.query('SELECT variacao_id, produto_nome, tamanho, cor, qtd, preco_unit FROM pedidos_online_itens WHERE pedido_id = $1 ORDER BY produto_nome, tamanho', [p.id]);
+  const { rows: itens } = await db.query('SELECT variacao_id, produto_nome, tamanho, cor, qtd, preco_unit, preco_cheio, promocao_id FROM pedidos_online_itens WHERE pedido_id = $1 ORDER BY produto_nome, tamanho', [p.id]);
   return { ...p, subtotal: Number(p.subtotal), taxa_entrega: Number(p.taxa_entrega), total: Number(p.total), troco_para: p.troco_para == null ? null : Number(p.troco_para),
     itens: itens.map((i) => ({ ...i, preco_unit: Number(i.preco_unit) })) };
 }
@@ -1986,8 +2061,8 @@ app.post('/api/lojas/:lojaId/pedidos-online/:id/concluir', qualquer, rota(async 
       [vendaId, req.lojaId, req.usuario.id, p.subtotal, p.total, p.pagamento, sessao.id, p.cliente_id, p.taxa_entrega, p.id]);
     for (const it of p.itens) {
       await c.query(
-        `INSERT INTO vendas_itens (id, venda_id, variacao_id, produto_nome, tamanho, cor, qtd, preco_unit, desconto_item) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,0)`,
-        [uid(), vendaId, it.variacao_id, it.produto_nome, it.tamanho, it.cor, it.qtd, it.preco_unit]);
+        `INSERT INTO vendas_itens (id, venda_id, variacao_id, produto_nome, tamanho, cor, qtd, preco_unit, desconto_item, preco_cheio, promocao_id) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,0,$9,$10)`,
+        [uid(), vendaId, it.variacao_id, it.produto_nome, it.tamanho, it.cor, it.qtd, it.preco_unit, it.preco_cheio, it.promocao_id]);
     }
     await c.query('INSERT INTO venda_pagamentos (id, venda_id, forma, valor) VALUES ($1,$2,$3,$4)', [uid(), vendaId, p.pagamento, p.total]);
     const { rows: loja } = await c.query('SELECT cashback_pct FROM lojas WHERE id = $1', [req.lojaId]);

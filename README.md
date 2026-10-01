@@ -177,6 +177,20 @@ período anterior. "Este mês" compara com os mesmos dias do mês passado.
 
 Cada bloco tem **Baixar planilha** (abre direto no Excel).
 
+## Promoções (Estoque → "Promoções")
+
+- **Desconto em %** com data de começo e fim, em **produtos escolhidos**, numa **categoria** ou na
+  **loja inteira**. Não somam: se um produto está em duas, vale a de maior desconto.
+- Durante o período o preço com desconto entra **sozinho** no caixa (sem pedir PIN, porque não é
+  desconto do caixa), no **site** (com "de/por", o nome da promoção e até quando) e no
+  **WhatsApp**. O preço normal do produto não muda; quando a promoção acaba, volta sozinho.
+- "Encerrar agora" termina antes da data. Promoção agendada só começa no dia marcado.
+- **Etiqueta**: tem a opção de imprimir com "de/por" nas peças em promoção (por padrão sai o preço
+  normal, que continua valendo depois).
+- **Relatórios**: em "Parados no estoque", o botão "Criar liquidação com esses" já monta a
+  promoção com os produtos que não estão vendendo. O desconto das promoções aparece junto dos
+  descontos dados.
+
 ## Contas a pagar (Fluxo de caixa → "Contas a pagar")
 
 - **Boletos e parcelas com vencimento**: fornecedor, aluguel, máquina... Informe o total, quantas

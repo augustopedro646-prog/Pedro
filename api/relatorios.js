@@ -35,6 +35,7 @@ async function itensDoPeriodo(db, lojaId, inicio, fim, tz) {
   const { rows } = await db.query(
     `SELECT vi.venda_id, vi.variacao_id, pv.produto_id, p.nome AS produto_nome, p.categoria,
             vi.qtd::float AS qtd, (vi.preco_unit * vi.qtd - vi.desconto_item)::float AS receita, vi.desconto_item::float AS desconto,
+            GREATEST(COALESCE(vi.preco_cheio, vi.preco_unit) - vi.preco_unit, 0)::float AS promo_unit,
             COALESCE(dv.qtd, 0)::float AS qtd_dev, COALESCE(dv.valor, 0)::float AS valor_dev,
             COALESCE(cm.custo_unit, pv.custo_unitario)::float AS custo_unit
      FROM vendas v
@@ -53,7 +54,7 @@ async function itensDoPeriodo(db, lojaId, inicio, fim, tz) {
   return rows.map((it) => {
     const pecas = it.qtd - it.qtd_dev;
     const vendido = it.receita - it.valor_dev;
-    return { ...it, pecas, vendido, custo: it.custo_unit * pecas };
+    return { ...it, pecas, vendido, custo: it.custo_unit * pecas, promo: it.promo_unit * pecas };
   });
 }
 
@@ -71,6 +72,7 @@ function resumir(vendas, itens) {
     lucroBruto: lucro,
     margem: vendido > 0 ? lucro / vendido : null,
     descontos: r2(soma(itens, (i) => i.desconto)),
+    descontoPromocoes: r2(soma(itens, (i) => i.promo)),
     devolvido: r2(soma(itens, (i) => i.valor_dev)),
     taxasEntrega: r2(soma(vendas, (v) => v.taxa_entrega)),
   };

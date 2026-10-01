@@ -507,3 +507,26 @@ CREATE TABLE IF NOT EXISTS contas_pagar (
 );
 CREATE INDEX IF NOT EXISTS contas_pagar_abertas_idx ON contas_pagar(loja_id, vencimento) WHERE pago_em IS NULL;
 CREATE INDEX IF NOT EXISTS contas_pagar_grupo_idx ON contas_pagar(grupo);
+
+-- Promoções: % de desconto por período em produtos escolhidos, numa categoria ou na loja toda.
+-- Não somam: vale a maior que cobre o produto naquele dia. O preço da tabela (preco_venda) não
+-- muda; a venda guarda o preço cheio e qual promoção deu o desconto.
+CREATE TABLE IF NOT EXISTS promocoes (
+  id TEXT PRIMARY KEY,
+  loja_id INTEGER NOT NULL REFERENCES lojas(id) ON DELETE CASCADE,
+  nome TEXT NOT NULL,
+  desconto_pct NUMERIC(5,2) NOT NULL CHECK (desconto_pct > 0 AND desconto_pct <= 90),
+  alvo TEXT NOT NULL CHECK (alvo IN ('produtos', 'categoria', 'loja')),
+  categoria TEXT,
+  produto_ids TEXT[] NOT NULL DEFAULT '{}',
+  inicio DATE NOT NULL,
+  fim DATE NOT NULL,
+  encerrada_em TIMESTAMPTZ,
+  criado_por TEXT REFERENCES usuarios(id),
+  criado_em TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS promocoes_loja_idx ON promocoes(loja_id, fim);
+ALTER TABLE vendas_itens ADD COLUMN IF NOT EXISTS preco_cheio NUMERIC(12,2);
+ALTER TABLE vendas_itens ADD COLUMN IF NOT EXISTS promocao_id TEXT REFERENCES promocoes(id) ON DELETE SET NULL;
+ALTER TABLE pedidos_online_itens ADD COLUMN IF NOT EXISTS preco_cheio NUMERIC(12,2);
+ALTER TABLE pedidos_online_itens ADD COLUMN IF NOT EXISTS promocao_id TEXT REFERENCES promocoes(id) ON DELETE SET NULL;
