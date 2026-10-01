@@ -346,17 +346,68 @@ app.get('/api/lojas/:lojaId/produtos', qualquer, rota(async (req, res) => {
   })));
 }));
 
+// Valida os dados de uma variação (tamanho × cor) vindos do painel.
+function dadosVariacao(body) {
+  return {
+    tamanho: texto(body.tamanho, 'tamanho', { max: 10 }),
+    cor: texto(body.cor, 'cor', { obrigatorio: false, max: 40 }) || '',
+    preco: numero(body.precoVenda, 'precoVenda'),
+    custo: body.custoUnitario != null && body.custoUnitario !== '' ? numero(body.custoUnitario, 'custoUnitario') : 0,
+    minimo: body.estoqueMinimo != null && body.estoqueMinimo !== '' ? numero(body.estoqueMinimo, 'estoqueMinimo', { inteiro: true }) : 0,
+    inicial: body.estoqueInicial != null && body.estoqueInicial !== '' ? numero(body.estoqueInicial, 'estoqueInicial', { inteiro: true, max: 100000 }) : 0,
+    codigo: soDigitos(body.codigoBarras),
+    sku: texto(body.sku, 'sku', { obrigatorio: false, max: 40 }),
+  };
+}
+// Cria a variação com código de barras próprio; estoque inicial vira entrada no histórico.
+async function inserirVariacao(c, lojaId, produtoId, d, usuarioId) {
+  const id = uid();
+  const codigo = d.codigo || await gerarCodigoBarras(c);
+  await c.query(
+    `INSERT INTO produto_variacoes
+       (id, loja_id, produto_id, tamanho, cor, sku, codigo_barras, preco_venda, custo_unitario, estoque, estoque_minimo)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
+    [id, lojaId, produtoId, d.tamanho, d.cor, d.sku, codigo, d.preco, d.custo, d.inicial, d.minimo]
+  );
+  if (d.inicial > 0) {
+    await c.query(
+      `INSERT INTO movimentos_estoque_produto
+         (id, loja_id, variacao_id, tipo, quantidade, custo_unitario, valor_total, referencia_tipo, criado_por)
+       VALUES ($1,$2,$3,'entrada',$4,$5,$6,'cadastro',$7)`,
+      [uid(), lojaId, id, d.inicial, d.custo, round2(d.inicial * d.custo), usuarioId]
+    );
+  }
+  return { id, tamanho: d.tamanho, cor: d.cor, codigoBarras: codigo, estoque: d.inicial };
+}
+
+// Corpo: { nome, categoria?, descricao?, ncm?, gradeTamanhoId?, variacoes?: [{tamanho, cor, precoVenda, ...}] }.
+// Com `variacoes`, cria o produto e a grade inteira numa transação só (tudo ou nada).
 app.post('/api/lojas/:lojaId/produtos', admin, rota(async (req, res) => {
   const body = req.body || {};
   const nome = texto(body.nome, 'nome do produto');
-  const id = uid();
-  await pool.query(
-    `INSERT INTO produtos (id, loja_id, nome, categoria, descricao, grade_tamanho_id, ncm) VALUES ($1,$2,$3,$4,$5,$6,$7)`,
-    [id, req.lojaId, nome, texto(body.categoria, 'categoria', { obrigatorio: false, max: 60 }),
-      texto(body.descricao, 'descricao', { obrigatorio: false, max: 500 }), body.gradeTamanhoId || null,
-      soDigitos(body.ncm)]
-  );
-  res.status(201).json({ id });
+  const variacoes = Array.isArray(body.variacoes) ? body.variacoes : [];
+  if (variacoes.length > 300) falha(400, 'Grade grande demais (máximo 300 tamanhos/cores)');
+  const dados = variacoes.map(dadosVariacao);
+  const chaves = new Set(dados.map((d) => d.tamanho + '|' + d.cor.toLowerCase()));
+  if (chaves.size !== dados.length) falha(400, 'Tem tamanho/cor repetido na grade');
+  try {
+    const r = await transacao(async (c) => {
+      const id = uid();
+      await c.query(
+        `INSERT INTO produtos (id, loja_id, nome, categoria, descricao, grade_tamanho_id, ncm) VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+        [id, req.lojaId, nome, texto(body.categoria, 'categoria', { obrigatorio: false, max: 60 }),
+          texto(body.descricao, 'descricao', { obrigatorio: false, max: 500 }), body.gradeTamanhoId || null,
+          soDigitos(body.ncm)]
+      );
+      const criadas = [];
+      for (const d of dados) criadas.push(await inserirVariacao(c, req.lojaId, id, d, req.usuario.id));
+      return { id, variacoes: criadas };
+    });
+    res.status(201).json(r);
+  } catch (e) {
+    if (e.code === '23505') falha(409, 'Esse código de barras já está em uso em outra peça');
+    throw e;
+  }
 }));
 
 app.put('/api/lojas/:lojaId/produtos/:id', admin, rota(async (req, res) => {
@@ -376,36 +427,12 @@ app.put('/api/lojas/:lojaId/produtos/:id', admin, rota(async (req, res) => {
 }));
 
 app.post('/api/lojas/:lojaId/produtos/:id/variacoes', admin, rota(async (req, res) => {
-  const body = req.body || {};
-  const tamanho = texto(body.tamanho, 'tamanho', { max: 10 });
-  const cor = texto(body.cor, 'cor', { obrigatorio: false, max: 40 }) || '';
-  const preco = numero(body.precoVenda, 'precoVenda');
-  const custo = body.custoUnitario != null && body.custoUnitario !== '' ? numero(body.custoUnitario, 'custoUnitario') : 0;
-  const minimo = body.estoqueMinimo != null && body.estoqueMinimo !== '' ? numero(body.estoqueMinimo, 'estoqueMinimo') : 0;
-  const inicial = body.estoqueInicial != null && body.estoqueInicial !== '' ? numero(body.estoqueInicial, 'estoqueInicial') : 0;
-  const codigoInformado = soDigitos(body.codigoBarras);
-
+  const d = dadosVariacao(req.body || {});
   try {
     const variacaoId = await transacao(async (c) => {
       const produto = await c.query('SELECT id FROM produtos WHERE id = $1 AND loja_id = $2', [req.params.id, req.lojaId]);
       if (!produto.rowCount) falha(404, 'produto não encontrado');
-      const id = uid();
-      const codigo = codigoInformado || await gerarCodigoBarras(c);
-      await c.query(
-        `INSERT INTO produto_variacoes
-           (id, loja_id, produto_id, tamanho, cor, sku, codigo_barras, preco_venda, custo_unitario, estoque, estoque_minimo)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
-        [id, req.lojaId, req.params.id, tamanho, cor, texto(body.sku, 'sku', { obrigatorio: false, max: 40 }), codigo, preco, custo, inicial, minimo]
-      );
-      if (inicial > 0) {
-        await c.query(
-          `INSERT INTO movimentos_estoque_produto
-             (id, loja_id, variacao_id, tipo, quantidade, custo_unitario, valor_total, referencia_tipo, criado_por)
-           VALUES ($1,$2,$3,'entrada',$4,$5,$6,'cadastro',$7)`,
-          [uid(), req.lojaId, id, inicial, custo, round2(inicial * custo), req.usuario.id]
-        );
-      }
-      return id;
+      return (await inserirVariacao(c, req.lojaId, req.params.id, d, req.usuario.id)).id;
     });
     res.status(201).json({ id: variacaoId });
   } catch (e) {

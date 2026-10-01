@@ -25,6 +25,17 @@ Plano e decisões: `docs/plano-loja-gutto.md`. Código da API + tela: `api/`.
    ```
    Ele cria o banco, as tabelas e os usuários Pedro (PIN 1103) e Lorena (PIN 1007).
 
+## Cadastro rápido de produtos (Estoque → "+ Novo produto")
+
+- Uma tabela **tamanho × cor** pra digitar quantas peças tem de cada uma (ou "Todos com N").
+  Cores vazias = cor única. Com "Não criar os tamanhos/cores com 0 peças" marcado, só nascem os
+  tamanhos/cores que existem na loja.
+- O NCM é copiado de outro produto da mesma categoria (confira).
+- No fim: **Imprimir etiquetas** (uma por peça) e **Cadastrar outro parecido**, que já vem com
+  categoria, NCM, grade, cores, preço e custo, faltando só o nome e as quantidades. O mesmo botão
+  "Cadastrar parecido" fica no detalhe de qualquer produto do Estoque.
+- O produto e todas as variações são criados de uma vez: se algo der errado, nada fica pela metade.
+
 ## Leitura de nota (Compras → "Ler nota")
 
 - **XML da nota** (o arquivo que o fornecedor manda por e-mail junto do PDF): leitura exata,

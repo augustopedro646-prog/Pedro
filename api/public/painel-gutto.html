@@ -2142,7 +2142,7 @@
     detalheEl.innerHTML = `
       <div class="detalhe-head">
         <div><div class="detalhe-categoria">${esc(produto.categoria)}${produto.ncm ? ' · NCM ' + esc(produto.ncm) : ''}</div><div class="detalhe-nome titulo">${esc(produto.nome)}</div></div>
-        <div class="detalhe-acoes"><button class="btn-secundario" id="btn-etiquetas">Imprimir etiquetas</button>${ehAdmin() ? `<button class="btn-secundario" id="btn-editar-produto">Editar produto e estoque</button><button class="btn-secundario" id="btn-nova-cor">+ Nova cor</button>` : ''}</div>
+        <div class="detalhe-acoes"><button class="btn-secundario" id="btn-etiquetas">Imprimir etiquetas</button>${ehAdmin() ? `<button class="btn-secundario" id="btn-editar-produto">Editar produto e estoque</button><button class="btn-secundario" id="btn-nova-cor">+ Nova cor</button><button class="btn-secundario" id="btn-parecido">Cadastrar parecido</button>` : ''}</div>
       </div>
       <div class="stats-row">
         <div class="stat-card"><div class="stat-label">Estoque total</div><div class="stat-valor">${produto.estoqueTotal} un.</div></div>
@@ -2159,86 +2159,149 @@
     if (ehAdmin()) {
       document.getElementById('btn-editar-produto').onclick = () => abrirEditarProduto(produto.id);
       document.getElementById('btn-nova-cor').onclick = () => abrirNovaCor(produto.id);
+      document.getElementById('btn-parecido').onclick = () => abrirNovoProduto(modeloDoProduto(produto));
     }
   }
 
-  function abrirNovoProduto() {
-    const opcoesGrade = state.grades.map(g => `<option value="${g.id}">${esc(g.nome)} (${g.tamanhos.map(t => esc(t)).join(', ')})</option>`).join('');
+  // Cadastro rápido: quantidade de cada tamanho × cor numa grade só, produto inteiro numa
+  // transação, e no fim etiquetas + "cadastrar parecido" (copia tudo menos o nome e as quantidades).
+  // `modelo`: { categoria, ncm, gradeId, cores, preco, custo, minimo } pra começar preenchido.
+  function abrirNovoProduto(modelo) {
+    modelo = modelo || {};
+    const opcoesGrade = state.grades.map(g => `<option value="${g.id}" ${modelo.gradeId === g.id ? 'selected' : ''}>${esc(g.nome)} (${g.tamanhos.map(t => esc(t)).join(', ')})</option>`).join('');
+    const num = (v) => (v == null || v === '' ? '' : fmtNum(v));
     const camada = abrirModal(`
-      <div class="modal-card">
-        ${cabecalhoModal('Novo produto', 'Cria o produto e todas as variações (tamanho × cor) de uma vez')}
+      <div class="modal-card largo">
+        ${cabecalhoModal(modelo.parecido ? 'Novo produto (parecido com ' + modelo.parecido + ')' : 'Novo produto', 'Digite quantas peças tem de cada tamanho/cor. Cada uma ganha código de barras próprio.')}
         <label class="campo">Nome do produto (sem tamanho/cor)<input id="np-nome" type="text" placeholder="Ex.: Vestido Pérola Linho"></label>
         <div class="linha-campos">
-          <label class="campo">Categoria<input id="np-categoria" type="text" placeholder="Ex.: Vestidos" list="np-categorias"></label>
-          <label class="campo">NCM (opcional, pra nota fiscal)<input id="np-ncm" type="text" inputmode="numeric" placeholder="Ex.: 61044200"></label>
+          <label class="campo">Categoria<input id="np-categoria" type="text" placeholder="Ex.: Vestidos" list="np-categorias" value="${esc(modelo.categoria || '')}"></label>
+          <label class="campo">NCM (pra nota fiscal)<input id="np-ncm" type="text" inputmode="numeric" placeholder="Ex.: 61044200" value="${esc(modelo.ncm || '')}"><span id="np-ncm-dica" style="font-size:11px;color:var(--text-2)"></span></label>
         </div>
         <datalist id="np-categorias">${categoriasUnicas().filter(c => c !== 'Sem categoria').map(c => `<option value="${esc(c)}">`).join('')}</datalist>
-        <label class="campo">Grade de tamanho
-          <select id="np-grade">${opcoesGrade}<option value="__nova__" ${state.grades.length ? '' : 'selected'}>+ Criar nova grade</option></select>
-        </label>
+        <div class="linha-campos">
+          <label class="campo">Grade de tamanho
+            <select id="np-grade">${opcoesGrade}<option value="__nova__" ${state.grades.length ? '' : 'selected'}>+ Criar nova grade</option></select>
+          </label>
+          <label class="campo">Cores (separadas por vírgula; vazio = cor única)<input id="np-cores" type="text" placeholder="Ex.: Azul, Amarelo" value="${esc((modelo.cores || []).filter(Boolean).join(', '))}"></label>
+        </div>
         <div id="np-nova-grade" style="display:${state.grades.length ? 'none' : 'flex'};flex-direction:column;gap:8px">
           <div class="linha-campos">
             <label class="campo">Nome da nova grade<input id="np-grade-nome" type="text" placeholder="Ex.: Infantil numérica"></label>
             <label class="campo">Tamanhos (vírgula, na ordem)<input id="np-grade-tamanhos" type="text" placeholder="Ex.: 2, 4, 6, 8, 10"></label>
           </div>
         </div>
-        <label class="campo">Cores (separadas por vírgula)<input id="np-cores" type="text" placeholder="Ex.: Azul, Amarelo"></label>
         <div class="linha-campos">
-          <label class="campo">Preço de venda<input id="np-preco" type="text" inputmode="decimal" placeholder="39,90"></label>
-          <label class="campo">Custo unitário<input id="np-custo" type="text" inputmode="decimal" placeholder="18,00"></label>
+          <label class="campo">Preço de venda<input id="np-preco" type="text" inputmode="decimal" placeholder="39,90" value="${num(modelo.preco)}"></label>
+          <label class="campo">Custo unitário<input id="np-custo" type="text" inputmode="decimal" placeholder="18,00" value="${num(modelo.custo)}"></label>
+          <label class="campo">Estoque mínimo (alerta)<input id="np-estoque-minimo" type="text" inputmode="numeric" placeholder="2" value="${modelo.minimo != null ? modelo.minimo : ''}"></label>
         </div>
-        <div class="linha-campos">
-          <label class="campo">Estoque inicial (cada tamanho/cor)<input id="np-estoque" type="text" inputmode="numeric" placeholder="0"></label>
-          <label class="campo">Estoque mínimo (alerta)<input id="np-estoque-minimo" type="text" inputmode="numeric" placeholder="2"></label>
+        <div class="painel-titulo" style="font-size:14px;margin:6px 0 0">Quantas peças tem agora</div>
+        <div id="np-qtd"></div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:12px;color:var(--text-2)">
+          Todos com <input id="np-qtd-todos" type="text" inputmode="numeric" style="width:60px;padding:6px 8px;border-radius:7px;border:1px solid var(--border)"> <button class="btn-secundario" id="np-qtd-aplicar" type="button">Preencher</button>
+          <span style="flex:1"></span><b id="np-qtd-total" style="color:var(--text)"></b>
         </div>
-        <div class="modal-dica">Cada tamanho/cor ganha um código de barras próprio automaticamente.</div>
+        <label style="display:flex;gap:6px;align-items:center;font-size:12px;color:var(--text-2)"><input type="checkbox" id="np-so-com-estoque" ${modelo.soComEstoque ? 'checked' : ''}> Não criar os tamanhos/cores com 0 peças (dá pra criar depois em "+ Nova cor" / Editar)</label>
         <div class="erro-modal" id="np-erro"></div>
         <button class="btn-primario btn-grande" id="np-salvar">Criar produto</button>
       </div>`);
-    camada.querySelector('#np-nome').focus();
-    camada.querySelector('#np-grade').addEventListener('change', (e) => {
-      camada.querySelector('#np-nova-grade').style.display = e.target.value === '__nova__' ? 'flex' : 'none';
-    });
-    camada.querySelector('#np-salvar').onclick = (ev) => comBotao(ev.target, 'Criando...', async () => {
-      const nome = camada.querySelector('#np-nome').value.trim();
-      const cores = camada.querySelector('#np-cores').value.split(',').map(s => s.trim()).filter(Boolean);
-      const preco = parseNumBR(camada.querySelector('#np-preco').value);
-      const custo = parseNumBR(camada.querySelector('#np-custo').value || '0');
-      const inicial = parseNumBR(camada.querySelector('#np-estoque').value || '0');
-      const minimo = parseNumBR(camada.querySelector('#np-estoque-minimo').value || '0');
+    const $ = (sel) => camada.querySelector(sel);
+    const qtds = {}; // "tamanho|cor" → texto digitado (sobrevive a trocar grade/cores)
+    const tamanhosAtuais = () => {
+      if ($('#np-grade').value === '__nova__') return $('#np-grade-tamanhos').value.split(',').map(s => s.trim()).filter(Boolean);
+      const g = state.grades.find(x => x.id === $('#np-grade').value);
+      return g ? g.tamanhos : [];
+    };
+    const coresAtuais = () => { const c = $('#np-cores').value.split(',').map(s => s.trim()).filter(Boolean); return c.length ? [...new Set(c)] : ['']; };
+    const totalPecas = () => {
+      let t = 0;
+      for (const tam of tamanhosAtuais()) for (const cor of coresAtuais()) { const n = parseInt(qtds[tam + '|' + cor], 10); if (n > 0) t += n; }
+      return t;
+    };
+    const atualizarTotal = () => { const t = totalPecas(); $('#np-qtd-total').textContent = t + ' peça' + (t === 1 ? '' : 's'); };
+    const desenharGrade = () => {
+      const tams = tamanhosAtuais(), cores = coresAtuais();
+      if (!tams.length) { $('#np-qtd').innerHTML = '<div class="modal-dica">Escolha a grade de tamanhos pra digitar as quantidades.</div>'; atualizarTotal(); return; }
+      $('#np-qtd').innerHTML = `<div class="tabela-scroll"><table class="tabela"><tr><th>${cores.length > 1 || cores[0] ? 'Cor' : ''}</th>${tams.map(t => `<th style="text-align:center">${esc(t)}</th>`).join('')}</tr>
+        ${cores.map(cor => `<tr><td style="white-space:nowrap">${cor ? esc(cor) : '<span style="color:var(--text-2)">cor única</span>'}</td>
+          ${tams.map(t => `<td><input data-qtd="${esc(t + '|' + cor)}" inputmode="numeric" placeholder="0" value="${esc(qtds[t + '|' + cor] || '')}" style="text-align:center;min-width:48px"></td>`).join('')}</tr>`).join('')}</table></div>`;
+      $('#np-qtd').querySelectorAll('[data-qtd]').forEach(i => i.addEventListener('input', () => { qtds[i.dataset.qtd] = i.value.replace(/\D/g, ''); atualizarTotal(); }));
+      atualizarTotal();
+    };
+    // Categoria que já tem NCM em outro produto: copia (o NCM costuma ser o mesmo na categoria).
+    const sugerirNcm = () => {
+      const cat = $('#np-categoria').value.trim().toLowerCase();
+      if (!cat || $('#np-ncm').value.trim()) return;
+      const outro = state.produtos.find(p => p.categoria.toLowerCase() === cat && /^\d{8}$/.test(p.ncm || ''));
+      if (outro) { $('#np-ncm').value = outro.ncm; $('#np-ncm-dica').textContent = 'copiado de "' + outro.nome + '" — confira'; }
+    };
+    $('#np-categoria').addEventListener('change', sugerirNcm);
+    $('#np-grade').addEventListener('change', (e) => { $('#np-nova-grade').style.display = e.target.value === '__nova__' ? 'flex' : 'none'; desenharGrade(); });
+    $('#np-grade-tamanhos').addEventListener('input', desenharGrade);
+    $('#np-cores').addEventListener('input', desenharGrade);
+    $('#np-qtd-aplicar').onclick = () => {
+      const n = $('#np-qtd-todos').value.replace(/\D/g, '');
+      for (const t of tamanhosAtuais()) for (const cor of coresAtuais()) qtds[t + '|' + cor] = n;
+      desenharGrade();
+    };
+    desenharGrade();
+    $('#np-nome').focus();
+
+    $('#np-salvar').onclick = (ev) => comBotao(ev.target, 'Criando...', async () => {
+      const nome = $('#np-nome').value.trim();
+      const preco = parseNumBR($('#np-preco').value);
+      const custo = parseNumBR($('#np-custo').value || '0');
+      const minimo = parseNumBR($('#np-estoque-minimo').value || '0');
       if (!nome) throw new Error('Digite o nome do produto.');
-      if (!cores.length) throw new Error('Digite ao menos uma cor.');
       if (!Number.isFinite(preco) || preco <= 0) throw new Error('Preço de venda inválido.');
       if (!Number.isFinite(custo) || custo < 0) throw new Error('Custo inválido.');
-      if (!Number.isInteger(inicial) || inicial < 0 || !Number.isInteger(minimo) || minimo < 0) throw new Error('Estoque deve ser número inteiro.');
-      const gradeSel = camada.querySelector('#np-grade').value;
-      let gradeId = gradeSel, tamanhos;
-      if (gradeSel === '__nova__') {
-        const gradeNome = camada.querySelector('#np-grade-nome').value.trim();
-        tamanhos = camada.querySelector('#np-grade-tamanhos').value.split(',').map(s => s.trim()).filter(Boolean);
-        if (!gradeNome || !tamanhos.length) throw new Error('Preencha o nome e os tamanhos da nova grade.');
+      if (!Number.isInteger(minimo) || minimo < 0) throw new Error('Estoque mínimo deve ser número inteiro.');
+      const ncm = $('#np-ncm').value.replace(/\D/g, '');
+      if (ncm && ncm.length !== 8) throw new Error('NCM tem 8 números (ou deixe vazio por enquanto).');
+      let gradeId = $('#np-grade').value;
+      const tamanhos = tamanhosAtuais(), cores = coresAtuais();
+      if (!tamanhos.length) throw new Error(gradeId === '__nova__' ? 'Preencha os tamanhos da nova grade.' : 'Selecione uma grade de tamanho.');
+      const soComEstoque = $('#np-so-com-estoque').checked;
+      const variacoes = [];
+      for (const tamanho of tamanhos) for (const cor of cores) {
+        const qtd = parseInt(qtds[tamanho + '|' + cor], 10) || 0;
+        if (soComEstoque && !qtd) continue;
+        variacoes.push({ tamanho, cor, precoVenda: preco, custoUnitario: custo, estoqueMinimo: minimo, estoqueInicial: qtd });
+      }
+      if (!variacoes.length) throw new Error('Digite a quantidade de pelo menos um tamanho (ou desmarque "não criar com 0 peças").');
+      if (gradeId === '__nova__') {
+        const gradeNome = $('#np-grade-nome').value.trim();
+        if (!gradeNome) throw new Error('Dê um nome pra nova grade.');
         const g = await api('/grades-tamanho', { method: 'POST', body: { nome: gradeNome, tamanhos } });
         gradeId = g.id; state.grades.push(g);
-        camada.querySelector('#np-grade').insertAdjacentHTML('afterbegin', `<option value="${g.id}">${esc(g.nome)}</option>`);
-        camada.querySelector('#np-grade').value = g.id;
-        camada.querySelector('#np-nova-grade').style.display = 'none';
-      } else {
-        const g = state.grades.find(x => x.id === gradeSel);
-        if (!g) throw new Error('Selecione uma grade de tamanho.');
-        tamanhos = g.tamanhos;
       }
-      const produto = await api('/produtos', { method: 'POST', body: { nome, categoria: camada.querySelector('#np-categoria').value, ncm: camada.querySelector('#np-ncm').value, gradeTamanhoId: gradeId } });
-      for (const tamanho of tamanhos) {
-        for (const cor of cores) {
-          await api('/produtos/' + produto.id + '/variacoes', { method: 'POST', body: { tamanho, cor, precoVenda: preco, custoUnitario: custo, estoqueMinimo: minimo, estoqueInicial: inicial } });
-        }
-      }
-      fecharModal();
+      const r = await api('/produtos', { method: 'POST', body: { nome, categoria: $('#np-categoria').value, ncm, gradeTamanhoId: gradeId, variacoes } });
       await carregarProdutos();
-      setState({ estoqueSelecionadoId: produto.id, busca: '', filtroCategoria: null });
+      setState({ estoqueSelecionadoId: r.id, busca: '', filtroCategoria: null });
       document.getElementById('busca').value = '';
-      toast('Produto criado com ' + (tamanhos.length * cores.length) + ' variações');
-    }, camada.querySelector('#np-erro'));
+      const pecas = variacoes.reduce((t, v) => t + v.estoqueInicial, 0);
+      const parecido = { categoria: $('#np-categoria').value, ncm, gradeId, cores: cores.filter(Boolean), preco, custo, minimo, soComEstoque, parecido: nome };
+      const fim = abrirModal(`<div class="modal-card estreito" style="text-align:center">${cabecalhoModal('Produto criado', '')}
+        <div style="font-size:15px"><b>${esc(nome)}</b></div>
+        <div style="font-size:13px;color:var(--text-2)">${variacoes.length} tamanho${variacoes.length === 1 ? '' : 's'}/cor${variacoes.length === 1 ? '' : 'es'} · ${pecas} peça${pecas === 1 ? '' : 's'} no estoque</div>
+        ${pecas ? `<button class="btn-primario btn-grande" id="np-etiquetas">🏷 Imprimir ${pecas} etiqueta${pecas === 1 ? '' : 's'}</button>` : ''}
+        <button class="btn-secundario btn-grande" id="np-parecido">+ Cadastrar outro parecido</button>
+        <button class="link-btn" id="np-fim">Concluir</button></div>`);
+      const prod = state.produtos.find(p => p.id === r.id);
+      if (pecas) fim.querySelector('#np-etiquetas').onclick = () => abrirImprimirEtiquetas(etiquetasDoProduto(prod), 'Etiquetas — ' + nome);
+      fim.querySelector('#np-parecido').onclick = () => abrirNovoProduto(parecido);
+      fim.querySelector('#np-fim').onclick = () => fecharModal();
+      (pecas ? fim.querySelector('#np-etiquetas') : fim.querySelector('#np-parecido')).focus();
+    }, $('#np-erro'));
+  }
+
+  // Modelo pro "cadastrar parecido" a partir de um produto que já existe.
+  function modeloDoProduto(p) {
+    const ativas = p.variacoes.filter(v => v.ativo);
+    const base = ativas[0] || p.variacoes[0] || {};
+    return { categoria: p.categoria === 'Sem categoria' ? '' : p.categoria, ncm: p.ncm, gradeId: p.grade ? p.grade.id : undefined,
+      cores: p.cores.map(c => c.nome).filter(Boolean), preco: base.preco, custo: base.custoUnitario, minimo: base.estoqueMinimo, parecido: p.nome };
   }
 
   function abrirEditarProduto(produtoId) {
@@ -3900,7 +3963,7 @@
   document.getElementById('btn-novo-evento').addEventListener('click', () => abrirFormAgenda('evento'));
   document.getElementById('btn-escalar').addEventListener('click', () => abrirFormAgenda('escala'));
   document.getElementById('confirmar').addEventListener('click', () => confirmarVenda());
-  document.getElementById('btn-novo-produto').addEventListener('click', abrirNovoProduto);
+  document.getElementById('btn-novo-produto').addEventListener('click', () => abrirNovoProduto());
   document.getElementById('btn-troca').addEventListener('click', () => abrirTroca(false));
   document.getElementById('btn-limpar-carrinho').addEventListener('click', () => { if (!state.cart.length || confirm('Limpar o carrinho?')) setState({ cart: [], pagamentos: [], cliente: null }); });
   document.getElementById('btn-novo-cliente').addEventListener('click', abrirNovoCliente);
