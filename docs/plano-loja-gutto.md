@@ -171,5 +171,15 @@ Plano fechado — pronto pra começar a Fase 1.
     - CFOP, CSOSN e origem confirmados.
     - NCM dos produtos.
     - Notas de teste em homologação antes de passar pra produção.
-- **Próximas**: ligar a NFC-e (acima), domínio (Cloudflare Tunnel, como o Jabá), Fase 6
-  (migração do GDOOR — traz o NCM dos produtos junto).
+- **01/10/2026:**
+  - Produtos vão ser cadastrados à mão (os do GDOOR estão errados).
+  - NCM: vem do XML do fornecedor ou da planilha preenchida pela contadora.
+  - Cadastro rápido: quantidades por tamanho × cor e "cadastrar parecido".
+  - Domínio preparado:
+    - Script do Cloudflare Tunnel.
+    - Pela internet só o site da loja aparece; o painel fica na rede da loja.
+    - Limites por visitante e bloqueio por PIN errado.
+- **Próximas**:
+  - Ligar a NFC-e (acima).
+  - Rodar o script do túnel quando o domínio estiver na Cloudflare.
+  - Do GDOOR, talvez só os clientes (falta a senha do Firebird).

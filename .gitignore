@@ -3,3 +3,8 @@ node_modules/
 *.log
 desktop/dist/
 backups/
+
+# Túnel Cloudflare: gerados no computador da loja
+cloudflared/cloudflared.exe
+cloudflared/config.yml
+cloudflared/*.log

@@ -9,6 +9,7 @@ const { gerarCodigoBarras } = require('./codigos');
 const notas = require('./notas');
 const backup = require('./backup');
 const relatorios = require('./relatorios');
+const seguranca = require('./seguranca');
 const fiscal = require('./fiscal');
 const ExcelJS = require('exceljs');
 const Anthropic = require('@anthropic-ai/sdk');
@@ -23,6 +24,9 @@ const anthropic = process.env.ANTHROPIC_API_KEY ? new Anthropic({ timeout: 5 * 6
 const TZ = process.env.TZ_LOJA || 'America/Fortaleza';
 
 const app = express();
+app.disable('x-powered-by');
+app.use(seguranca.cabecalhos);
+app.use(seguranca.filtroInternet); // pela internet (túnel), só o site da loja — ver seguranca.js
 app.use(cors());
 // Só a leitura de nota recebe arquivo grande (fotos/PDF em base64); o resto fica no limite pequeno.
 const jsonPadrao = express.json({ limit: '1mb' });
@@ -32,8 +36,18 @@ app.get('/', (req, res) => res.redirect('/painel-gutto.html'));
 app.get('/loja', (req, res) => res.redirect('/loja-gutto.html'));
 
 // Limite geral generoso; login e PIN de ponto têm limite apertado à parte (força bruta).
-app.use('/api/', rateLimit({ windowMs: 60 * 1000, max: 600 }));
-const pinLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 30, message: { erro: 'Muitas tentativas — aguarde alguns minutos.' } });
+// Contados por visitante (IP real que o Cloudflare manda), não pelo túnel inteiro.
+const porVisitante = { keyGenerator: seguranca.ipReal, validate: { xForwardedForHeader: false } };
+app.use('/api/', rateLimit({ windowMs: 60 * 1000, max: 600, ...porVisitante }));
+const pinLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 30, message: { erro: 'Muitas tentativas — aguarde alguns minutos.' }, ...porVisitante });
+// PIN errado demais trava aquele usuário por um tempo (além do limite por IP acima).
+function conferirPin(req, usuario, pin) {
+  const min = seguranca.pinTravado(req, usuario.id);
+  if (min) falha(429, 'PIN errado muitas vezes — ' + usuario.nome + ' fica bloqueado(a) por ' + min + ' min', { codigo: 'pin_travado' });
+  const ok = typeof pin === 'string' && verificarPin(pin, usuario.pin_hash);
+  seguranca.registrarPin(req, usuario.id, ok);
+  return ok;
+}
 
 app.get('/api/health', (req, res) => res.json({ ok: true }));
 
@@ -154,7 +168,7 @@ app.post('/api/lojas/:lojaId/login', pinLimiter, rota(async (req, res) => {
   }
   const { rows } = await pool.query('SELECT * FROM usuarios WHERE id = $1 AND loja_id = $2 AND ativo = true', [usuarioId, req.lojaId]);
   const usuario = rows[0];
-  if (!usuario || !verificarPin(pin, usuario.pin_hash)) falha(401, 'PIN incorreto');
+  if (!usuario || !conferirPin(req, usuario, pin)) falha(401, 'PIN incorreto');
   res.json({ token: gerarToken(usuario), usuario: { id: usuario.id, nome: usuario.nome, papel: usuario.papel } });
 }));
 
@@ -220,7 +234,7 @@ app.get('/api/lojas/:lojaId/config', qualquer, rota(async (req, res) => {
   if (!rows.length) falha(404, 'loja não encontrada');
   const l = rows[0];
   res.json({ nome: l.nome, cashbackPct: Number(l.cashback_pct), descontoLivrePct: Number(l.desconto_livre_pct), comissaoPct: Number(l.comissao_pct), leituraIA: !!anthropic,
-    cupomRodape: l.cupom_rodape || '',
+    cupomRodape: l.cupom_rodape || '', siteUrl: (process.env.SITE_URL || '').replace(/\/+$/, '') || null,
     fiscal: { cfop: l.fiscal_cfop || '', csosn: l.fiscal_csosn || '', origem: l.fiscal_origem || '0', automatica: !!l.nfce_automatica,
       ambiente: fiscal.ambiente(), faltandoNoServidor: fiscal.faltandoNoServidor(),
       pronto: !fiscal.faltandoNoServidor().length && /^\d{4}$/.test(l.fiscal_cfop || '') && /^\d{3}$/.test(l.fiscal_csosn || '') },
@@ -774,8 +788,8 @@ app.post('/api/lojas/:lojaId/vendas', qualquer, rota(async (req, res) => {
         falha(403, 'Desconto de ' + pctDesconto.toFixed(1).replace('.', ',') + '% passa do limite de ' + descontoLivrePct +
           '% — precisa do PIN de um Administrador', { codigo: 'aprovacao_necessaria' });
       }
-      const { rows } = await c.query("SELECT id, pin_hash FROM usuarios WHERE id = $1 AND loja_id = $2 AND ativo AND papel = 'administrador'", [ap.usuarioId, req.lojaId]);
-      if (!rows.length || !verificarPin(ap.pin, rows[0].pin_hash)) falha(403, 'PIN de Administrador incorreto', { codigo: 'aprovacao_invalida' });
+      const { rows } = await c.query("SELECT id, nome, pin_hash FROM usuarios WHERE id = $1 AND loja_id = $2 AND ativo AND papel = 'administrador'", [ap.usuarioId, req.lojaId]);
+      if (!rows.length || !conferirPin(req, rows[0], ap.pin)) falha(403, 'PIN de Administrador incorreto', { codigo: 'aprovacao_invalida' });
       aprovadoPor = rows[0].id;
     }
 
@@ -1557,7 +1571,7 @@ app.post('/api/lojas/:lojaId/pontos', pinLimiter, qualquer, rota(async (req, res
     const { rows } = await c.query('SELECT id, nome, pin_hash FROM usuarios WHERE id = $1 AND loja_id = $2 AND ativo FOR UPDATE', [body.usuarioId, req.lojaId]);
     const pessoa = rows[0];
     if (!pessoa) falha(404, 'pessoa não encontrada');
-    if (body.metodo === 'pin' && (typeof body.pin !== 'string' || !verificarPin(body.pin, pessoa.pin_hash))) falha(401, 'PIN incorreto');
+    if (body.metodo === 'pin' && !conferirPin(req, pessoa, body.pin)) falha(401, 'PIN incorreto');
     const { rows: ultimo } = await c.query(
       `SELECT tipo FROM pontos WHERE usuario_id = $1 AND (registrado_em AT TIME ZONE $2)::date = (now() AT TIME ZONE $2)::date
        ORDER BY registrado_em DESC LIMIT 1`,
@@ -1624,7 +1638,7 @@ app.get('/api/lojas/:lojaId/fotos/:id', rota(async (req, res) => {
 
 /* ---------- Site da loja (público, sem login) ---------- */
 
-const limitePedidoSite = rateLimit({ windowMs: 15 * 60 * 1000, max: 15, message: { erro: 'Muitos pedidos seguidos — aguarde alguns minutos ou chame a loja no WhatsApp.' } });
+const limitePedidoSite = rateLimit({ windowMs: 15 * 60 * 1000, max: 15, message: { erro: 'Muitos pedidos seguidos — aguarde alguns minutos ou chame a loja no WhatsApp.' }, ...porVisitante });
 
 async function configSite(db, lojaId) {
   const { rows } = await db.query('SELECT nome, site_ativo, aceita_entrega, aceita_retirada, taxa_entrega, whatsapp, endereco, mensagem_site FROM lojas WHERE id = $1', [lojaId]);

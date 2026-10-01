@@ -177,6 +177,38 @@ período anterior. "Este mês" compara com os mesmos dias do mês passado.
 
 Cada bloco tem **Baixar planilha** (abre direto no Excel).
 
+## Domínio (site da loja na internet)
+
+Pelo **Cloudflare Tunnel**, como no Jabá. Não abre porta no roteador e o banco continua no
+computador da loja.
+
+**O que fica na internet:** só o **site da loja**. Isso é a vitrine, o pedido, o acompanhamento do
+pedido e as fotos. Quem digitar o domínio cai no site. O **painel** (PIN da equipe, vendas, caixa,
+relatórios) continua respondendo só no computador e na rede da loja; pela internet ele nem
+aparece. Se um dia quiser abrir o painel de casa, coloque `PAINEL_REMOTO=1` no `api\.env` e
+reinicie a LojaGuttoAPI.
+
+**Proteções que já valem:**
+- Limite de tentativas contado por visitante. Um abusado não trava o site pros outros clientes.
+- **PIN errado 6 vezes** bloqueia aquela pessoa por 15 minutos. A contagem é separada para a
+  internet e para a loja: alguém de fora errando PIN não tranca a equipe no balcão.
+
+**Instalar (quando o domínio estiver na conta Cloudflare):**
+1. Na Cloudflare, adicione o domínio e troque os nameservers no registrador pelos que a Cloudflare
+   indicar.
+2. No PowerShell como Administrador, em `C:\LojaGutto`:
+   ```
+   powershell -ExecutionPolicy Bypass -File .\cloudflared\instalar-tunel.ps1 -Dominio seudominio.com.br
+   ```
+   O script faz o seguinte:
+   - Baixa o `cloudflared`.
+   - Abre o navegador pra autorizar a conta (escolha o domínio).
+   - Cria o túnel `loja-gutto` e aponta `seudominio.com.br` e `www.seudominio.com.br` pra loja.
+   - Instala o serviço **LojaGuttoTunel**, que liga sozinho com o Windows.
+   - Coloca `SITE_URL` no `.env`, pro link do site no painel e no WhatsApp.
+3. Teste no celular fora do Wi-Fi da loja. Se não abrir, é a propagação do DNS (de minutos a
+   ~24h).
+
 ## Backup do banco
 
 Automático, de hora em hora, feito pelo próprio servidor (não precisa configurar nada no Windows).

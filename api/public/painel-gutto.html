@@ -3114,7 +3114,7 @@
       </div>
       <div style="display:flex;gap:10px;align-items:center;margin-top:12px;flex-wrap:wrap">
         <button class="btn-primario" id="cfg-salvar">Salvar configurações</button>
-        <span class="modal-dica">Link do site: <a class="link-btn" href="/loja-gutto.html" target="_blank" rel="noopener">${esc(location.origin)}/loja</a></span>
+        <span class="modal-dica">Link do site: <a class="link-btn" href="${esc(cfg.siteUrl ? cfg.siteUrl + '/loja' : '/loja-gutto.html')}" target="_blank" rel="noopener">${esc(cfg.siteUrl || location.origin)}/loja</a></span>
       </div>
       <div class="erro-modal" id="cfg-erro" style="margin-top:8px"></div>`;
     renderBackup();
