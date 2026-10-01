@@ -438,6 +438,7 @@
       <p class="sub" id="inicio-ola">Resumo de hoje</p>
       <div id="aviso-backup"></div>
       <div id="aviso-contas"></div>
+      <div id="aviso-condicionais"></div>
       <div class="painel" id="livro-caixa"></div>
       <div class="stats-row" id="inicio-stats" style="margin-top:20px"></div>
       <div class="paineis-duas-colunas">
@@ -453,6 +454,7 @@
         <div class="venda-topo">
           <input id="venda-busca" data-leitor type="text" autocomplete="off" placeholder="Leia o código de barras ou digite o nome da peça">
           <button class="btn-secundario" id="btn-troca">Vendas / troca</button>
+          <button class="btn-secundario" id="btn-condicionais">Condicionais</button>
         </div>
         <div id="venda-aviso-caixa"></div>
         <div class="produtos-grid" id="produtos-grid"></div>
@@ -467,6 +469,7 @@
         <div class="bloco-carrinho" id="carrinho-totais"></div>
         <div class="bloco-carrinho" id="carrinho-pagamentos"></div>
         <button id="confirmar" style="margin-top:12px">Confirmar venda</button>
+        <button class="btn-secundario" id="btn-enviar-condicional" style="margin-top:8px;width:100%">Enviar como condicional (levar pra provar)</button>
       </div>
     </div>
 
@@ -742,6 +745,7 @@
     pedidosOnline: null, onlineNovos: 0, ultimoPedidoVisto: null,
     wa: { status: null, conversas: null, sel: null, detalhe: null, erro: null },
     backup: null,
+    condicional: null, condicionaisResumo: null,
     contas: null, contasFiltro: 'abertas', contasResumo: null, fluxoAba: 'mes',
     rel: null, relFiltro: null, relPedido: null, relCarregando: false, relVer: {}, relTodos: {},
     tema: temaInicial, sidebarCollapsed: false,
@@ -792,6 +796,7 @@
       preco: Number(v.preco_venda), custoUnitario: Number(v.custo_unitario),
       // preco = preço da tabela (o que se edita); precoVenda = o que o cliente paga hoje (com promoção).
       precoVenda: v.preco_promo != null ? Number(v.preco_promo) : Number(v.preco_venda), promocao: v.promocao || null,
+      emCondicional: Number(v.em_condicional || 0),
     }));
     const ativas = variacoes.filter(v => v.ativo);
     const precos = ativas.map(v => v.preco);
@@ -808,6 +813,7 @@
       promocao: (ativas.find(v => v.promocao) || {}).promocao || null,
       custoUnitario: custos.length ? custos.reduce((s, n) => s + n, 0) / custos.length : 0,
       estoqueTotal: ativas.reduce((s, v) => s + v.estoque, 0),
+      emCondicional: ativas.reduce((s, v) => s + v.emCondicional, 0),
     };
   }
 
@@ -829,8 +835,10 @@
         state.vendasHoje = vendas; state.pontos = pontos; state.caixaSessoes = sessoes;
         if (ehAdmin()) api('/backup').then(b => { state.backup = b; if (state.view === 'inicio') renderAvisoBackup(); }).catch(() => {});
         if (ehAdmin()) atualizarAvisoContas();
+        carregarResumoCondicionais();
       } else if (view === 'venda') {
         await Promise.all([carregarProdutos(), carregarCaixa(), carregarConfig()]);
+        carregarResumoCondicionais();
       } else if (view === 'clientes') {
         state.clientes = await api('/clientes?busca=' + encodeURIComponent(state.clientesBusca));
       } else if (view === 'estoque') {
@@ -1136,6 +1144,7 @@
 
     renderAvisoBackup();
     renderAvisoContas();
+    renderAvisoCondicionais();
     document.getElementById('inicio-ola').textContent = 'Olá, ' + state.logado.nome.split(' ')[0] + ' — resumo de hoje';
     renderLivroCaixa();
 
@@ -1190,6 +1199,8 @@
   }
 
   function renderVenda() {
+    const rc = state.condicionaisResumo;
+    document.getElementById('btn-condicionais').textContent = 'Condicionais' + (rc && rc.abertos ? ' (' + rc.abertos + ')' : '') + (rc && rc.atrasados ? ' ⚠' : '');
     const cx = state.caixa;
     document.getElementById('venda-aviso-caixa').innerHTML = cx && !cx.sessao ? `
       <div class="aviso-caixa"><span>Caixa fechado — abra o caixa pra poder confirmar vendas.</span><button class="btn-primario" onclick="irPara('inicio')">Abrir caixa</button></div>` : '';
@@ -1234,7 +1245,7 @@
     if (!achado) return;
     const { produto, variacao: v } = achado;
     const noCarrinho = state.cart.filter(l => l.variacaoId === v.id).reduce((s, l) => s + l.qtd, 0);
-    if (v.estoque - noCarrinho <= 0) { toast('Sem estoque: ' + produto.nome + ' ' + v.tamanho + ' ' + v.cor, 'erro'); return; }
+    if (estoqueDisponivel(v) - noCarrinho <= 0) { toast('Sem estoque: ' + produto.nome + ' ' + v.tamanho + ' ' + v.cor, 'erro'); return; }
     const cart = state.cart.slice();
     const idx = cart.findIndex(l => l.variacaoId === v.id);
     if (idx >= 0) cart[idx] = Object.assign({}, cart[idx], { qtd: cart[idx].qtd + 1 });
@@ -1429,9 +1440,14 @@
     }));
 
     const cli = state.cliente;
+    const cond = state.condicional;
+    if (cond) el.insertAdjacentHTML('afterbegin', `<div class="aviso-caixa" style="display:block;font-weight:400">Fechando o <b>condicional nº ${cond.numero}</b> de ${esc(cond.cliente_nome)}: ao confirmar, as peças que voltaram entram no estoque e estas viram venda.
+      <button class="link-btn" id="btn-sair-condicional">não fechar agora</button></div>`);
+    const sairCond = document.getElementById('btn-sair-condicional');
+    if (sairCond) sairCond.onclick = () => setState({ condicional: null, cart: [], pagamentos: [], cliente: null });
     document.getElementById('carrinho-cliente').innerHTML = cli ? `
       <div class="cliente-box"><div><b>${esc(cli.nome)}</b><div style="color:var(--text-2)">Cashback ${fmt(cli.saldo_cashback)} · Vale-troca ${fmt(cli.saldo_vale_troca)}</div></div>
-        <button class="link-btn" id="btn-remover-cliente">remover</button></div>` : `
+        ${cond ? '' : '<button class="link-btn" id="btn-remover-cliente">remover</button>'}</div>` : `
       <div class="cliente-box"><span style="color:var(--text-2)">Cliente não identificado</span><button class="link-btn" id="btn-identificar-cliente">Identificar cliente</button></div>`;
     const btnId = document.getElementById('btn-identificar-cliente');
     if (btnId) btnId.onclick = async () => { const c = await escolherCliente(); if (c) setState({ cliente: c, pagamentos: [] }); };
@@ -1479,7 +1495,10 @@
     const btn = document.getElementById('confirmar');
     btn.disabled = !pode;
     btn.classList.toggle('ativo', !!pode);
-    btn.textContent = state.caixa && !state.caixa.sessao ? 'Caixa fechado' : 'Confirmar venda';
+    btn.textContent = state.caixa && !state.caixa.sessao ? 'Caixa fechado' : cond ? 'Confirmar venda e fechar condicional' : 'Confirmar venda';
+    const btnCond = document.getElementById('btn-enviar-condicional');
+    btnCond.style.display = cond ? 'none' : '';
+    btnCond.disabled = !state.cart.length;
   }
 
   function adicionarPagamento(forma, total) {
@@ -1506,7 +1525,7 @@
     const cart = state.cart.slice();
     const l = cart[indice];
     const achado = acharVariacao(l.variacaoId);
-    if (delta > 0 && achado && l.qtd + 1 > achado.variacao.estoque) { toast('Só tem ' + achado.variacao.estoque + ' em estoque', 'erro'); return; }
+    if (delta > 0 && achado && l.qtd + 1 > estoqueDisponivel(achado.variacao)) { toast('Só tem ' + estoqueDisponivel(achado.variacao) + ' em estoque', 'erro'); return; }
     cart[indice] = Object.assign({}, l, { qtd: l.qtd + delta });
     setState({ cart: cart.filter(x => x.qtd > 0), pagamentos: [] });
   }
@@ -1521,13 +1540,15 @@
       itens: calc.linhas.map(l => ({ variacaoId: l.variacaoId, qtd: l.qtd, descontoItem: l.descontoItem })),
       pagamentos: pag.aplicados, clienteId: state.cliente ? state.cliente.id : undefined, aprovacao,
       troco: pag.troco > 0.005 ? pag.troco : undefined,
+      condicionalId: state.condicional ? state.condicional.id : undefined,
     };
     try {
       const r = await api('/vendas', { method: 'POST', body: corpo });
+      if (state.condicional) carregarResumoCondicionais();
       const troco = pag.troco;
       r.clienteNome = state.cliente ? state.cliente.nome : null;
       r.clienteCpf = state.cliente ? (state.cliente.cpf || '') : '';
-      Object.assign(state, { cart: [], pagamentos: [], cliente: null });
+      Object.assign(state, { cart: [], pagamentos: [], cliente: null, condicional: null });
       await Promise.all([carregarProdutos(), carregarCaixa()]);
       render();
       mostrarRecibo(r, troco);
@@ -1538,6 +1559,8 @@
         if (cod === 'aprovacao_invalida') toast('PIN incorreto', 'erro');
         const ap = await escolherAdministrador(e.message);
         if (ap) return confirmarVenda(ap);
+      } else if (cod === 'condicional_fechado') {
+        toast(e.message, 'erro'); setState({ condicional: null });
       } else if (cod === 'caixa_fechado') {
         toast(e.message, 'erro'); await carregarCaixa(); render();
       } else if (cod === 'estoque_insuficiente') {
@@ -1680,6 +1703,166 @@
       <hr><div class="c p">O crédito fica no cadastro do cliente (pelo telefone) e pode ser usado em qualquer compra na loja.</div>
       ${state.config.cupomRodape ? `<div class="c p" style="margin-top:2mm">${esc(state.config.cupomRodape)}</div>` : ''}
     </body></html>`, largura);
+  }
+
+  /* ================= Condicional (levar pra provar em casa) ================= */
+  // Quantas peças dessa variação estão no condicional que está sendo fechado no caixa (elas
+  // voltam pro estoque na hora de confirmar, então contam como disponíveis).
+  function qtdNoCondicional(variacaoId) {
+    const c = state.condicional;
+    return c ? c.itens.filter(i => i.variacao_id === variacaoId).reduce((t, i) => t + i.qtd, 0) : 0;
+  }
+  function estoqueDisponivel(v) { return v.estoque + qtdNoCondicional(v.id); }
+  function waLink(telefone, msg) {
+    const d = String(telefone || '').replace(/\D/g, '');
+    return d ? 'https://wa.me/55' + d + '?text=' + encodeURIComponent(msg) : null;
+  }
+  function rotuloPrazo(prazo) {
+    const dias = Math.round((Date.parse(prazo + 'T12:00:00Z') - Date.parse(hojeLocal() + 'T12:00:00Z')) / 864e5);
+    if (dias < 0) return `<span class="tag" style="background:var(--zero-bg);color:var(--zero-text);border:1px solid var(--zero-border)">atrasado ${-dias} dia${dias === -1 ? '' : 's'}</span>`;
+    if (dias === 0) return '<span class="tag aviso">devolve hoje</span>';
+    return `<span class="tag cinza">em ${dias} dia${dias === 1 ? '' : 's'}</span>`;
+  }
+  function documentoCondicional(c, largura) {
+    return `<!doctype html><html><head><meta charset="utf-8"><title>Condicional</title><style>${estiloCupom(largura)}</style></head><body>
+      ${cabecalhoCupom()}<hr><div class="c t">CONDICIONAL Nº ${c.numero}</div>
+      <div class="l p"><span>Saiu: ${dataHora(c.criado_em)}</span></div>
+      <div>Cliente: <b>${esc(c.cliente_nome)}</b></div>${c.cliente_telefone ? `<div class="p">Telefone: ${esc(telefoneBR(c.cliente_telefone))}</div>` : ''}
+      <div class="b">Devolver até: ${dataBR(c.prazo)}</div><hr>
+      ${c.itens.map(i => `<div class="it"><div>${esc(i.produto_nome)} · ${esc(i.tamanho)}${i.cor ? ' · ' + esc(i.cor) : ''}</div>
+        <div class="l"><span>${i.qtd} x ${fmt(i.preco_unit)}</span><span>${fmt(i.qtd * i.preco_unit)}</span></div></div>`).join('')}
+      <hr><div class="l t"><span>${c.pecas} PEÇA${c.pecas === 1 ? '' : 'S'}</span><span>${fmt(c.valor)}</span></div>
+      ${c.observacao ? `<div class="p">Obs.: ${esc(c.observacao)}</div>` : ''}
+      <hr><div class="p">Recebi as peças acima para provar. Devolvo as que não ficar até a data, sem uso e com etiqueta; as que ficar, pago na devolução.</div>
+      <div style="margin-top:9mm;border-top:1px solid #000" class="c p">Assinatura</div>
+    </body></html>`;
+  }
+  function imprimirCondicional(c) { imprimirDocumento(documentoCondicional(c, configCupom().largura), configCupom().largura); }
+  function msgCondicional(c, cobrar) {
+    const nome = c.cliente_nome.split(' ')[0];
+    if (cobrar) return `Oi, ${nome}! Aqui é da Loja Gutto 😊 Passando pra lembrar do condicional nº ${c.numero} (${c.pecas} peça${c.pecas === 1 ? '' : 's'}), que ficou pra ${dataBR(c.prazo)}. Quando fica bom pra você trazer as peças (ou ficar com as que gostou)?`;
+    return `Oi, ${nome}! Aqui é da Loja Gutto 😊 Seu condicional nº ${c.numero}:\n` + c.itens.map(i => `• ${i.qtd}x ${i.produto_nome} ${i.tamanho}${i.cor ? ' ' + i.cor : ''} — ${fmt(i.preco_unit)}`).join('\n') + `\nDevolução até ${dataBR(c.prazo)}. Qualquer dúvida, é só chamar!`;
+  }
+
+  // Do carrinho: as peças saem no nome da cliente, com prazo.
+  async function enviarComoCondicional() {
+    if (!state.cart.length) return;
+    let cliente = state.cliente;
+    if (!cliente) { cliente = await escolherCliente('Condicional fica no nome de quem?'); if (!cliente) return; setState({ cliente }); }
+    const pecas = state.cart.reduce((t, l) => t + l.qtd, 0);
+    const camada = abrirModal(`<div class="modal-card estreito">${cabecalhoModal('Enviar como condicional', pecas + ' peça(s) pra ' + cliente.nome + ' provar em casa')}
+      <label class="campo">Devolver até<input id="cd-prazo" type="date" value="${somaDiasISO(hojeLocal(), 3)}" min="${hojeLocal()}"></label>
+      <label class="campo">Observação (opcional)<input id="cd-obs" type="text" maxlength="300" placeholder="Ex.: vai ver qual tamanho serve"></label>
+      <div class="modal-dica" style="margin:0">As peças saem do estoque agora e ficam no nome dela. Na volta, o que ela ficar vira venda.</div>
+      <div class="erro-modal" id="cd-erro"></div>
+      <button class="btn-primario btn-grande" id="cd-ok">Enviar condicional</button></div>`);
+    camada.querySelector('#cd-ok').onclick = (ev) => comBotao(ev.target, 'Registrando...', async () => {
+      const c = await api('/condicionais', { method: 'POST', body: { clienteId: cliente.id, prazo: camada.querySelector('#cd-prazo').value, observacao: camada.querySelector('#cd-obs').value,
+        itens: state.cart.map(l => ({ variacaoId: l.variacaoId, qtd: l.qtd })) } });
+      Object.assign(state, { cart: [], pagamentos: [], cliente: null });
+      await carregarProdutos(); render(); carregarResumoCondicionais();
+      mostrarCondicionalCriado(c);
+    }, camada.querySelector('#cd-erro'));
+  }
+  function mostrarCondicionalCriado(c) {
+    const link = waLink(c.cliente_telefone, msgCondicional(c, false));
+    const camada = abrirModal(`<div class="modal-card estreito" style="text-align:center">${cabecalhoModal('Condicional nº ' + c.numero, c.cliente_nome)}
+      <div style="font-size:14px">${c.pecas} peça(s) · ${fmt(c.valor)} · devolver até <b>${dataBR(c.prazo)}</b></div>
+      <button class="btn-primario btn-grande" id="cd-imprimir">🖨 Imprimir comprovante (pra ela assinar)</button>
+      ${link ? `<a class="btn-secundario" href="${link}" target="_blank" rel="noopener" style="text-decoration:none">Mandar a lista no WhatsApp</a>` : ''}
+      <button class="link-btn" data-fechar>Fechar</button></div>`);
+    camada.querySelector('#cd-imprimir').onclick = () => imprimirCondicional(c);
+  }
+
+  async function abrirCondicionais(fechados) {
+    const camada = abrirModal(`<div class="modal-card largo">${cabecalhoModal('Condicionais', 'Peças que estão com clientes pra provar')}
+      <div class="chips"><button class="chip ${fechados ? '' : 'ativo'}" data-cdl="abertos">Com a cliente</button><button class="chip ${fechados ? 'ativo' : ''}" data-cdl="fechados">Fechados</button></div>
+      <div id="cd-corpo"><div class="carregando">Carregando...</div></div></div>`);
+    camada.querySelectorAll('[data-cdl]').forEach(b => b.onclick = () => abrirCondicionais(b.dataset.cdl === 'fechados'));
+    let lista;
+    try { lista = await api('/condicionais' + (fechados ? '?status=fechados' : '')); } catch (e) { toast(e.message, 'erro'); return; }
+    const corpo = camada.querySelector('#cd-corpo');
+    if (!corpo) return;
+    corpo.innerHTML = lista.length ? `<div class="tabela-scroll"><table class="tabela"><tr><th>Nº</th><th>Cliente</th><th>Peças</th><th style="text-align:right">Valor</th><th>${fechados ? 'Fechado' : 'Devolver até'}</th><th></th></tr>
+      ${lista.map(c => `<tr><td>${c.numero}</td><td>${esc(c.cliente_nome)}${c.cliente_telefone ? `<div style="font-size:11px;color:var(--text-2)">${esc(telefoneBR(c.cliente_telefone))}</div>` : ''}</td>
+        <td style="font-size:12px">${c.itens.map(i => `${i.qtd}× ${esc(i.produto_nome)} ${esc(i.tamanho)}${fechados ? (i.qtd_comprada ? ` <b class="valor-ok">(ficou ${i.qtd_comprada})</b>` : ' <span style="color:var(--text-2)">(voltou)</span>') : ''}`).join('<br>')}</td>
+        <td style="text-align:right">${fmt(c.valor)}</td>
+        <td style="white-space:nowrap">${fechados ? dataHora(c.fechado_em) + (c.venda_id ? '<div style="font-size:11px">virou venda</div>' : '<div style="font-size:11px;color:var(--text-2)">devolveu tudo</div>') : dataBR(c.prazo) + '<div>' + rotuloPrazo(c.prazo) + '</div>'}</td>
+        <td style="white-space:nowrap">${fechados ? `<button class="link-btn" data-cd-imp="${c.id}">comprovante</button>` : `<button class="btn-primario" data-cd-fechar="${c.id}">Fechar</button>
+          ${waLink(c.cliente_telefone, '') ? `<a class="link-btn" href="${waLink(c.cliente_telefone, msgCondicional(c, true))}" target="_blank" rel="noopener">cobrar no WhatsApp</a>` : ''}
+          <button class="link-btn" data-cd-imp="${c.id}">comprovante</button> <button class="link-btn" data-cd-prazo="${c.id}">mudar prazo</button>`}</td></tr>`).join('')}</table></div>`
+      : `<div class="vazio">${fechados ? 'Nenhum condicional fechado ainda.' : 'Nenhuma peça em condicional agora. Pra mandar: monte o carrinho e use "Enviar como condicional".'}</div>`;
+    const acha = (id) => lista.find(c => c.id === id);
+    corpo.querySelectorAll('[data-cd-imp]').forEach(b => b.onclick = () => imprimirCondicional(acha(b.dataset.cdImp)));
+    corpo.querySelectorAll('[data-cd-fechar]').forEach(b => b.onclick = () => abrirFecharCondicional(acha(b.dataset.cdFechar)));
+    corpo.querySelectorAll('[data-cd-prazo]').forEach(b => b.onclick = async () => {
+      const c = acha(b.dataset.cdPrazo);
+      const novo = prompt('Novo prazo de devolução (dd/mm/aaaa):', dataBR(c.prazo));
+      if (!novo) return;
+      const m = novo.trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+      if (!m) { toast('Use o formato dd/mm/aaaa', 'erro'); return; }
+      try { await api('/condicionais/' + c.id, { method: 'PUT', body: { prazo: m[3] + '-' + m[2].padStart(2, '0') + '-' + m[1].padStart(2, '0') } }); toast('Prazo alterado'); carregarResumoCondicionais(); abrirCondicionais(false); }
+      catch (e) { toast(e.message, 'erro'); }
+    });
+  }
+  function abrirFecharCondicional(c) {
+    const camada = abrirModal(`<div class="modal-card">${cabecalhoModal('Fechar condicional nº ' + c.numero, c.cliente_nome + ' · saiu ' + dataHora(c.criado_em))}
+      <div class="modal-dica" style="margin:0">Marque quantas peças de cada ela <b>ficou</b>. O resto volta pro estoque.</div>
+      <div class="tabela-scroll"><table class="tabela"><tr><th>Peça</th><th>Levou</th><th style="width:110px">Ficou com</th></tr>
+        ${c.itens.map((i, k) => `<tr><td>${esc(i.produto_nome)} · <b>${esc(i.tamanho)}</b>${i.cor ? ' · ' + esc(i.cor) : ''}<div style="font-size:11px;color:var(--text-2)">${fmt(i.preco_unit)}</div></td><td>${i.qtd}</td>
+          <td><input data-fc="${k}" type="number" min="0" max="${i.qtd}" step="1" value="0"></td></tr>`).join('')}</table></div>
+      <div class="modal-dica" id="fc-resumo" style="margin:0"></div>
+      <div class="erro-modal" id="fc-erro"></div>
+      <div class="modal-acoes"><button class="btn-secundario" id="fc-tudo">Devolveu tudo</button><button class="btn-primario btn-grande" id="fc-caixa" disabled>Ir pro caixa</button></div></div>`);
+    const ficou = () => c.itens.map((i, k) => ({ i, n: Math.max(0, Math.min(i.qtd, parseInt(camada.querySelector(`[data-fc="${k}"]`).value, 10) || 0)) }));
+    const atualizar = () => {
+      const f = ficou().filter(x => x.n > 0), n = f.reduce((t, x) => t + x.n, 0);
+      const btn = camada.querySelector('#fc-caixa');
+      btn.disabled = !n; btn.textContent = n ? 'Ir pro caixa com ' + n + ' peça' + (n === 1 ? '' : 's') : 'Ir pro caixa';
+      camada.querySelector('#fc-resumo').textContent = n ? 'Ficou com ' + n + ' · voltam ' + (c.pecas - n) + ' pro estoque' : 'Se ela não ficou com nada, use "Devolveu tudo".';
+    };
+    camada.querySelectorAll('[data-fc]').forEach(inp => inp.addEventListener('input', atualizar));
+    atualizar();
+    camada.querySelector('#fc-tudo').onclick = (ev) => comBotao(ev.target, 'Devolvendo...', async () => {
+      if (!confirm('Todas as ' + c.pecas + ' peças voltaram? Elas entram de novo no estoque.')) return;
+      await api('/condicionais/' + c.id + '/devolver-tudo', { method: 'POST' });
+      fecharModal(); toast('Condicional fechado — peças de volta no estoque');
+      await carregarProdutos(); render(); carregarResumoCondicionais();
+    }, camada.querySelector('#fc-erro'));
+    camada.querySelector('#fc-caixa').onclick = (ev) => comBotao(ev.target, 'Abrindo o caixa...', async () => {
+      if (!state.caixa || !state.caixa.sessao) await carregarCaixa();
+      if (!state.caixa || !state.caixa.sessao) throw new Error('Abra o caixa (no Início) pra fechar o condicional com venda.');
+      if (state.cart.length && !confirm('O carrinho tem outras peças. Juntar com as do condicional?')) return;
+      const cliente = await api('/clientes/' + c.cliente_id);
+      await carregarProdutos();
+      const cart = state.cart.slice();
+      for (const { i, n } of ficou().filter(x => x.n > 0)) {
+        const a = acharVariacao(i.variacao_id);
+        if (!a) throw new Error('Peça não encontrada: ' + i.produto_nome);
+        cart.push({ variacaoId: i.variacao_id, produtoNome: a.produto.nome, tamanho: a.variacao.tamanho, cor: a.variacao.cor, corHex: a.variacao.corHex,
+          precoUnit: a.variacao.precoVenda, precoCheio: a.variacao.preco, promocao: a.variacao.promocao, qtd: n, descPct: 0 });
+      }
+      fecharModal();
+      Object.assign(state, { condicional: c, cliente, pagamentos: [] });
+      setState({ cart });
+      irPara('venda');
+      toast('Peças do condicional no carrinho — escolha o pagamento');
+    }, camada.querySelector('#fc-erro'));
+  }
+  // Aviso no Início: atrasados e os que vencem hoje (todo mundo vê: é a equipe que cobra).
+  function carregarResumoCondicionais() {
+    api('/condicionais/resumo').then(r => { state.condicionaisResumo = r; if (state.view === 'inicio') renderAvisoCondicionais(); if (state.view === 'venda') renderVenda(); }).catch(() => {});
+  }
+  function renderAvisoCondicionais() {
+    const el = document.getElementById('aviso-condicionais');
+    if (!el) return;
+    const r = state.condicionaisResumo;
+    if (!r || !(r.atrasados || r.vencem_hoje)) { el.innerHTML = ''; return; }
+    const partes = [];
+    if (r.atrasados) partes.push(`<b>${r.atrasados} atrasado${r.atrasados > 1 ? 's' : ''}</b>`);
+    if (r.vencem_hoje) partes.push(`${r.vencem_hoje} pra devolver hoje`);
+    el.innerHTML = `<div class="aviso-caixa" style="${r.atrasados ? 'background:var(--zero-bg);color:var(--zero-text);border-color:var(--zero-border)' : ''}"><span>👗 Condicionais: ${partes.join(' · ')}</span><button class="btn-secundario" id="btn-ver-condicionais">Ver condicionais</button></div>`;
+    document.getElementById('btn-ver-condicionais').onclick = () => abrirCondicionais(false);
   }
 
   /* ---------- Troca / devolução ---------- */
@@ -2159,7 +2342,7 @@
         <div class="detalhe-acoes"><button class="btn-secundario" id="btn-etiquetas">Imprimir etiquetas</button>${ehAdmin() ? `<button class="btn-secundario" id="btn-editar-produto">Editar produto e estoque</button><button class="btn-secundario" id="btn-nova-cor">+ Nova cor</button><button class="btn-secundario" id="btn-parecido">Cadastrar parecido</button>` : ''}</div>
       </div>
       <div class="stats-row">
-        <div class="stat-card"><div class="stat-label">Estoque total</div><div class="stat-valor">${produto.estoqueTotal} un.</div></div>
+        <div class="stat-card"><div class="stat-label">Estoque total</div><div class="stat-valor">${produto.estoqueTotal} un.</div>${produto.emCondicional ? `<div class="stat-label">+ ${produto.emCondicional} em condicional (com cliente)</div>` : ''}</div>
         <div class="stat-card"><div class="stat-label">Preço de venda</div><div class="stat-valor" style="color:var(--accent)">${produto.precoBase === produto.precoMax ? fmt(produto.precoBase) : fmt(produto.precoBase) + ' – ' + fmt(produto.precoMax)}</div></div>
         ${ehAdmin() ? `<div class="stat-card"><div class="stat-label">Custo médio</div><div class="stat-valor">${fmt(produto.custoUnitario)}</div></div>
         <div class="stat-card"><div class="stat-label">Margem</div><div class="stat-valor" style="color:var(--teal)">${margem}%</div></div>` : ''}
@@ -4484,7 +4667,9 @@
   document.getElementById('btn-promocoes').addEventListener('click', () => abrirPromocoes());
   document.getElementById('btn-contagem').addEventListener('click', () => abrirContagem());
   document.getElementById('btn-troca').addEventListener('click', () => abrirTroca(false));
-  document.getElementById('btn-limpar-carrinho').addEventListener('click', () => { if (!state.cart.length || confirm('Limpar o carrinho?')) setState({ cart: [], pagamentos: [], cliente: null }); });
+  document.getElementById('btn-condicionais').addEventListener('click', () => abrirCondicionais(false));
+  document.getElementById('btn-enviar-condicional').addEventListener('click', () => enviarComoCondicional());
+  document.getElementById('btn-limpar-carrinho').addEventListener('click', () => { if (!state.cart.length || confirm('Limpar o carrinho?')) setState({ cart: [], pagamentos: [], cliente: null, condicional: null }); });
   document.getElementById('btn-novo-cliente').addEventListener('click', abrirNovoCliente);
   document.getElementById('btn-nova-compra').addEventListener('click', abrirNovaCompra);
   document.getElementById('btn-ler-nota').addEventListener('click', () => document.getElementById('input-nota').click());

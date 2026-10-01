@@ -354,11 +354,16 @@ app.get('/api/lojas/:lojaId/produtos', qualquer, rota(async (req, res) => {
   variacoes.forEach((v) => { (porProduto[v.produto_id] = porProduto[v.produto_id] || []).push(v); });
   const fotosPorProduto = await fotosDosProdutos(req.lojaId);
   const promos = await promocoes.ativas(pool, req.lojaId, TZ);
+  const { rows: foraCond } = await pool.query(
+    `SELECT ci.variacao_id, SUM(ci.qtd)::int AS qtd FROM condicional_itens ci JOIN condicionais c ON c.id = ci.condicional_id
+     WHERE c.loja_id = $1 AND c.status = 'aberto' GROUP BY ci.variacao_id`, [req.lojaId]);
+  const emCondicional = Object.fromEntries(foraCond.map((r) => [r.variacao_id, r.qtd]));
   res.json(produtos.map((p) => ({
     ...p,
     grade: p.grade_id ? { id: p.grade_id, nome: p.grade_nome, tamanhos: p.grade_tamanhos } : null,
     // preco_venda = preço da tabela (o que se edita); preco_promo = o que o cliente paga hoje.
-    variacoes: (porProduto[p.id] || []).map((v) => {
+    variacoes: (porProduto[p.id] || []).map((v0) => {
+      const v = emCondicional[v0.id] ? { ...v0, em_condicional: emCondicional[v0.id] } : v0;
       const pr = promocoes.precoComPromo(promos, p.id, p.categoria, v.preco_venda);
       return pr.promo ? { ...v, preco_promo: pr.preco, promocao: { id: pr.promo.id, nome: pr.promo.nome, pct: pr.promo.pct, fim: pr.promo.fim } } : v;
     }),
@@ -535,6 +540,130 @@ app.post('/api/lojas/:lojaId/variacoes/:id/ajuste-estoque', admin, rota(async (r
     return { estoque: novoEstoque, diferenca };
   });
   res.json({ ok: true, ...r });
+}));
+
+/* ---------- Condicional (cliente leva pra provar em casa) ---------- */
+
+const SQL_COND = `SELECT c.id, c.numero, c.cliente_id, cl.nome AS cliente_nome, cl.telefone AS cliente_telefone, c.status,
+    to_char(c.prazo, 'YYYY-MM-DD') AS prazo, c.observacao, c.venda_id, c.criado_em, c.fechado_em, u.nome AS criado_por_nome
+  FROM condicionais c JOIN clientes cl ON cl.id = c.cliente_id LEFT JOIN usuarios u ON u.id = c.criado_por`;
+async function itensCondicionais(db, ids) {
+  if (!ids.length) return {};
+  const { rows } = await db.query(
+    `SELECT ci.condicional_id, ci.variacao_id, ci.produto_nome, ci.tamanho, ci.cor, ci.qtd, ci.preco_unit::float AS preco_unit, ci.qtd_comprada, v.codigo_barras
+     FROM condicional_itens ci LEFT JOIN produto_variacoes v ON v.id = ci.variacao_id WHERE ci.condicional_id = ANY($1) ORDER BY ci.produto_nome, ci.tamanho`, [ids]);
+  const por = {};
+  rows.forEach((r) => { (por[r.condicional_id] = por[r.condicional_id] || []).push(r); });
+  return por;
+}
+async function comItens(db, lista) {
+  const itens = await itensCondicionais(db, lista.map((c) => c.id));
+  const hoje = promocoes.hojeNaLoja(TZ);
+  return lista.map((c) => {
+    const its = itens[c.id] || [];
+    return { ...c, itens: its, pecas: its.reduce((t, i) => t + i.qtd, 0), valor: round2(its.reduce((t, i) => t + i.qtd * i.preco_unit, 0)),
+      atrasado: c.status === 'aberto' && c.prazo < hoje };
+  });
+}
+// Devolve todas as peças do condicional pro estoque (no fechamento, com ou sem compra).
+async function devolverCondicional(c, cond, usuarioId, lojaId) {
+  const { rows: itens } = await c.query('SELECT variacao_id, SUM(qtd)::int AS qtd FROM condicional_itens WHERE condicional_id = $1 GROUP BY variacao_id ORDER BY variacao_id', [cond.id]);
+  for (const it of itens) {
+    const { rows } = await c.query('SELECT custo_unitario FROM produto_variacoes WHERE id = $1 FOR UPDATE', [it.variacao_id]);
+    if (!rows.length) continue;
+    const custo = Number(rows[0].custo_unitario);
+    await c.query('UPDATE produto_variacoes SET estoque = estoque + $1 WHERE id = $2', [it.qtd, it.variacao_id]);
+    await c.query(
+      `INSERT INTO movimentos_estoque_produto (id, loja_id, variacao_id, tipo, quantidade, custo_unitario, valor_total, referencia_tipo, referencia_id, observacao, criado_por)
+       VALUES ($1,$2,$3,'ajuste',$4,$5,$6,'condicional',$7,$8,$9)`,
+      [uid(), lojaId, it.variacao_id, it.qtd, custo, round2(it.qtd * custo), cond.id, 'Voltou do condicional nº ' + cond.numero, usuarioId]);
+  }
+  return itens;
+}
+
+app.get('/api/lojas/:lojaId/condicionais', qualquer, rota(async (req, res) => {
+  const abertos = req.query.status !== 'fechados';
+  const { rows } = await pool.query(SQL_COND + (abertos ? " WHERE c.loja_id = $1 AND c.status = 'aberto' ORDER BY c.prazo, c.numero"
+    : " WHERE c.loja_id = $1 AND c.status = 'fechado' ORDER BY c.fechado_em DESC LIMIT 50"), [req.lojaId]);
+  res.json(await comItens(pool, rows));
+}));
+
+app.get('/api/lojas/:lojaId/condicionais/resumo', qualquer, rota(async (req, res) => {
+  const hoje = promocoes.hojeNaLoja(TZ);
+  const { rows } = await pool.query(
+    `SELECT count(*)::int AS abertos, count(*) FILTER (WHERE prazo < $2::date)::int AS atrasados, count(*) FILTER (WHERE prazo = $2::date)::int AS vencem_hoje
+     FROM condicionais WHERE loja_id = $1 AND status = 'aberto'`, [req.lojaId, hoje]);
+  res.json(rows[0]);
+}));
+
+app.get('/api/lojas/:lojaId/condicionais/:id', qualquer, rota(async (req, res) => {
+  const { rows } = await pool.query(SQL_COND + ' WHERE c.id = $1 AND c.loja_id = $2', [req.params.id, req.lojaId]);
+  if (!rows.length) falha(404, 'condicional não encontrado');
+  res.json((await comItens(pool, rows))[0]);
+}));
+
+// Corpo: { clienteId, prazo, itens: [{variacaoId, qtd}], observacao? }
+app.post('/api/lojas/:lojaId/condicionais', qualquer, rota(async (req, res) => {
+  const body = req.body || {};
+  const prazo = dataISO(body.prazo, 'prazo de devolução');
+  if (prazo < promocoes.hojeNaLoja(TZ)) falha(400, 'O prazo de devolução já passou');
+  if (!Array.isArray(body.itens) || !body.itens.length || body.itens.length > 100) falha(400, 'Coloque as peças no carrinho');
+  const porVar = new Map();
+  for (const it of body.itens) {
+    if (!it || typeof it.variacaoId !== 'string') falha(400, 'peça inválida');
+    porVar.set(it.variacaoId, (porVar.get(it.variacaoId) || 0) + numero(it.qtd, 'qtd', { minExclusivo: true, inteiro: true, max: 100 }));
+  }
+  const r = await transacao(async (c) => {
+    const { rows: cli } = await c.query('SELECT id, nome FROM clientes WHERE id = $1 AND loja_id = $2', [body.clienteId, req.lojaId]);
+    if (!cli.length) falha(400, 'Escolha a cliente — o condicional fica no nome dela', { codigo: 'cliente_obrigatorio' });
+    await c.query('SELECT pg_advisory_xact_lock($1)', [910000 + req.lojaId]); // numeração sem repetir
+    const { rows: n } = await c.query('SELECT COALESCE(MAX(numero), 0) + 1 AS n FROM condicionais WHERE loja_id = $1', [req.lojaId]);
+    const id = uid(), numeroCond = n[0].n;
+    await c.query('INSERT INTO condicionais (id, loja_id, numero, cliente_id, prazo, observacao, criado_por) VALUES ($1,$2,$3,$4,$5,$6,$7)',
+      [id, req.lojaId, numeroCond, cli[0].id, prazo, texto(body.observacao, 'observação', { obrigatorio: false, max: 300 }), req.usuario.id]);
+    const promos = await promocoes.ativas(c, req.lojaId, TZ);
+    for (const [variacaoId, qtd] of [...porVar].sort((a, b) => (a[0] < b[0] ? -1 : 1))) {
+      const { rows } = await c.query(
+        `SELECT v.id, v.tamanho, v.cor, v.estoque, v.preco_venda, v.custo_unitario, v.ativo, p.nome, p.id AS produto_id, p.categoria
+         FROM produto_variacoes v JOIN produtos p ON p.id = v.produto_id WHERE v.id = $1 AND v.loja_id = $2 FOR UPDATE OF v`, [variacaoId, req.lojaId]);
+      const v = rows[0];
+      if (!v || !v.ativo) falha(404, 'Peça não encontrada ou inativa');
+      if (Number(v.estoque) < qtd) falha(409, 'Estoque insuficiente: ' + v.nome + ' ' + v.tamanho + (v.cor ? ' ' + v.cor : ''), { codigo: 'estoque_insuficiente', variacaoId: v.id, disponivel: Number(v.estoque) });
+      const preco = promocoes.precoComPromo(promos, v.produto_id, v.categoria, v.preco_venda).preco;
+      await c.query('INSERT INTO condicional_itens (id, condicional_id, variacao_id, produto_nome, tamanho, cor, qtd, preco_unit) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)',
+        [uid(), id, v.id, v.nome, v.tamanho, v.cor, qtd, preco]);
+      await c.query('UPDATE produto_variacoes SET estoque = estoque - $1 WHERE id = $2', [qtd, v.id]);
+      const custo = Number(v.custo_unitario);
+      await c.query(
+        `INSERT INTO movimentos_estoque_produto (id, loja_id, variacao_id, tipo, quantidade, custo_unitario, valor_total, referencia_tipo, referencia_id, observacao, criado_por)
+         VALUES ($1,$2,$3,'ajuste',$4,$5,$6,'condicional',$7,$8,$9)`,
+        [uid(), req.lojaId, v.id, -qtd, custo, round2(-qtd * custo), id, 'Saiu no condicional nº ' + numeroCond + ' (' + cli[0].nome + ')', req.usuario.id]);
+    }
+    const { rows } = await c.query(SQL_COND + ' WHERE c.id = $1', [id]);
+    return (await comItens(c, rows))[0];
+  });
+  res.status(201).json(r);
+}));
+
+app.put('/api/lojas/:lojaId/condicionais/:id', qualquer, rota(async (req, res) => {
+  const body = req.body || {};
+  const { rowCount } = await pool.query(
+    "UPDATE condicionais SET prazo = COALESCE($1, prazo), observacao = COALESCE($2, observacao) WHERE id = $3 AND loja_id = $4 AND status = 'aberto'",
+    [body.prazo ? dataISO(body.prazo, 'prazo') : null, body.observacao != null ? (texto(body.observacao, 'observação', { obrigatorio: false, max: 300 }) || '') : null, req.params.id, req.lojaId]);
+  if (!rowCount) falha(409, 'Condicional não encontrado ou já fechado');
+  res.json({ ok: true });
+}));
+
+// Devolveu tudo (não ficou com nada): peças voltam pro estoque e o condicional fecha.
+app.post('/api/lojas/:lojaId/condicionais/:id/devolver-tudo', qualquer, rota(async (req, res) => {
+  await transacao(async (c) => {
+    const { rows } = await c.query("SELECT * FROM condicionais WHERE id = $1 AND loja_id = $2 FOR UPDATE", [req.params.id, req.lojaId]);
+    if (!rows.length) falha(404, 'condicional não encontrado');
+    if (rows[0].status !== 'aberto') falha(409, 'Esse condicional já foi fechado');
+    await devolverCondicional(c, rows[0], req.usuario.id, req.lojaId);
+    await c.query("UPDATE condicionais SET status = 'fechado', fechado_por = $1, fechado_em = now() WHERE id = $2", [req.usuario.id, rows[0].id]);
+  });
+  res.json({ ok: true });
 }));
 
 /* ---------- Contagem de estoque (inventário com o bipador) ---------- */
@@ -904,6 +1033,18 @@ app.post('/api/lojas/:lojaId/vendas', qualquer, rota(async (req, res) => {
     // FOR SHARE: várias vendas podem rodar juntas, mas o fechamento (FOR UPDATE) espera elas.
     const sessao = await sessaoAberta(c, req.lojaId, 'SHARE');
     if (!sessao) falha(409, 'Caixa fechado — abra o caixa antes de vender', { codigo: 'caixa_fechado' });
+    // Fechando um condicional: as peças dele voltam pro estoque antes (o que a cliente ficou sai
+    // de novo logo abaixo, como venda normal). Tudo na mesma transação.
+    let condicional = null;
+    if (body.condicionalId) {
+      const { rows } = await c.query('SELECT * FROM condicionais WHERE id = $1 AND loja_id = $2 FOR UPDATE', [body.condicionalId, req.lojaId]);
+      if (!rows.length) falha(404, 'condicional não encontrado');
+      if (rows[0].status !== 'aberto') falha(409, 'Esse condicional já foi fechado', { codigo: 'condicional_fechado' });
+      condicional = rows[0];
+      if (body.clienteId && body.clienteId !== condicional.cliente_id) falha(400, 'A venda do condicional tem que ser no nome da mesma cliente');
+      body.clienteId = condicional.cliente_id;
+      await devolverCondicional(c, condicional, req.usuario.id, req.lojaId);
+    }
     const { rows: lojaRows } = await c.query('SELECT cashback_pct, desconto_livre_pct FROM lojas WHERE id = $1', [req.lojaId]);
     const cashbackPct = Number(lojaRows[0].cashback_pct);
     const descontoLivrePct = Number(lojaRows[0].desconto_livre_pct);
@@ -1005,6 +1146,13 @@ app.post('/api/lojas/:lojaId/vendas', qualquer, rota(async (req, res) => {
           [uid(), req.lojaId, clienteId, FORMAS_CREDITO[forma], -valor, vendaId, req.usuario.id]
         );
       }
+    }
+
+    if (condicional) {
+      for (const it of gravar) {
+        await c.query('UPDATE condicional_itens SET qtd_comprada = LEAST(qtd, $1) WHERE condicional_id = $2 AND variacao_id = $3', [it.qtd, condicional.id, it.variacaoId]);
+      }
+      await c.query("UPDATE condicionais SET status = 'fechado', venda_id = $1, fechado_por = $2, fechado_em = now() WHERE id = $3", [vendaId, req.usuario.id, condicional.id]);
     }
 
     // Cashback: só sobre o que foi pago com dinheiro "de verdade" (não gera cashback de

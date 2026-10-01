@@ -554,3 +554,36 @@ CREATE TABLE IF NOT EXISTS contagem_itens (
   atualizado_em TIMESTAMPTZ NOT NULL DEFAULT now(),
   PRIMARY KEY (contagem_id, variacao_id)
 );
+
+-- Condicional: a cliente leva peças pra provar em casa. As peças saem do estoque (ajuste com
+-- referência 'condicional') e ficam no nome dela até o prazo. No fechamento, tudo volta pro
+-- estoque e o que ela ficou vira uma venda normal (POST /vendas com condicionalId), na mesma
+-- transação — se a venda não sair, o condicional continua aberto.
+CREATE TABLE IF NOT EXISTS condicionais (
+  id TEXT PRIMARY KEY,
+  loja_id INTEGER NOT NULL REFERENCES lojas(id) ON DELETE CASCADE,
+  numero INTEGER NOT NULL,
+  cliente_id TEXT NOT NULL REFERENCES clientes(id),
+  status TEXT NOT NULL DEFAULT 'aberto' CHECK (status IN ('aberto', 'fechado')),
+  prazo DATE NOT NULL,
+  observacao TEXT,
+  venda_id TEXT REFERENCES vendas(id),
+  criado_por TEXT REFERENCES usuarios(id),
+  criado_em TIMESTAMPTZ NOT NULL DEFAULT now(),
+  fechado_por TEXT REFERENCES usuarios(id),
+  fechado_em TIMESTAMPTZ
+);
+CREATE UNIQUE INDEX IF NOT EXISTS condicionais_numero_uk ON condicionais(loja_id, numero);
+CREATE INDEX IF NOT EXISTS condicionais_abertos_idx ON condicionais(loja_id, prazo) WHERE status = 'aberto';
+CREATE TABLE IF NOT EXISTS condicional_itens (
+  id TEXT PRIMARY KEY,
+  condicional_id TEXT NOT NULL REFERENCES condicionais(id) ON DELETE CASCADE,
+  variacao_id TEXT NOT NULL REFERENCES produto_variacoes(id),
+  produto_nome TEXT NOT NULL,
+  tamanho TEXT NOT NULL,
+  cor TEXT NOT NULL DEFAULT '',
+  qtd INTEGER NOT NULL CHECK (qtd > 0),
+  preco_unit NUMERIC(12,2) NOT NULL,
+  qtd_comprada INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS condicional_itens_cond_idx ON condicional_itens(condicional_id);

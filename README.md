@@ -177,6 +177,19 @@ período anterior. "Este mês" compara com os mesmos dias do mês passado.
 
 Cada bloco tem **Baixar planilha** (abre direto no Excel).
 
+## Condicional (cliente leva pra provar em casa)
+
+- No caixa, monte o carrinho e clique **"Enviar como condicional"**: escolha a cliente e até quando
+  ela devolve. As peças saem do estoque e ficam no nome dela (o Estoque mostra "+ N em
+  condicional"). Imprima o **comprovante** pra ela assinar e, se quiser, mande a lista no WhatsApp.
+- **Na volta** (Venda rápida → "Condicionais" → Fechar): marque quantas peças ela **ficou**.
+  - Ficou com alguma: "Ir pro caixa" põe essas peças no carrinho, já no nome dela. Ao confirmar a
+    venda (com promoção, cashback, NFC-e...), o que voltou entra no estoque — tudo junto. Se a
+    venda não for confirmada, o condicional continua aberto.
+  - Não ficou com nada: "Devolveu tudo".
+- O **Início** avisa os condicionais atrasados e os que vencem hoje; na lista tem "cobrar no
+  WhatsApp" com a mensagem pronta, e "mudar prazo".
+
 ## Contagem de estoque (Estoque → "Contagem")
 
 - Escolha o que contar: **loja inteira**, **uma categoria** ou **um produto**. Depois é só **bipar
