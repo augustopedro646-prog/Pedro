@@ -52,14 +52,14 @@ ou deixar um item de fora. A mesma NF-e não entra duas vezes.
 ## Site da loja (pedidos online)
 
 O site pro cliente fica em **http://localhost:3000/loja** (depois do domínio, no endereço do
-domínio). Configure em **Equipe → Configurações da loja → Site da loja** (entrega, retirada, taxa,
+domínio). Configure em **Configurações → Site da loja** (entrega, retirada, taxa,
 WhatsApp, endereço). Produto aparece no site se estiver ativo, marcado "Mostrar no site" (na
 edição do produto, onde também vão as fotos) e com estoque. As peças de um pedido ficam
 reservadas na hora; ao concluir na aba **Pedidos online**, o pedido vira venda do caixa aberto.
 
 ## Pagamento pelo site (Mercado Pago)
 
-Configure em **Equipe → Configurações da loja → Pagamento pelo site**: Pix, cartão de crédito
+Configure em **Configurações → Pagamento pelo site**: Pix, cartão de crédito
 (com o máximo de parcelas) e se ainda aceita pagar na entrega/retirada.
 
 - **Pix:** o QR Code e o "copia e cola" aparecem na própria página do pedido. Quando o pagamento
@@ -90,7 +90,7 @@ parcelamento seguem o que estiver configurado na conta do Mercado Pago.
 
 ## Envio pelos Correios (Melhor Envio)
 
-Configure em **Equipe → Configurações da loja → Envio pra outras cidades**: CEP de onde sai, peso e
+Configure em **Configurações → Envio pra outras cidades**: CEP de onde sai, peso e
 tamanho médio de uma peça embalada, dias pra postar, frete grátis a partir de um valor e as
 **cidades onde a entrega da própria loja vai** (ex.: "Natal, Parnamirim").
 
@@ -171,7 +171,7 @@ EAN-8 e os demais em Code 128.
 Depois de confirmar a venda: **Imprimir cupom** (ou marque "imprimir automaticamente em toda
 venda"). Reimpressão em Venda rápida → **Vendas / troca** → "cupom". Na troca/devolução sai o
 comprovante de **vale-troca**. É cupom **não fiscal** (a NFC-e é outra etapa). Papel de 80 ou
-58 mm e o rodapé (ex.: política de troca) em Equipe → Configurações da loja. A página sai com a
+58 mm e o rodapé (ex.: política de troca) em Configurações. A página sai com a
 altura exata do conteúdo, sem gastar rolo.
 
 Sai pela janela de impressão do Windows (o navegador lembra a última impressora usada). Pra
@@ -200,7 +200,7 @@ continua sendo "não fiscal"; a NFC-e é a nota de verdade.
    FOCUS_NFE_TOKEN_PRODUCAO=token de produção da empresa
    ```
    Depois reinicie o serviço: `Restart-Service LojaGuttoAPI`.
-5. Em **Equipe → Configurações da loja → Nota fiscal**:
+5. Em **Configurações → Nota fiscal**:
    - Preencha **CFOP**, **CSOSN** e **origem**. Confirme esses três com a contadora; numa loja de
      roupa do Simples costuma ser 5102 / 102 / 0.
    - Preencha o **NCM** dos produtos. É o único dado fiscal que vai em cada produto (CFOP, CSOSN e
@@ -249,8 +249,8 @@ período anterior. "Este mês" compara com os mesmos dias do mês passado.
 - **Mais vendidos e curva ABC.** A = os produtos que fazem os primeiros 80% do vendido, B até 95%,
   C o resto. A coluna "Dura" diz quantos dias o estoque atual aguenta no ritmo de venda do período.
 - **Vendas por pessoa**, com comissão e barra da meta do mês. A meta aparece em "Este mês" e em
-  "Mês passado". A meta de cada pessoa se define em Equipe → Editar, e o % de comissão em Equipe →
-  Configurações da loja.
+  "Mês passado". A meta de cada pessoa se define em Equipe → Editar, e o % de comissão em
+  Configurações.
 - **Formas de pagamento** e **horários de pico** (dia da semana × hora; quanto mais escuro, mais
   vendas).
 - **Parados no estoque**: produtos com estoque que não venderam no período, com o custo parado.
@@ -276,7 +276,7 @@ Cada bloco tem **Baixar planilha** (abre direto no Excel).
 - No caixa, com a **cliente identificada**, aparece a forma **"Crediário"**. Pode ter entrada
   (ex.: Pix 60 + Crediário 240). Escolha em quantas vezes e o 1º vencimento; as parcelas caem todo
   mês no mesmo dia. No fim, **"Imprimir carnê"** sai na térmica com as parcelas pra ela assinar.
-- **Limite**: cada cliente tem um limite (o padrão da loja, em Equipe → Configurações, ou um
+- **Limite**: cada cliente tem um limite (o padrão da loja, em Configurações, ou um
   próprio no cadastro dela — só o Administrador muda). Passou do limite, pede PIN de
   Administrador. O carrinho mostra quanto ela já deve e se tem parcela atrasada.
 - **Receber** (Clientes → "Crediário", ou no cadastro da cliente): escolha a forma (dinheiro,
@@ -376,7 +376,7 @@ reinicie a LojaGuttoAPI.
 
 Automático, de hora em hora, feito pelo próprio servidor (não precisa configurar nada no Windows).
 Fica em `C:\LojaGutto\backups`: tudo das últimas 48h e um por dia até 30 dias. Cada backup é
-conferido depois de criado. O painel mostra o último backup (Equipe → Backup do banco, com botão
+conferido depois de criado. O painel mostra o último backup (Configurações → Backup do banco, com botão
 "Fazer backup agora") e o Início avisa se ele parar de funcionar.
 
 **Cópia fora do computador (importante):** no `api\.env`, uma linha

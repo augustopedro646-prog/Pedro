@@ -537,12 +537,22 @@
 
     <div class="view page" id="view-equipe">
       <div class="page-topo">
-        <div><h1 class="titulo">Equipe</h1><p class="sub">Quem acessa o sistema e configurações da loja</p></div>
+        <div><h1 class="titulo">Equipe</h1><p class="sub">Quem acessa o sistema: papel, PIN e meta de vendas</p></div>
         <button class="btn-primario" id="btn-novo-usuario">+ Novo usuário</button>
       </div>
       <div class="painel"><div id="equipe-lista"></div></div>
-      <div class="painel" style="margin-top:16px"><div class="painel-titulo">Configurações da loja</div><div id="config-loja"></div></div>
-      <div class="painel" style="margin-top:16px"><div class="painel-titulo-linha"><div class="painel-titulo">Backup do banco</div><button class="btn-secundario" id="btn-backup-agora">Fazer backup agora</button></div><div id="backup-info"></div></div>
+    </div>
+
+    <div class="view page" id="view-configuracoes">
+      <div class="page-topo"><div><h1 class="titulo">Configurações</h1><p class="sub">Vendas, cupom, nota fiscal, site, pagamento, envio e backup</p></div></div>
+      <div class="chips" id="cfg-atalhos" style="margin-bottom:12px">
+        <button class="chip" data-cfg-ir="cfg-sec-vendas">Vendas e crediário</button><button class="chip" data-cfg-ir="cfg-sec-cupom">Cupom</button>
+        <button class="chip" data-cfg-ir="cfg-sec-fiscal">Nota fiscal</button><button class="chip" data-cfg-ir="cfg-sec-site">Site da loja</button>
+        <button class="chip" data-cfg-ir="cfg-sec-pagamento">Pagamento pelo site</button><button class="chip" data-cfg-ir="cfg-sec-envio">Envio</button>
+        <button class="chip" data-cfg-ir="cfg-sec-backup">Backup</button>
+      </div>
+      <div class="painel"><div class="painel-titulo" id="cfg-sec-vendas">Vendas e crediário</div><div id="config-loja"></div></div>
+      <div class="painel" style="margin-top:16px" id="cfg-sec-backup"><div class="painel-titulo-linha"><div class="painel-titulo">Backup do banco</div><button class="btn-secundario" id="btn-backup-agora">Fazer backup agora</button></div><div id="backup-info"></div></div>
     </div>
 
     <div class="view page" id="view-whatsapp">
@@ -636,6 +646,7 @@
     chat: '<path d="M4 20l1.3-3.9A8 8 0 1 1 8 19z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M9 10.5h6M9 13.5h4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>',
     bag: '<path d="M5 8h14l-1.2 11.2a1.8 1.8 0 0 1-1.8 1.6H8a1.8 1.8 0 0 1-1.8-1.6z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M9 10V7a3 3 0 0 1 6 0v3" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>',
     calendar: '<rect x="3.5" y="5" width="17" height="15.5" rx="2.2" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M3.5 10h17M8 3v4M16 3v4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>',
+    gear: '<circle cx="12" cy="12" r="3.2" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M12 2.8v2.4M12 18.8v2.4M2.8 12h2.4M18.8 12h2.4M5.5 5.5l1.7 1.7M16.8 16.8l1.7 1.7M5.5 18.5l1.7-1.7M16.8 7.2l1.7-1.7" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><circle cx="12" cy="12" r="6.6" fill="none" stroke="currentColor" stroke-width="1.8"/>',
     menu: '<path d="M4 6h16M4 12h16M4 18h16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>',
     sun: '<circle cx="12" cy="12" r="4.2" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M12 2.5v2.6M12 18.9v2.6M4.2 4.2l1.9 1.9M17.9 17.9l1.9 1.9M2.5 12h2.6M18.9 12h2.6M4.2 19.8l1.9-1.9M17.9 6.1l1.9-1.9" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>',
     moon: '<path d="M20 14.5A8.5 8.5 0 1 1 9.5 4a7 7 0 0 0 10.5 10.5z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>',
@@ -656,6 +667,7 @@
     { id: 'calendario', label: 'Calendário', icon: 'calendar', papeis: ['administrador', 'caixa'] },
     { id: 'ponto', label: 'Bater ponto', icon: 'clock', papeis: ['administrador', 'caixa'] },
     { id: 'relatorios', label: 'Relatórios', icon: 'chart', papeis: ['administrador'] },
+    { id: 'configuracoes', label: 'Configurações', icon: 'gear', papeis: ['administrador'] },
   ];
   const VIEWS_FLEX = ['venda', 'estoque'];
   const PAPEL_LABEL = { administrador: 'Administrador', caixa: 'Caixa' };
@@ -863,8 +875,10 @@
           api('/contas-pagar' + (state.contasFiltro === 'pagas' ? '?status=pagas&mes=' + state.mesFluxo : ''))]);
         state.fluxo = fluxo; state.contas = contas;
       } else if (view === 'equipe') {
-        const [equipe, bkp, ncm] = await Promise.all([api('/equipe'), api('/backup'), api('/fiscal/ncm'), carregarConfig()]);
-        state.equipe = equipe; state.backup = bkp; state.fiscalNcm = ncm;
+        state.equipe = await api('/equipe');
+      } else if (view === 'configuracoes') {
+        const [bkp, ncm] = await Promise.all([api('/backup'), api('/fiscal/ncm'), carregarConfig()]);
+        state.backup = bkp; state.fiscalNcm = ncm;
       } else if (view === 'whatsapp') {
         await carregarWhatsApp(true);
         carregarMensagensClientes();
@@ -959,7 +973,7 @@
     if (state.view !== 'whatsapp') { clearInterval(timerWhats); timerWhats = null; }
 
     const renders = { inicio: renderInicio, venda: renderVenda, clientes: renderClientes, estoque: renderEstoque,
-      compras: renderCompras, fluxo: renderFluxo, equipe: renderEquipe, ponto: renderPonto, calendario: renderCalendario, online: renderOnline, whatsapp: renderWhatsApp, relatorios: renderRelatorios };
+      compras: renderCompras, fluxo: renderFluxo, equipe: renderEquipe, configuracoes: renderConfiguracoes, ponto: renderPonto, calendario: renderCalendario, online: renderOnline, whatsapp: renderWhatsApp, relatorios: renderRelatorios };
     (renders[state.view] || renderInicio)();
   }
 
@@ -4107,7 +4121,12 @@
         <button class="btn-secundario" data-editar="${u.id}">Editar</button>
       </div>`).join('');
     el.querySelectorAll('[data-editar]').forEach(b => b.onclick = () => abrirUsuario(state.equipe.find(u => u.id === b.dataset.editar)));
+  }
+
+  /* ================= Configurações ================= */
+  function renderConfiguracoes() {
     const cfg = state.config;
+    if (!cfg || !state.backup) { document.getElementById('config-loja').innerHTML = '<div class="carregando">Carregando...</div>'; return; }
     document.getElementById('config-loja').innerHTML = `
       <div class="linha-campos" style="max-width:520px;align-items:flex-end">
         <label class="campo">Cashback pro cliente (%)<input id="cfg-cashback" inputmode="decimal" value="${String(cfg.cashbackPct).replace('.', ',')}"></label>
@@ -4119,14 +4138,14 @@
         <label class="campo">Crediário: máximo de parcelas<input id="cfg-cred-max" inputmode="numeric" value="${(cfg.crediario || {}).maxParcelas || 6}"></label>
       </div>
       <div class="modal-dica" style="margin:4px 0 0">Acima do limite da cliente, o crediário pede PIN de Administrador. Dá pra dar um limite diferente pra cada cliente no cadastro dela.</div>
-      <div class="painel-titulo" style="margin:18px 0 8px;font-size:14px">Cupom da venda</div>
+      <div class="painel-titulo" id="cfg-sec-cupom" style="margin:18px 0 8px;font-size:14px">Cupom da venda</div>
       <div class="linha-campos" style="max-width:720px;align-items:flex-end">
         <label class="campo" style="flex:3">Rodapé do cupom (ex.: política de troca)<input id="cfg-cupom-rodape" maxlength="300" value="${esc(cfg.cupomRodape || '')}" placeholder="Trocas em até 30 dias com a etiqueta e o cupom."></label>
         <label class="campo">Papel (neste computador)<select id="cfg-cupom-largura"><option value="80" ${configCupom().largura == 80 ? 'selected' : ''}>80 mm</option><option value="58" ${configCupom().largura == 58 ? 'selected' : ''}>58 mm</option></select></label>
       </div>
-      <div class="painel-titulo" style="margin:18px 0 8px;font-size:14px">Nota fiscal (NFC-e)</div>
+      <div class="painel-titulo" id="cfg-sec-fiscal" style="margin:18px 0 8px;font-size:14px">Nota fiscal (NFC-e)</div>
       ${htmlConfigFiscal(cfg.fiscal)}
-      <div class="painel-titulo" style="margin:18px 0 8px;font-size:14px">Site da loja (pedidos online)</div>
+      <div class="painel-titulo" id="cfg-sec-site" style="margin:18px 0 8px;font-size:14px">Site da loja (pedidos online)</div>
       <div style="display:flex;gap:16px;flex-wrap:wrap;font-size:13px;margin-bottom:10px">
         <label style="display:flex;gap:6px;align-items:center"><input type="checkbox" id="cfg-site-ativo" ${cfg.site && cfg.site.ativo ? 'checked' : ''}> Site recebendo pedidos</label>
         <label style="display:flex;gap:6px;align-items:center"><input type="checkbox" id="cfg-site-retirada" ${cfg.site && cfg.site.aceitaRetirada ? 'checked' : ''}> Retirada na loja</label>
@@ -4164,7 +4183,7 @@
         aceitaEntrega: document.getElementById('cfg-site-entrega').checked, taxaEntrega: taxa, whatsapp: document.getElementById('cfg-site-whats').value,
         endereco: document.getElementById('cfg-site-endereco').value, mensagem: document.getElementById('cfg-site-msg').value } } });
       await carregarConfig(); toast('Configurações salvas');
-      renderEquipe();
+      renderConfiguracoes();
     }, document.getElementById('cfg-erro'));
     ligarNcmCategorias();
   }
@@ -4174,7 +4193,7 @@
     const pg = cfg.pagamento || {}, ev = cfg.envio || {};
     const chk = (id, v, rot) => `<label style="display:flex;gap:6px;align-items:center"><input type="checkbox" id="${id}" ${v ? 'checked' : ''}> ${rot}</label>`;
     const falta = (nome) => `<div class="aviso-caixa" style="margin:0 0 10px"><span>Falta <b>${nome}</b> no api\\.env — veja no README como pegar. Até lá, essa parte não aparece no site.</span></div>`;
-    return `<div class="painel-titulo" style="margin:18px 0 8px;font-size:14px">Pagamento pelo site (Mercado Pago)${pg.configurado && pg.teste ? ' <span class="tag aviso">modo teste</span>' : ''}</div>
+    return `<div class="painel-titulo" id="cfg-sec-pagamento" style="margin:18px 0 8px;font-size:14px">Pagamento pelo site (Mercado Pago)${pg.configurado && pg.teste ? ' <span class="tag aviso">modo teste</span>' : ''}</div>
       ${pg.configurado ? '' : falta('MERCADOPAGO_ACCESS_TOKEN')}
       <div style="display:flex;gap:16px;flex-wrap:wrap;font-size:13px;margin-bottom:10px">
         ${chk('cfg-pg-pix', pg.pix, 'Pix na hora (QR Code no site)')}
@@ -4186,7 +4205,7 @@
         <label class="campo">Prazo pra pagar (minutos)<input id="cfg-pg-minutos" inputmode="numeric" value="${pg.minutosPagar || 30}"></label>
       </div>
       <div class="modal-dica" style="margin-top:6px">Enquanto não paga, as peças ficam reservadas; passou do prazo, o pedido cancela sozinho. Os juros das parcelas seguem o que estiver configurado na sua conta do Mercado Pago.</div>
-      <div class="painel-titulo" style="margin:18px 0 8px;font-size:14px">Envio pra outras cidades (Correios via Melhor Envio)</div>
+      <div class="painel-titulo" id="cfg-sec-envio" style="margin:18px 0 8px;font-size:14px">Envio pra outras cidades (Correios via Melhor Envio)</div>
       ${ev.configurado ? '' : falta('MELHORENVIO_TOKEN')}
       <div style="display:flex;gap:16px;flex-wrap:wrap;font-size:13px;margin-bottom:10px">${chk('cfg-ev-ativo', ev.ativo, 'Enviar pelos Correios (frete calculado pelo CEP — só com pagamento pelo site)')}</div>
       <div class="linha-campos" style="max-width:720px">
@@ -4262,7 +4281,7 @@
         const r = await api('/fiscal/planilha', { method: 'POST', body: { arquivo: base64, nome: f.name } });
         state.fiscalNcm = await api('/fiscal/ncm');
         await carregarProdutos();
-        renderEquipe();
+        renderConfiguracoes();
         document.getElementById('ncm-resultado').innerHTML = `<div class="nfce-box ${r.problemas.length ? 'erro' : 'ok'}" style="align-items:flex-start;margin-bottom:8px">
           <div>✓ NCM atualizado em ${r.atualizados} produto${r.atualizados === 1 ? '' : 's'}.</div>
           ${r.problemas.length ? `<div style="font-weight:400">Linhas com problema (ficaram como estavam):<br>${r.problemas.map(p => 'Linha ' + p.linha + (p.produto ? ' (' + esc(p.produto) + ')' : '') + ': ' + esc(p.motivo)).join('<br>')}</div>` : ''}</div>`;
@@ -4274,7 +4293,7 @@
       const r = await api('/fiscal/ncm', { method: 'PUT', body: { categoria: cat, ncm: input.value } });
       state.fiscalNcm = await api('/fiscal/ncm');
       toast('NCM aplicado em ' + r.atualizados + ' produto' + (r.atualizados === 1 ? '' : 's'));
-      renderEquipe();
+      renderConfiguracoes();
     }));
   }
 
@@ -4293,7 +4312,7 @@
     const el = document.getElementById('aviso-backup');
     const p = ehAdmin() && state.backup && state.backup.status !== undefined ? problemaBackup(state.backup) : null;
     // Na primeira hora depois de instalar ainda não há backup — não assusta à toa.
-    el.innerHTML = p && !(state.backup.status === null) ? `<div class="aviso-caixa" style="background:var(--zero-bg);color:var(--zero-text);border-color:var(--zero-border)"><span>⚠ Backup: ${esc(p)}</span><button class="btn-secundario" onclick="irPara('equipe')">Ver backup</button></div>` : '';
+    el.innerHTML = p && !(state.backup.status === null) ? `<div class="aviso-caixa" style="background:var(--zero-bg);color:var(--zero-text);border-color:var(--zero-border)"><span>⚠ Backup: ${esc(p)}</span><button class="btn-secundario" onclick="irPara('configuracoes')">Ver backup</button></div>` : '';
   }
   function tamanho(bytes) { return bytes > 1048576 ? (bytes / 1048576).toFixed(1).replace('.', ',') + ' MB' : Math.max(1, Math.round(bytes / 1024)) + ' KB'; }
   function renderBackup() {
@@ -5029,7 +5048,7 @@
         ${vend.map(p => `<tr><td>${esc(p.nome)}</td><td class="num">${inteiro(p.vendas)}</td><td class="num">${brl(p.vendido)}</td><td class="num">${inteiro(p.pecas)}</td><td class="num">${brl(p.ticketMedio)}</td><td class="num">${brl(p.comissao)}</td>
           ${r.temMeta ? `<td>${p.meta ? `<div class="rel-meta" title="${esc(brl(p.vendido) + ' de ' + brl(p.meta))}"><div class="rel-meta-trilho"><div class="rel-meta-fill" style="width:${Math.min(100, p.vendido / p.meta * 100).toFixed(1)}%"></div></div><span class="num" style="font-size:12px;white-space:nowrap">${Math.round(p.vendido / p.meta * 100)}% de ${brlCurto(p.meta)}</span></div>` : '<span style="color:var(--text-2);font-size:12px">sem meta</span>'}</td>` : ''}</tr>`).join('')}
         </tbody></table></div>
-        <p class="modal-dica" style="margin:10px 0 0">${r.temMeta ? '' : 'A meta do mês aparece quando o período é "Este mês" ou "Mês passado". '}Meta de cada pessoa e % de comissão: aba Equipe.</p>` : '<div class="vazio">Nenhuma venda nesse período.</div>',
+        <p class="modal-dica" style="margin:10px 0 0">${r.temMeta ? '' : 'A meta do mês aparece quando o período é "Este mês" ou "Mês passado". '}Meta de cada pessoa: aba Equipe. % de comissão: aba Configurações.</p>` : '<div class="vazio">Nenhuma venda nesse período.</div>',
       vend.length ? relBtnCSV('pessoas') : '');
 
     // Formas de pagamento + horários de pico
@@ -5186,6 +5205,10 @@
     if (arquivos.length) lerNotaArquivos(arquivos);
   });
   document.getElementById('btn-novo-usuario').addEventListener('click', () => abrirUsuario(null));
+  document.querySelectorAll('[data-cfg-ir]').forEach(b => b.addEventListener('click', () => {
+    const alvo = document.getElementById(b.dataset.cfgIr);
+    if (alvo) alvo.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }));
   document.getElementById('btn-backup-agora').addEventListener('click', (ev) => comBotao(ev.target, 'Fazendo backup...', async () => {
     await api('/backup', { method: 'POST' });
     state.backup = await api('/backup'); renderBackup(); toast('Backup feito');

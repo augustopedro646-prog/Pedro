@@ -6,7 +6,7 @@
 //   FOCUS_NFE_CNPJ_EMITENTE=00000000000000
 //   FOCUS_NFE_TOKEN_HOMOLOGACAO=...        (token da EMPRESA, não o da conta: o da conta dá 401
 //   FOCUS_NFE_TOKEN_PRODUCAO=...            na emissão — aprendido no Jabá)
-// E na tela (Equipe → Configurações da loja → Nota fiscal): CFOP e CSOSN confirmados pela
+// E na tela (Configurações → Nota fiscal): CFOP e CSOSN confirmados pela
 // contadora, e o NCM de cada produto. Sem isso não emite: nota errada é pior que nota nenhuma.
 //
 // Uma nota por venda (notas_fiscais.venda_id único). A referência na Focus é estável por tentativa:
@@ -91,7 +91,7 @@ async function montarPayload(db, lojaId, vendaId, cpf) {
   const cfg = await configFiscal(db, lojaId);
   const falta = faltandoNoServidor();
   if (falta.length) throw new ErroFiscal('Nota fiscal ainda não configurada no servidor (falta ' + falta.join(', ') + ' no api\\.env)', 409);
-  if (!/^\d{4}$/.test(cfg.cfop) || !/^\d{3}$/.test(cfg.csosn)) throw new ErroFiscal('Preencha CFOP e CSOSN (confirmados pela contadora) em Equipe → Configurações da loja → Nota fiscal', 409);
+  if (!/^\d{4}$/.test(cfg.cfop) || !/^\d{3}$/.test(cfg.csosn)) throw new ErroFiscal('Preencha CFOP e CSOSN (confirmados pela contadora) em Configurações → Nota fiscal', 409);
 
   const { rows: itens } = await db.query(
     `SELECT vi.*, p.ncm, pv.sku, pv.codigo_barras FROM vendas_itens vi

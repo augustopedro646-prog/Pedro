@@ -5,7 +5,7 @@
 //   MELHORENVIO_TOKEN=...
 //   MELHORENVIO_AMBIENTE=producao     (ou sandbox, pra testar com a conta de testes)
 //   MELHORENVIO_EMAIL=email@da-loja    (o Melhor Envio pede um contato técnico em cada chamada)
-// E na tela (Equipe → Configurações da loja → Envio pelos Correios): CEP de onde sai e o peso/
+// E na tela (Configurações → Envio pelos Correios): CEP de onde sai e o peso/
 // tamanho médio de uma peça embalada.
 //
 // O preço do frete SEMPRE é recalculado no servidor na hora do pedido (o do navegador não vale).
