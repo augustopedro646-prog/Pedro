@@ -57,6 +57,58 @@ WhatsApp, endereço). Produto aparece no site se estiver ativo, marcado "Mostrar
 edição do produto, onde também vão as fotos) e com estoque. As peças de um pedido ficam
 reservadas na hora; ao concluir na aba **Pedidos online**, o pedido vira venda do caixa aberto.
 
+## Pagamento pelo site (Mercado Pago)
+
+Configure em **Equipe → Configurações da loja → Pagamento pelo site**: Pix, cartão de crédito
+(com o máximo de parcelas) e se ainda aceita pagar na entrega/retirada.
+
+- **Pix:** o QR Code e o "copia e cola" aparecem na própria página do pedido. Quando o pagamento
+  cai, a página e o painel atualizam sozinhos e a cliente recebe "recebemos o pagamento" no WhatsApp.
+- **Cartão:** a cliente vai pra página do Mercado Pago, paga e volta pro acompanhamento do pedido.
+  Os dados do cartão nunca passam pelo sistema da loja.
+- Enquanto não paga, o pedido fica em **"Esperando o pagamento pelo site"** com as peças
+  reservadas. Passou do prazo (padrão 30 minutos), cancela sozinho e as peças voltam. Se alguém
+  pagar depois disso, o dinheiro é devolvido automaticamente.
+- **Cancelar um pedido já pago devolve o dinheiro** pelo Mercado Pago (no cartão pode levar alguns
+  dias pra aparecer na fatura).
+- Ao concluir, vira venda no caixa em Pix ou Crédito (o dinheiro está na conta do Mercado Pago, não
+  na gaveta).
+
+**Pra ligar:**
+1. Crie a conta no Mercado Pago (de preferência como empresa, com o CNPJ da Gutto).
+2. Em mercadopago.com.br/developers → **Suas integrações** → **Criar aplicação** (tipo "Pagamentos
+   online", produto "Checkout Pro"), pegue o **Access Token**. Comece pelas credenciais de **teste**
+   (começam com `TEST-`): dá pra pagar com cartões de teste sem cobrar ninguém.
+3. No `api\.env`: `MERCADOPAGO_ACCESS_TOKEN=...` e reinicie a API (`Restart-Service LojaGuttoAPI`).
+4. Com o domínio no ar, em **Webhooks** da aplicação: URL
+   `https://SEU-DOMINIO/api/lojas/1/loja/pagamentos/webhook`, evento **Pagamentos**. Copie a
+   "assinatura secreta" pra `MERCADOPAGO_WEBHOOK_SECRET=` (opcional, mas recomendado).
+5. Testou tudo? Troque pelo Access Token de **produção** (`APP_USR-...`).
+
+As taxas são as do Mercado Pago (Pix costuma ser bem mais barato que cartão). Os juros do
+parcelamento seguem o que estiver configurado na conta do Mercado Pago.
+
+## Envio pelos Correios (Melhor Envio)
+
+Configure em **Equipe → Configurações da loja → Envio pra outras cidades**: CEP de onde sai, peso e
+tamanho médio de uma peça embalada, dias pra postar, frete grátis a partir de um valor e as
+**cidades onde a entrega da própria loja vai** (ex.: "Natal, Parnamirim").
+
+- No site, em "Receber em casa", a cliente digita o **CEP**: o endereço é preenchido sozinho e
+  aparecem as opções — a entrega da loja (se a cidade estiver na lista) e os Correios (PAC, SEDEX...)
+  com preço e prazo. Envio pelos Correios é sempre pago pelo site.
+- No painel, o pedido mostra o serviço e o endereço com **"copiar endereço pra etiqueta"**. Compre
+  a etiqueta no site do Melhor Envio, poste, e clique **"📦 Postado"** com o código de rastreio: a
+  cliente recebe o código no WhatsApp e vê no acompanhamento.
+
+**Pra ligar:** crie a conta em melhorenvio.com.br, vá em **Integrações → Permissões de acesso →
+Gerar novo token** (marque as permissões de cálculo de frete), e no `api\.env`:
+`MELHORENVIO_TOKEN=...`, `MELHORENVIO_EMAIL=email-da-loja` e reinicie a API.
+
+⚠ **Nota fiscal pra outros estados:** a NFC-e (cupom fiscal) só vale pra venda ao consumidor
+dentro do RN. Pra mandar pra outro estado precisa de **NF-e** (modelo 55) e pode ter DIFAL —
+confirme com a contadora antes de ligar o envio pra fora do estado.
+
 ## Atendente de WhatsApp (pasta `bot-whatsapp/`)
 
 Mesmo modelo do Jabá: um programa à parte que conecta no WhatsApp da loja (pareado por QR Code,

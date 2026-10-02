@@ -696,3 +696,39 @@ CREATE TABLE IF NOT EXISTS mensagens_clientes (
 );
 CREATE INDEX IF NOT EXISTS mensagens_clientes_status_idx ON mensagens_clientes(loja_id, status, criado_em);
 CREATE INDEX IF NOT EXISTS mensagens_clientes_cliente_idx ON mensagens_clientes(cliente_id, tipo, criado_em);
+
+-- ============================================================================
+-- Pagamento pelo site (Mercado Pago: Pix com QR na própria página + cartão no Checkout Pro) e
+-- envio pra outras cidades com frete calculado pelo CEP (Melhor Envio).
+-- Pedido pago online nasce "aguardando_pagamento" com as peças já reservadas; vira "recebido"
+-- quando o Mercado Pago confirma. Não pagou no prazo → cancela sozinho e devolve as peças.
+-- ============================================================================
+ALTER TABLE lojas ADD COLUMN IF NOT EXISTS pagamento_config JSONB NOT NULL DEFAULT '{}';
+ALTER TABLE lojas ADD COLUMN IF NOT EXISTS envio_config JSONB NOT NULL DEFAULT '{}';
+
+ALTER TABLE pedidos_online DROP CONSTRAINT IF EXISTS pedidos_online_status_check;
+ALTER TABLE pedidos_online ADD CONSTRAINT pedidos_online_status_check
+  CHECK (status IN ('aguardando_pagamento', 'recebido', 'separando', 'pronto', 'saiu_entrega', 'entregue', 'cancelado'));
+ALTER TABLE pedidos_online DROP CONSTRAINT IF EXISTS pedidos_online_tipo_check;
+ALTER TABLE pedidos_online ADD CONSTRAINT pedidos_online_tipo_check CHECK (tipo IN ('entrega', 'retirada', 'envio'));
+
+ALTER TABLE pedidos_online ADD COLUMN IF NOT EXISTS pago_online BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE pedidos_online ADD COLUMN IF NOT EXISTS pag_metodo TEXT; -- 'pix' | 'cartao' (como a pessoa escolheu pagar no site)
+ALTER TABLE pedidos_online ADD COLUMN IF NOT EXISTS pag_status TEXT; -- aguardando | pago | expirado | estornado
+ALTER TABLE pedidos_online ADD COLUMN IF NOT EXISTS pag_expira_em TIMESTAMPTZ;
+ALTER TABLE pedidos_online ADD COLUMN IF NOT EXISTS pago_em TIMESTAMPTZ;
+ALTER TABLE pedidos_online ADD COLUMN IF NOT EXISTS pag_parcelas INTEGER;
+ALTER TABLE pedidos_online ADD COLUMN IF NOT EXISTS pag_nota TEXT; -- ex.: "estornado: pago depois de expirar"
+ALTER TABLE pedidos_online ADD COLUMN IF NOT EXISTS mp_pagamento_id TEXT;
+ALTER TABLE pedidos_online ADD COLUMN IF NOT EXISTS mp_preferencia_url TEXT;
+ALTER TABLE pedidos_online ADD COLUMN IF NOT EXISTS pix_copia_cola TEXT;
+ALTER TABLE pedidos_online ADD COLUMN IF NOT EXISTS pix_qr_base64 TEXT;
+ALTER TABLE pedidos_online ADD COLUMN IF NOT EXISTS email TEXT;
+ALTER TABLE pedidos_online ADD COLUMN IF NOT EXISTS cep TEXT;
+ALTER TABLE pedidos_online ADD COLUMN IF NOT EXISTS cidade TEXT;
+ALTER TABLE pedidos_online ADD COLUMN IF NOT EXISTS uf TEXT;
+ALTER TABLE pedidos_online ADD COLUMN IF NOT EXISTS envio_servico_id TEXT;
+ALTER TABLE pedidos_online ADD COLUMN IF NOT EXISTS envio_servico TEXT;
+ALTER TABLE pedidos_online ADD COLUMN IF NOT EXISTS envio_prazo_dias INTEGER;
+ALTER TABLE pedidos_online ADD COLUMN IF NOT EXISTS rastreio TEXT;
+CREATE INDEX IF NOT EXISTS pedidos_online_aguardando_idx ON pedidos_online(loja_id, pag_expira_em) WHERE status = 'aguardando_pagamento';

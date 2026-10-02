@@ -115,12 +115,17 @@
   .campo { display: flex; flex-direction: column; gap: 5px; font-size: 13px; font-weight: 600; color: var(--text-2); }
   .campo input, .campo textarea { height: 46px; border-radius: 12px; border: 1px solid var(--border); background: var(--surface); padding: 0 12px; font-weight: 400; color: var(--text); font-size: 16px; }
   .campo textarea { height: 70px; padding: 10px 12px; resize: vertical; }
-  .dupla { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .dupla { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px; }
+  .campo input, .campo textarea { min-width: 0; width: 100%; box-sizing: border-box; }
   .escolhas { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
   .escolha { border: 1.5px solid var(--border); background: var(--surface); border-radius: 14px; padding: 12px; text-align: left; }
   .escolha b { display: block; font-size: 14px; }
   .escolha small { color: var(--text-2); font-size: 12px; }
   .escolha.sel { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 10%, var(--surface)); }
+  .pix-caixa { border: 1.5px solid var(--accent); border-radius: 16px; padding: 14px; display: flex; flex-direction: column; gap: 10px; align-items: stretch; text-align: center; }
+  .pix-qr { width: 220px; height: 220px; max-width: 100%; align-self: center; background: #fff; padding: 8px; border-radius: 12px; image-rendering: pixelated; }
+  .pix-codigo { width: 100%; font-family: ui-monospace, monospace; font-size: 12px; padding: 8px; border-radius: 10px; border: 1px solid var(--border); background: var(--bg); color: var(--text); resize: none; word-break: break-all; }
+  .pago-ok { font-weight: 700; color: var(--ok, #1f7a4d); }
 
   .barra-sacola { position: fixed; left: 12px; right: 12px; bottom: calc(12px + env(safe-area-inset-bottom)); z-index: 30; display: none; }
   .barra-sacola button { width: 100%; max-width: 560px; margin: 0 auto; display: flex; justify-content: space-between; align-items: center; height: 58px; border-radius: 18px; border: none; background: var(--text); color: var(--bg); padding: 0 20px; font-weight: 700; font-size: 15px; box-shadow: 0 12px 30px var(--shadow); }
@@ -387,79 +392,143 @@
   }
 
   /* ---------- Checkout ---------- */
+  // tipo: 'retirada' | 'casa' (entrega da loja ou envio pelos Correios, decidido pelo CEP quando o
+  // envio está ligado). pag: 'online:pix' | 'online:cartao' | forma na entrega ('Pix', 'Dinheiro'...).
   function abrirCheckout() {
     const c = state.config;
+    const pg = c.pagamento || { naEntrega: true }, envioAtivo = !!(c.envio && c.envio.ativo);
     const cli = state.cliente;
-    let tipo = cli.tipo && ((cli.tipo === 'entrega' && c.aceitaEntrega) || (cli.tipo === 'retirada' && c.aceitaRetirada)) ? cli.tipo : c.aceitaRetirada ? 'retirada' : 'entrega';
-    let pagamento = cli.pagamento || 'Pix';
+    const podeCasa = c.aceitaEntrega || envioAtivo;
+    let tipo = cli.tipo === 'retirada' && c.aceitaRetirada ? 'retirada' : (cli.tipo === 'entrega' || cli.tipo === 'envio') && podeCasa ? 'casa' : c.aceitaRetirada ? 'retirada' : 'casa';
+    const temOnline = pg.pix || pg.cartao;
+    let pag = cli.pag && (cli.pag === 'online:pix' ? pg.pix : cli.pag === 'online:cartao' ? pg.cartao : pg.naEntrega) ? cli.pag : pg.pix ? 'online:pix' : pg.cartao ? 'online:cartao' : 'Pix';
+    let fr = null, frErro = '', frCarregando = false, opcao = null; // opcao: 'local' | id do serviço
+    const valores = {};
+    const lerCampos = () => document.querySelectorAll('#folha [data-campo]').forEach(i => { valores[i.dataset.campo] = i.value; });
+    const v = (k, padrao) => esc(valores[k] != null ? valores[k] : padrao || '');
+    const ehEnvio = () => tipo === 'casa' && opcao && opcao !== 'local';
+    const taxaAtual = () => {
+      if (tipo !== 'casa') return 0;
+      if (!envioAtivo) return c.taxaEntrega;
+      if (opcao === 'local') return fr && fr.entregaLocal ? fr.entregaLocal.taxa : 0;
+      const o = fr && fr.opcoes.find(x => x.id === opcao);
+      return o ? o.preco : 0;
+    };
+    async function buscarFrete() {
+      lerCampos();
+      const cep = String(valores.cep || '').replace(/\D/g, '');
+      if (cep.length !== 8) return;
+      frCarregando = true; frErro = ''; desenhar();
+      try {
+        fr = await api('/loja/frete', { method: 'POST', body: { cep, itens: state.sacola.map(i => ({ variacaoId: i.variacaoId, qtd: i.qtd })) } });
+        if (fr.endereco.rua && !valores.rua) valores.rua = fr.endereco.rua;
+        if (fr.endereco.bairro && !valores.bairro) valores.bairro = fr.endereco.bairro;
+        opcao = fr.entregaLocal ? 'local' : fr.opcoes.length ? fr.opcoes[0].id : null;
+        if (!fr.entregaLocal && !fr.opcoes.length) frErro = fr.erroEnvio || 'Ainda não entregamos nesse CEP.';
+      } catch (e) { fr = null; opcao = null; frErro = e.message; }
+      frCarregando = false;
+      if (ehEnvio() && !pag.startsWith('online:')) pag = pg.pix ? 'online:pix' : 'online:cartao';
+      desenhar();
+    }
     const desenhar = () => {
-      const taxa = tipo === 'entrega' ? c.taxaEntrega : 0;
+      if (document.getElementById('folha')) lerCampos();
+      const taxa = taxaAtual();
       const total = round2(subtotal() + taxa);
-      const valores = {};
-      document.querySelectorAll('#folha [data-campo]').forEach(i => { valores[i.dataset.campo] = i.value; });
-      const v = (k, padrao) => esc(valores[k] != null ? valores[k] : padrao || '');
-      const folha = abrirFolha(`${topoFolha('Finalizar pedido', 'Você paga na ' + (tipo === 'entrega' ? 'entrega' : 'retirada') + ' — nada é cobrado agora')}
+      const online = pag.startsWith('online:');
+      const precisaCep = tipo === 'casa' && envioAtivo;
+      const formasEntrega = pg.naEntrega && !ehEnvio() ? ['Pix', 'Crédito', 'Débito', 'Dinheiro'] : [];
+      const rotEntrega = tipo === 'retirada' ? 'retirada' : 'entrega';
+      const opcoesFrete = !precisaCep || !fr ? '' : `<div class="escolhas">
+          ${fr.entregaLocal ? `<button class="escolha ${opcao === 'local' ? 'sel' : ''}" data-op="local"><b>🛵 Entrega da loja</b><small>${fr.entregaLocal.taxa ? brl(fr.entregaLocal.taxa) : 'Grátis'} · ${esc(fr.endereco.cidade)}</small></button>` : ''}
+          ${fr.opcoes.map(o => `<button class="escolha ${opcao === o.id ? 'sel' : ''}" data-op="${esc(o.id)}"><b>📦 ${esc(o.nome)}</b><small>${o.preco ? brl(o.preco) : '<b style="display:inline;color:var(--accent)">Frete grátis</b>'} · até ${o.prazo} dia${o.prazo === 1 ? '' : 's'} útei${o.prazo === 1 ? 'l' : 's'}</small></button>`).join('')}
+        </div>`;
+      const folha = abrirFolha(`${topoFolha('Finalizar pedido', online ? 'Pagamento seguro pelo Mercado Pago' : 'Você paga na ' + rotEntrega + ' — nada é cobrado agora')}
         <div class="dupla">
           <label class="campo">Seu nome<input data-campo="nome" autocomplete="name" value="${v('nome', cli.nome)}"></label>
           <label class="campo">WhatsApp<input data-campo="telefone" type="tel" inputmode="numeric" autocomplete="tel" placeholder="(84) 99999-8888" value="${v('telefone', cli.telefone ? telefoneBR(cli.telefone) : '')}"></label>
         </div>
         <div><div class="rotulo">Como quer receber?</div><div class="escolhas">
           ${c.aceitaRetirada ? `<button class="escolha ${tipo === 'retirada' ? 'sel' : ''}" data-tipo="retirada"><b>Retirar na loja</b><small>${c.endereco ? esc(c.endereco) : 'Sem taxa'}</small></button>` : ''}
-          ${c.aceitaEntrega ? `<button class="escolha ${tipo === 'entrega' ? 'sel' : ''}" data-tipo="entrega"><b>Receber em casa</b><small>${c.taxaEntrega ? 'Taxa ' + brl(c.taxaEntrega) : 'Entrega grátis'}</small></button>` : ''}
+          ${podeCasa ? `<button class="escolha ${tipo === 'casa' ? 'sel' : ''}" data-tipo="entrega"><b>Receber em casa</b><small>${envioAtivo ? (c.aceitaEntrega ? 'Entrega da loja ou Correios' : 'Pelos Correios — calcule pelo CEP') : c.taxaEntrega ? 'Taxa ' + brl(c.taxaEntrega) : 'Entrega grátis'}</small></button>` : ''}
         </div></div>
-        ${tipo === 'entrega' ? `<div class="dupla">
+        ${precisaCep ? `<div class="dupla">
+          <label class="campo">CEP<input data-campo="cep" inputmode="numeric" autocomplete="postal-code" maxlength="9" placeholder="00000-000" value="${v('cep', cli.cep)}"></label>
+          <div class="dica" style="align-self:end;padding-bottom:12px">${frCarregando ? 'Calculando o frete...' : fr ? esc(fr.endereco.cidade + ' - ' + fr.endereco.uf) : '<a href="https://buscacepinter.correios.com.br/" target="_blank" rel="noopener">Não sei meu CEP</a>'}</div></div>
+          ${frErro ? `<div class="erro">${esc(frErro)}</div>` : ''}${opcoesFrete}` : ''}
+        ${tipo === 'casa' && (!precisaCep || (fr && opcao)) ? `<div class="dupla">
           <label class="campo" style="grid-column:1/-1">Rua<input data-campo="rua" autocomplete="address-line1" value="${v('rua', cli.rua)}"></label>
           <label class="campo">Número<input data-campo="numero" value="${v('numero', cli.numero)}"></label>
           <label class="campo">Bairro<input data-campo="bairro" value="${v('bairro', cli.bairro)}"></label>
           <label class="campo" style="grid-column:1/-1">Complemento / ponto de referência<input data-campo="complemento" value="${v('complemento', cli.complemento)}"></label>
         </div>` : ''}
-        <div><div class="rotulo">Pagamento na ${tipo === 'entrega' ? 'entrega' : 'retirada'}</div><div class="opcoes">
-          ${['Pix', 'Crédito', 'Débito', 'Dinheiro'].map(f => `<button class="opcao ${pagamento === f ? 'sel' : ''}" data-pag="${f}">${f === 'Crédito' ? 'Cartão de crédito' : f === 'Débito' ? 'Cartão de débito' : f}</button>`).join('')}
-        </div></div>
-        ${pagamento === 'Dinheiro' ? `<label class="campo">Troco para quanto? (deixe vazio se não precisar)<input data-campo="troco" inputmode="decimal" placeholder="Ex.: 100,00" value="${v('troco')}"></label>` : ''}
+        ${temOnline ? `<div><div class="rotulo">Pagar agora pelo site</div><div class="opcoes">
+          ${pg.pix ? `<button class="opcao ${pag === 'online:pix' ? 'sel' : ''}" data-pag="online:pix">Pix</button>` : ''}
+          ${pg.cartao ? `<button class="opcao ${pag === 'online:cartao' ? 'sel' : ''}" data-pag="online:cartao">Cartão de crédito${pg.maxParcelas > 1 ? ' (até ' + pg.maxParcelas + 'x)' : ''}</button>` : ''}
+        </div></div>` : ''}
+        ${formasEntrega.length ? `<div><div class="rotulo">${temOnline ? 'Ou pagar' : 'Pagamento'} na ${rotEntrega}</div><div class="opcoes">
+          ${formasEntrega.map(f => `<button class="opcao ${pag === f ? 'sel' : ''}" data-pag="${f}">${f === 'Crédito' ? 'Cartão de crédito' : f === 'Débito' ? 'Cartão de débito' : f}</button>`).join('')}
+        </div></div>` : ehEnvio() && pg.naEntrega ? '<div class="dica">Pra envio pelos Correios, o pagamento é feito pelo site.</div>' : ''}
+        ${online ? `<label class="campo">E-mail (pro comprovante do pagamento)<input data-campo="email" type="email" autocomplete="email" inputmode="email" value="${v('email', cli.email)}"></label>` : ''}
+        ${pag === 'Dinheiro' ? `<label class="campo">Troco para quanto? (deixe vazio se não precisar)<input data-campo="troco" inputmode="decimal" placeholder="Ex.: 100,00" value="${v('troco')}"></label>` : ''}
         ${state.lista ? `<div class="dupla">
           <label class="campo">Seu nome no presente (pra família saber)<input data-campo="presente_de" maxlength="80" value="${v('presente_de', cli.nome)}"></label>
           <label class="campo">Mensagem pra família (opcional)<input data-campo="presente_msg" maxlength="300" value="${v('presente_msg')}"></label></div>` : ''}
         <label class="campo">Observação (opcional)<textarea data-campo="obs" maxlength="300" placeholder="Ex.: é presente, pode embalar?">${v('obs')}</textarea></label>
         <div>
           <div class="linha-total"><span>${state.sacola.reduce((s, i) => s + i.qtd, 0)} peça(s)</span><span>${brl(subtotal())}</span></div>
-          ${tipo === 'entrega' ? `<div class="linha-total"><span>Entrega</span><span>${taxa ? brl(taxa) : 'grátis'}</span></div>` : ''}
+          ${tipo === 'casa' && (!precisaCep || opcao) ? `<div class="linha-total"><span>${ehEnvio() ? 'Frete' : 'Entrega'}</span><span>${taxa ? brl(taxa) : 'grátis'}</span></div>` : ''}
           <div class="linha-total grande"><span>Total</span><span>${brl(total)}</span></div>
         </div>
         <div class="erro" id="erro"></div>
-        <button class="btn" id="enviar">Enviar pedido</button>
+        <button class="btn" id="enviar">${pag === 'online:pix' ? 'Gerar o Pix' : pag === 'online:cartao' ? 'Ir pro pagamento' : 'Enviar pedido'}</button>
         <button class="btn-sec" id="voltar">Voltar pra sacola</button>`);
-      folha.querySelectorAll('[data-tipo]').forEach(b => b.onclick = () => { tipo = b.dataset.tipo; desenhar(); });
-      folha.querySelectorAll('[data-pag]').forEach(b => b.onclick = () => { pagamento = b.dataset.pag; desenhar(); });
+      folha.querySelectorAll('[data-tipo]').forEach(b => b.onclick = () => { tipo = b.dataset.tipo === 'retirada' ? 'retirada' : 'casa'; desenhar(); });
+      folha.querySelectorAll('[data-op]').forEach(b => b.onclick = () => { opcao = b.dataset.op; if (ehEnvio() && !pag.startsWith('online:')) pag = pg.pix ? 'online:pix' : 'online:cartao'; desenhar(); });
+      folha.querySelectorAll('[data-pag]').forEach(b => b.onclick = () => { pag = b.dataset.pag; desenhar(); });
+      const cepEl = folha.querySelector('[data-campo="cep"]');
+      if (cepEl) {
+        cepEl.oninput = () => { const d = cepEl.value.replace(/\D/g, '').slice(0, 8); if (d.length === 8 && (!fr || fr.endereco.cep !== d)) buscarFrete(); };
+        if (!fr && !frCarregando && String(cepEl.value).replace(/\D/g, '').length === 8 && !frErro) setTimeout(buscarFrete, 0);
+      }
       folha.querySelector('#voltar').onclick = abrirSacola;
-      folha.querySelector('#enviar').onclick = () => enviarPedido(tipo, pagamento, total);
+      folha.querySelector('#enviar').onclick = () => enviarPedido({ tipo: tipo === 'retirada' ? 'retirada' : ehEnvio() ? 'envio' : 'entrega', pag, total, fr, opcao, precisaCep });
     };
     desenhar();
   }
 
-  async function enviarPedido(tipo, pagamento, total) {
+  async function enviarPedido({ tipo, pag, total, fr, opcao, precisaCep }) {
     const campo = (k) => { const el = document.querySelector('#folha [data-campo="' + k + '"]'); return el ? el.value.trim() : ''; };
     const erro = document.getElementById('erro');
     const mostrar = (m) => { erro.textContent = m; };
     const nome = campo('nome'), telefone = campo('telefone').replace(/\D/g, '');
+    const online = pag.startsWith('online:') ? pag.slice(7) : null;
     if (!nome) return mostrar('Digite seu nome.');
     if (telefone.length < 10 || telefone.length > 11) return mostrar('Digite o WhatsApp com DDD (ex.: 84 99999-8888).');
     let endereco = null;
-    if (tipo === 'entrega') {
+    const cep = campo('cep').replace(/\D/g, '');
+    if (tipo !== 'retirada') {
+      if (precisaCep && (!fr || !opcao)) return mostrar('Digite o CEP e escolha como receber.');
       if (!campo('rua') || !campo('numero') || !campo('bairro')) return mostrar('Preencha rua, número e bairro pra entrega.');
-      endereco = campo('rua') + ', ' + campo('numero') + ' - ' + campo('bairro') + (campo('complemento') ? ' (' + campo('complemento') + ')' : '');
+      endereco = campo('rua') + ', ' + campo('numero') + ' - ' + campo('bairro') + (campo('complemento') ? ' (' + campo('complemento') + ')' : '')
+        + (fr ? ' - ' + fr.endereco.cidade + '/' + fr.endereco.uf + ' - CEP ' + cep.slice(0, 5) + '-' + cep.slice(5) : '');
     }
+    const email = campo('email');
+    if (online && !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) return mostrar('Digite seu e-mail (o Mercado Pago manda o comprovante pra ele).');
     let trocoPara = null;
-    if (pagamento === 'Dinheiro' && campo('troco')) {
+    if (pag === 'Dinheiro' && campo('troco')) {
       trocoPara = parseValor(campo('troco'));
       if (!Number.isFinite(trocoPara) || trocoPara < total) return mostrar('O troco precisa ser pra um valor maior que o total (' + brl(total) + ').');
     }
     const btn = document.getElementById('enviar');
-    btn.disabled = true; btn.textContent = 'Enviando...';
-    state.cliente = { nome, telefone, tipo, pagamento, rua: campo('rua'), numero: campo('numero'), bairro: campo('bairro'), complemento: campo('complemento') };
+    const rotuloBtn = btn.textContent;
+    btn.disabled = true; btn.textContent = online ? 'Gerando o pagamento...' : 'Enviando...';
+    state.cliente = { nome, telefone, tipo, pag, pagamento: online ? state.cliente.pagamento : pag, email: email || state.cliente.email, cep: cep || state.cliente.cep,
+      rua: campo('rua'), numero: campo('numero'), bairro: campo('bairro'), complemento: campo('complemento') };
     salvar('gutto-cliente', state.cliente);
     try {
-      const r = await api('/loja/pedidos', { method: 'POST', body: { nome, telefone, tipo, endereco, pagamento, trocoPara, observacao: campo('obs') || null,
+      const r = await api('/loja/pedidos', { method: 'POST', body: { nome, telefone, tipo, endereco, trocoPara, observacao: campo('obs') || null,
+        ...(online ? { pagamentoOnline: online, email } : { pagamento: pag }),
+        ...(cep.length === 8 && tipo !== 'retirada' ? { cep } : {}), ...(tipo === 'envio' ? { envio: { servicoId: opcao } } : {}),
         itens: state.sacola.map(i => ({ variacaoId: i.variacaoId, qtd: i.qtd })),
         lista: state.lista ? { token: state.lista.token, deQuem: campo('presente_de') || nome, mensagem: campo('presente_msg') || null } : undefined } });
       const resumo = state.sacola.map(i => i.qtd + 'x ' + i.nome + ' Tam ' + i.tamanho + (i.cor ? ' ' + i.cor : '')).join(', ');
@@ -467,10 +536,12 @@
       salvar('gutto-pedidos', state.meusPedidos);
       state.sacola = []; salvar('gutto-sacola', state.sacola); atualizarSacola();
       state.lista = null; salvar('gutto-lista', null);
-      mostrarConfirmacao(r, resumo, nome);
       carregarCatalogo().catch(() => {});
+      if (r.pagamento && r.pagamento.checkoutUrl) { btn.textContent = 'Abrindo o Mercado Pago...'; location.href = r.pagamento.checkoutUrl; return; }
+      if (r.pagamento) { abrirAcompanhamento(r.token); return; }
+      mostrarConfirmacao(r, resumo, nome);
     } catch (e) {
-      btn.disabled = false; btn.textContent = 'Enviar pedido';
+      btn.disabled = false; btn.textContent = rotuloBtn;
       if (e.data && (e.data.codigo === 'estoque_insuficiente' || e.data.codigo === 'peca_indisponivel')) {
         await carregarCatalogo().catch(() => {});
         mostrar(e.message + '. Atualizamos sua sacola — confira e envie de novo.');
@@ -495,26 +566,58 @@
 
   /* ---------- Acompanhar ---------- */
   let timerAcompanhar = null;
-  async function abrirAcompanhamento(token) {
+  async function abrirAcompanhamento(token, voltou) {
     history.replaceState(null, '', '#pedido=' + token);
     let p;
-    try { p = await api('/loja/pedidos/' + encodeURIComponent(token)); }
+    try { p = await api('/loja/pedidos/' + encodeURIComponent(token) + (voltou ? '?voltou=1' : '')); }
     catch (e) { abrirFolha(`${topoFolha('Pedido')}<div class="vazio">${esc(e.message)}</div>`); return; }
-    const cancelado = p.status === 'cancelado';
-    const etapas = ETAPAS.filter(([s]) => s !== 'saiu_entrega' || p.tipo === 'entrega');
+    const cancelado = p.status === 'cancelado', esperando = p.status === 'aguardando_pagamento';
+    const o = p.online;
+    const etapas = ETAPAS.filter(([s]) => s !== 'saiu_entrega' || p.tipo !== 'retirada').map(([s, rot]) => [s, s === 'saiu_entrega' && p.tipo === 'envio' ? 'Enviado' : rot]);
     const idx = etapas.findIndex(([s]) => s === p.status);
-    abrirFolha(`${topoFolha('Pedido #' + p.numero, 'Feito em ' + new Date(p.criadoEm).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }))}
-      ${cancelado ? `<div class="desc" style="color:var(--erro);font-weight:700">Este pedido foi cancelado. Qualquer dúvida, chame a loja no WhatsApp.</div>`
-        : `<div class="etapas">${etapas.map(([s, rot], k) => `<div class="etapa ${k < idx || p.status === 'entregue' ? 'feita' : k === idx ? 'atual' : ''}"><i>${k < idx || p.status === 'entregue' ? '✓' : ''}</i><div>${rot}${s === 'pronto' && p.tipo === 'retirada' ? ' — pode vir buscar' : ''}</div></div>`).join('')}</div>`}
+    const hora = (iso) => new Date(iso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+    let topo;
+    if (esperando && o && o.pix) {
+      topo = `<div class="pix-caixa">
+        <div style="font-weight:700;font-size:16px">Pague com Pix pra confirmar o pedido</div>
+        ${o.pix.qrBase64 ? `<img class="pix-qr" alt="QR Code do Pix" src="data:image/png;base64,${esc(o.pix.qrBase64)}">` : ''}
+        <div class="dica">No app do banco: Pix → Pagar com QR Code, ou use o "copia e cola":</div>
+        <textarea class="pix-codigo" id="pix-codigo" readonly rows="3">${esc(o.pix.copiaCola)}</textarea>
+        <button class="btn" id="pix-copiar">Copiar código do Pix</button>
+        <div class="dica">${o.expiraEm ? 'Pague até as <b>' + hora(o.expiraEm) + '</b> — depois disso o pedido é cancelado e as peças voltam pra loja. ' : ''}Assim que o pagamento cair, esta tela atualiza sozinha.</div></div>`;
+    } else if (esperando && o && o.checkoutUrl) {
+      topo = `<div class="pix-caixa"><div style="font-weight:700;font-size:16px">Falta pagar com o cartão</div>
+        <div class="dica">O pagamento é feito no Mercado Pago. Se já pagou, aguarde: a confirmação chega em instantes.</div>
+        <a class="btn" style="display:flex;align-items:center;justify-content:center;text-decoration:none" href="${esc(o.checkoutUrl)}">Pagar com cartão</a>
+        ${o.expiraEm ? `<div class="dica">Pague até as <b>${hora(o.expiraEm)}</b>.</div>` : ''}</div>`;
+    } else if (cancelado) {
+      topo = `<div class="desc" style="color:var(--erro);font-weight:700">${o && o.status === 'expirado' ? 'O prazo pra pagar acabou e o pedido foi cancelado. As peças voltaram pra loja — se ainda quiser, é só fazer o pedido de novo.' : 'Este pedido foi cancelado.'}
+        ${o && o.status === 'estornado' ? ' O valor pago foi devolvido pelo Mercado Pago (no cartão pode levar alguns dias pra aparecer).' : ''} Qualquer dúvida, chame a loja no WhatsApp.</div>`;
+    } else {
+      topo = `${o && o.status === 'pago' ? `<div class="pago-ok">✅ Pagamento confirmado${o.parcelas > 1 ? ' — ' + o.parcelas + 'x no cartão' : ''}</div>` : ''}
+        <div class="etapas">${etapas.map(([s, rot], k) => `<div class="etapa ${k < idx || p.status === 'entregue' ? 'feita' : k === idx ? 'atual' : ''}"><i>${k < idx || p.status === 'entregue' ? '✓' : ''}</i><div>${rot}${s === 'pronto' && p.tipo === 'retirada' ? ' — pode vir buscar' : ''}</div></div>`).join('')}</div>`;
+    }
+    const env = p.envio;
+    const folha = abrirFolha(`${topoFolha('Pedido #' + p.numero, 'Feito em ' + new Date(p.criadoEm).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }))}
+      ${topo}
+      ${env ? `<div class="desc" style="color:var(--text)">📦 ${esc(env.servico || 'Envio')} pra ${esc(env.cidade || '')}${env.uf ? '/' + esc(env.uf) : ''}${env.prazoDias ? ' · chega em até ' + env.prazoDias + ' dias úteis depois de postado' : ''}
+        ${env.rastreio ? `<div style="margin-top:6px">Código de rastreio: <b>${esc(env.rastreio)}</b> · <a href="https://www.melhorrastreio.com.br/rastreio/${encodeURIComponent(env.rastreio)}" target="_blank" rel="noopener">acompanhar a entrega</a></div>` : ''}</div>` : ''}
       <div>${p.itens.map(i => `<div class="linha-total" style="color:var(--text)"><span>${i.qtd}× ${esc(i.produtoNome)} · Tam ${esc(i.tamanho)}${i.cor ? ' · ' + esc(i.cor) : ''}</span><span>${brl(i.precoUnit * i.qtd)}</span></div>`).join('')}
-        ${p.taxaEntrega ? `<div class="linha-total"><span>Entrega</span><span>${brl(p.taxaEntrega)}</span></div>` : ''}
+        ${p.taxaEntrega ? `<div class="linha-total"><span>${p.tipo === 'envio' ? 'Frete' : 'Entrega'}</span><span>${brl(p.taxaEntrega)}</span></div>` : ''}
         <div class="linha-total grande"><span>Total</span><span>${brl(p.total)}</span></div>
-        <div class="dica">${p.tipo === 'entrega' ? 'Entrega' : 'Retirada na loja'} · pagamento em ${esc(p.pagamento)}</div></div>
+        <div class="dica">${p.tipo === 'envio' ? 'Envio pelos Correios' : p.tipo === 'entrega' ? 'Entrega' : 'Retirada na loja'} · ${o ? (o.status === 'pago' || o.status === 'estornado' ? 'pago pelo site' : 'pagamento pelo site') + ' (' + esc(o.metodo === 'pix' ? 'Pix' : p.pagamento === 'Crédito' ? 'cartão' : p.pagamento) + ')' : 'pagamento em ' + esc(p.pagamento)}</div></div>
       ${state.config && state.config.whatsapp ? `<a class="btn-sec" href="https://wa.me/55${esc(state.config.whatsapp)}?text=${encodeURIComponent('Oi! Queria saber do meu pedido #' + p.numero + '.')}" target="_blank" rel="noopener">Falar com a loja</a>` : ''}`);
+    const copiar = folha.querySelector('#pix-copiar');
+    if (copiar) copiar.onclick = async () => {
+      const t = folha.querySelector('#pix-codigo');
+      try { await navigator.clipboard.writeText(t.value); } catch (e) { t.select(); document.execCommand('copy'); }
+      copiar.textContent = 'Copiado! Agora cole no app do banco'; toast('Código do Pix copiado');
+    };
     clearInterval(timerAcompanhar);
     if (!cancelado && p.status !== 'entregue') timerAcompanhar = setInterval(async () => {
-      try { const n = await api('/loja/pedidos/' + encodeURIComponent(token)); if (n.status !== p.status) abrirAcompanhamento(token); } catch (e) {}
-    }, 20000);
+      if (!document.getElementById('folha') || location.hash !== '#pedido=' + token) { clearInterval(timerAcompanhar); return; }
+      try { const n = await api('/loja/pedidos/' + encodeURIComponent(token)); if (n.status !== p.status || n.atualizadoEm !== p.atualizadoEm) abrirAcompanhamento(token); } catch (e) {}
+    }, esperando ? 4000 : 20000);
   }
   function abrirMeusPedidos() {
     if (state.meusPedidos.length === 1) { abrirAcompanhamento(state.meusPedidos[0].token); return; }
@@ -532,7 +635,7 @@
 
   carregarCatalogo().then(() => {
     const m = location.hash.match(/^#pedido=([A-Za-z0-9_-]+)$/);
-    if (m) abrirAcompanhamento(m[1]);
+    if (m) abrirAcompanhamento(m[1], true);
     const ml = location.hash.match(/^#lista=([A-Za-z0-9_-]+)$/);
     if (ml) abrirLista(ml[1]);
   }).catch((e) => { document.getElementById('produtos').innerHTML = `<div class="vazio">${esc(e.message)}</div>`; });

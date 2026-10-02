@@ -13,6 +13,8 @@ const seguranca = require('./seguranca');
 const promocoes = require('./promocoes');
 const fiscal = require('./fiscal');
 const mensagens = require('./mensagens');
+const mp = require('./mercadopago');
+const frete = require('./frete');
 const ExcelJS = require('exceljs');
 const Anthropic = require('@anthropic-ai/sdk');
 const crypto = require('crypto');
@@ -240,6 +242,14 @@ app.put('/api/lojas/:lojaId/equipe/:id', admin, rota(async (req, res) => {
 
 /* ---------- Configuração da loja ---------- */
 
+// Pagamento pelo site: quais formas online a loja aceita (só valem com o Mercado Pago no .env) e
+// se ainda aceita "pagar na entrega/retirada".
+function mesclarPagamento(s) {
+  s = s && typeof s === 'object' ? s : {};
+  const n = (v, p, min, max) => (Number.isInteger(Number(v)) && Number(v) >= min && Number(v) <= max ? Number(v) : p);
+  return { pix: s.pix === true, cartao: s.cartao === true, naEntrega: s.naEntrega !== false, maxParcelas: n(s.maxParcelas, 3, 1, 12), minutosPagar: n(s.minutosPagar, 30, 30, 1440) }; // Pix: o Mercado Pago pede no mínimo 30 min
+}
+
 app.get('/api/lojas/:lojaId/config', qualquer, rota(async (req, res) => {
   const { rows } = await pool.query('SELECT * FROM lojas WHERE id = $1', [req.lojaId]);
   if (!rows.length) falha(404, 'loja não encontrada');
@@ -251,7 +261,9 @@ app.get('/api/lojas/:lojaId/config', qualquer, rota(async (req, res) => {
       ambiente: fiscal.ambiente(), faltandoNoServidor: fiscal.faltandoNoServidor(),
       pronto: !fiscal.faltandoNoServidor().length && /^\d{4}$/.test(l.fiscal_cfop || '') && /^\d{3}$/.test(l.fiscal_csosn || '') },
     site: { ativo: l.site_ativo, aceitaEntrega: l.aceita_entrega, aceitaRetirada: l.aceita_retirada, taxaEntrega: Number(l.taxa_entrega),
-      whatsapp: l.whatsapp || '', endereco: l.endereco || '', mensagem: l.mensagem_site || '' } });
+      whatsapp: l.whatsapp || '', endereco: l.endereco || '', mensagem: l.mensagem_site || '' },
+    pagamento: { ...mesclarPagamento(l.pagamento_config), configurado: mp.configurado(), teste: mp.modoTeste() },
+    envio: { ...frete.mesclarConfig(l.envio_config), configurado: frete.configurado() } });
 }));
 
 app.put('/api/lojas/:lojaId/config', admin, rota(async (req, res) => {
@@ -301,6 +313,16 @@ app.put('/api/lojas/:lojaId/config', admin, rota(async (req, res) => {
         site.endereco != null ? (texto(site.endereco, 'endereço', { obrigatorio: false, max: 200 }) || '') : null,
         site.mensagem != null ? (texto(site.mensagem, 'mensagem do site', { obrigatorio: false, max: 300 }) || '') : null, req.lojaId]
     );
+  }
+  if (body.pagamento && typeof body.pagamento === 'object') {
+    const pg = mesclarPagamento(body.pagamento);
+    if (!pg.naEntrega && !pg.pix && !pg.cartao) falha(400, 'Deixe pelo menos uma forma de pagamento no site');
+    await pool.query('UPDATE lojas SET pagamento_config = $1 WHERE id = $2', [JSON.stringify(pg), req.lojaId]);
+  }
+  if (body.envio && typeof body.envio === 'object') {
+    const ev = frete.mesclarConfig(body.envio);
+    if (ev.ativo && !ev.cepOrigem) falha(400, 'Pra enviar pelos Correios, preencha o CEP de onde os pedidos saem');
+    await pool.query('UPDATE lojas SET envio_config = $1 WHERE id = $2', [JSON.stringify(ev), req.lojaId]);
   }
   res.json({ ok: true });
 }));
@@ -2472,17 +2494,23 @@ app.get('/api/lojas/:lojaId/fotos/:id', rota(async (req, res) => {
 const limitePedidoSite = rateLimit({ windowMs: 15 * 60 * 1000, max: 15, message: { erro: 'Muitos pedidos seguidos — aguarde alguns minutos ou chame a loja no WhatsApp.' }, ...porVisitante });
 
 async function configSite(db, lojaId) {
-  const { rows } = await db.query('SELECT nome, site_ativo, aceita_entrega, aceita_retirada, taxa_entrega, whatsapp, endereco, mensagem_site FROM lojas WHERE id = $1', [lojaId]);
+  const { rows } = await db.query('SELECT nome, site_ativo, aceita_entrega, aceita_retirada, taxa_entrega, whatsapp, endereco, mensagem_site, pagamento_config, envio_config FROM lojas WHERE id = $1', [lojaId]);
   if (!rows.length) falha(404, 'loja não encontrada');
   const l = rows[0];
+  const pg = mesclarPagamento(l.pagamento_config), ev = frete.mesclarConfig(l.envio_config);
+  const pix = pg.pix && mp.configurado(), cartao = pg.cartao && mp.configurado();
   return { nome: l.nome, ativo: l.site_ativo, aceitaEntrega: l.aceita_entrega, aceitaRetirada: l.aceita_retirada, taxaEntrega: Number(l.taxa_entrega),
-    whatsapp: l.whatsapp || '', endereco: l.endereco || '', mensagem: l.mensagem_site || '' };
+    whatsapp: l.whatsapp || '', endereco: l.endereco || '', mensagem: l.mensagem_site || '',
+    // naEntrega cai pra true se nenhuma forma online estiver de pé (nunca deixa o site sem como pagar)
+    pagamento: { pix, cartao, naEntrega: pg.naEntrega || (!pix && !cartao), maxParcelas: pg.maxParcelas, minutosPagar: pg.minutosPagar },
+    envio: { ativo: ev.ativo && !!ev.cepOrigem && frete.configurado() && (pix || cartao), freteGratisAcima: ev.freteGratisAcima },
+    _envio: ev };
 }
 
 // Catálogo do site: só produto ativo + publicado. Estoque aparece limitado a 10 (o cliente só
 // precisa saber se tem e se são as últimas peças) e custo nunca sai daqui.
 app.get('/api/lojas/:lojaId/loja/catalogo', rota(async (req, res) => {
-  const config = await configSite(pool, req.lojaId);
+  const { _envio, ...config } = await configSite(pool, req.lojaId);
   if (!config.ativo) return res.json({ config, produtos: [] });
   const { rows: produtos } = await pool.query(
     `SELECT p.id, p.nome, p.categoria, p.descricao, g.tamanhos AS grade_tamanhos
@@ -2513,28 +2541,105 @@ app.get('/api/lojas/:lojaId/loja/catalogo', rota(async (req, res) => {
   });
 }));
 
-const STATUS_LABEL = { recebido: 'Recebido', separando: 'Separando as peças', pronto: 'Pronto', saiu_entrega: 'Saiu para entrega', entregue: 'Concluído', cancelado: 'Cancelado' };
+const STATUS_LABEL = { aguardando_pagamento: 'Aguardando pagamento', recebido: 'Recebido', separando: 'Separando as peças', pronto: 'Pronto', saiu_entrega: 'Saiu para entrega', entregue: 'Concluído', cancelado: 'Cancelado' };
+function rotuloStatus(p) { return p.tipo === 'envio' && p.status === 'saiu_entrega' ? 'Enviado' : STATUS_LABEL[p.status]; }
+
+// Itens da sacola → [{ variacaoId, qtd }] (somando linhas repetidas, ordenado pra travar sempre na mesma ordem).
+function lerItensSacola(lista) {
+  if (!Array.isArray(lista) || !lista.length || lista.length > 30) falha(400, 'Sacola vazia');
+  const porVariacao = new Map();
+  for (const it of lista) {
+    if (!it || typeof it.variacaoId !== 'string' || it.variacaoId.length > 40) falha(400, 'Item inválido');
+    const qtd = numero(it.qtd, 'quantidade', { minExclusivo: true, inteiro: true, max: 20 });
+    porVariacao.set(it.variacaoId, (porVariacao.get(it.variacaoId) || 0) + qtd);
+  }
+  return [...porVariacao].map(([variacaoId, qtd]) => ({ variacaoId, qtd })).sort((a, b) => (a.variacaoId < b.variacaoId ? -1 : 1));
+}
+// Subtotal da sacola (com promoção), sem travar nada — pra cotar o frete antes do pedido.
+async function subtotalSacola(lojaId, itens) {
+  const promos = await promocoes.ativas(pool, lojaId, TZ);
+  const { rows } = await pool.query(
+    `SELECT v.id, v.preco_venda, p.id AS produto_id, p.categoria FROM produto_variacoes v JOIN produtos p ON p.id = v.produto_id
+     WHERE v.id = ANY($1) AND v.loja_id = $2 AND v.ativo AND p.ativo AND p.publicado`, [itens.map((i) => i.variacaoId), lojaId]);
+  const porId = Object.fromEntries(rows.map((r) => [r.id, r]));
+  let subtotal = 0;
+  for (const it of itens) {
+    const v = porId[it.variacaoId];
+    if (!v) falha(409, 'Uma das peças não está mais disponível — atualize a página', { codigo: 'peca_indisponivel', variacaoId: it.variacaoId });
+    subtotal = round2(subtotal + promocoes.precoComPromo(promos, v.produto_id, v.categoria, v.preco_venda).preco * it.qtd);
+  }
+  return { subtotal, pecas: itens.reduce((t, i) => t + i.qtd, 0) };
+}
+
+const limiteFrete = rateLimit({ windowMs: 15 * 60 * 1000, max: 60, message: { erro: 'Muitas consultas de frete seguidas — aguarde alguns minutos.' }, ...porVisitante });
+// Corpo: { cep, itens } → endereço do CEP, se a entrega da loja atende e as opções de envio.
+app.post('/api/lojas/:lojaId/loja/frete', limiteFrete, rota(async (req, res) => {
+  const body = req.body || {};
+  const config = await configSite(pool, req.lojaId);
+  const end = await frete.endereco(body.cep).catch((e) => { throw new ErroApi(e.status || 502, e.message); });
+  const entregaLocal = config.aceitaEntrega && frete.entregaLocalAtende(config._envio, end.cidade);
+  let opcoes = [], erroEnvio = null;
+  if (config.envio.ativo) {
+    const { subtotal, pecas } = await subtotalSacola(req.lojaId, lerItensSacola(body.itens));
+    try { opcoes = await frete.cotar(config._envio, end.cep, pecas, subtotal); } catch (e) { erroEnvio = e.message; }
+  }
+  res.json({ endereco: end, entregaLocal: entregaLocal ? { taxa: config.taxaEntrega } : null, opcoes, erroEnvio });
+}));
+
+function urlSite(req) { return (process.env.SITE_URL || (req.protocol + '://' + req.get('host'))).replace(/\/+$/, ''); }
+function urlNotificacao(lojaId) {
+  const site = (process.env.SITE_URL || '').replace(/\/+$/, '');
+  return /^https:\/\//.test(site) ? site + '/api/lojas/' + lojaId + '/loja/pagamentos/webhook' : null;
+}
 
 // Pedido do site. Preço e total SEMPRE calculados aqui (nunca confiados do navegador) e as peças
 // ficam reservadas na hora. Telefone vira (ou encontra) o cadastro do cliente — ganha cashback.
+// Pago pelo site (pagamentoOnline 'pix' | 'cartao'): nasce "aguardando_pagamento" e só vira pedido
+// de verdade quando o Mercado Pago confirma. Envio pelos Correios (tipo 'envio') exige pagar online.
 app.post('/api/lojas/:lojaId/loja/pedidos', limitePedidoSite, rota(async (req, res) => {
   const body = req.body || {};
   const nome = texto(body.nome, 'Seu nome', { max: 100 });
   const telefone = soDigitos(body.telefone) || '';
   if (telefone.length < 10 || telefone.length > 11) falha(400, 'Telefone com DDD, só números (ex.: 84 99999-8888)');
-  if (!['entrega', 'retirada'].includes(body.tipo)) falha(400, 'Escolha entrega ou retirada');
-  if (!['Pix', 'Dinheiro', 'Débito', 'Crédito'].includes(body.pagamento)) falha(400, 'Escolha a forma de pagamento');
-  const endereco = body.tipo === 'entrega' ? texto(body.endereco, 'Endereço de entrega', { max: 300 }) : null;
-  const observacao = texto(body.observacao, 'Observação', { obrigatorio: false, max: 300 });
+  if (!['entrega', 'retirada', 'envio'].includes(body.tipo)) falha(400, 'Escolha como quer receber');
+  const online = ['pix', 'cartao'].includes(body.pagamentoOnline) ? body.pagamentoOnline : null;
+  if (!online && !['Pix', 'Dinheiro', 'Débito', 'Crédito'].includes(body.pagamento)) falha(400, 'Escolha a forma de pagamento');
   const origem = body.origem === 'whatsapp' ? 'whatsapp' : 'site';
-  if (!Array.isArray(body.itens) || !body.itens.length || body.itens.length > 30) falha(400, 'Sacola vazia');
-  const porVariacao = new Map();
-  for (const it of body.itens) {
-    if (!it || typeof it.variacaoId !== 'string' || it.variacaoId.length > 40) falha(400, 'Item inválido');
-    const qtd = numero(it.qtd, 'quantidade', { minExclusivo: true, inteiro: true, max: 20 });
-    porVariacao.set(it.variacaoId, (porVariacao.get(it.variacaoId) || 0) + qtd);
+  const observacao = texto(body.observacao, 'Observação', { obrigatorio: false, max: 300 });
+  const itens = lerItensSacola(body.itens);
+  const config = await configSite(pool, req.lojaId);
+  if (body.tipo === 'envio' && !online) falha(400, 'Pra enviar pelos Correios, o pagamento é feito pelo site (Pix ou cartão)');
+  if (online && !config.pagamento[online]) falha(400, 'Essa forma de pagamento pelo site não está disponível agora');
+  if (!online && !config.pagamento.naEntrega && origem === 'site') falha(400, 'O pagamento é feito pelo site (Pix ou cartão)');
+  let email = null;
+  if (online) {
+    email = texto(body.email, 'E-mail (pro comprovante do pagamento)', { max: 120 }).toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) falha(400, 'E-mail inválido');
   }
-  const itens = [...porVariacao].map(([variacaoId, qtd]) => ({ variacaoId, qtd })).sort((a, b) => (a.variacaoId < b.variacaoId ? -1 : 1));
+
+  // Endereço: com CEP, cidade/UF vêm do próprio CEP (não do navegador).
+  let endereco = null, cep = null, cidade = null, uf = null, envio = null;
+  if (body.tipo !== 'retirada') {
+    endereco = texto(body.endereco, 'Endereço de entrega', { max: 300 });
+    cep = body.cep ? frete.soCep(body.cep) : null;
+    if (body.cep && !cep) falha(400, 'CEP precisa ter 8 números');
+    if (body.tipo === 'envio' && !cep) falha(400, 'Digite o CEP pra calcular o envio');
+    if (cep) {
+      const end = await frete.endereco(cep).catch((e) => { throw new ErroApi(e.status || 502, e.message); });
+      cidade = end.cidade; uf = end.uf;
+    }
+    if (body.tipo === 'entrega' && cidade && !frete.entregaLocalAtende(config._envio, cidade)) {
+      falha(400, 'A entrega da loja não atende ' + cidade + (config.envio.ativo ? ' — escolha o envio pelos Correios' : ''));
+    }
+    if (body.tipo === 'envio') {
+      if (!config.envio.ativo) falha(400, 'Envio pelos Correios indisponível agora');
+      const servicoId = String((body.envio && body.envio.servicoId) || '');
+      const { subtotal: previa, pecas } = await subtotalSacola(req.lojaId, itens);
+      const opcoes = await frete.cotar(config._envio, cep, pecas, previa).catch((e) => { throw new ErroApi(e.status || 502, e.message); });
+      envio = opcoes.find((o) => o.id === servicoId);
+      if (!envio) falha(409, 'Essa opção de frete mudou — escolha de novo', { codigo: 'frete_mudou' });
+    }
+  }
 
   const r = await transacao(async (c) => {
     const config = await configSite(c, req.lojaId);
@@ -2561,10 +2666,10 @@ app.post('/api/lojas/:lojaId/loja/pedidos', limitePedidoSite, rota(async (req, r
       subtotal = round2(subtotal + preco * it.qtd);
       gravar.push({ ...it, preco, precoCheio: pr.precoCheio, promocaoId: pr.promo ? pr.promo.id : null, custo: Number(v.custo_unitario), produtoNome: v.produto_nome, tamanho: v.tamanho, cor: v.cor });
     }
-    const taxa = body.tipo === 'entrega' ? config.taxaEntrega : 0;
+    const taxa = body.tipo === 'entrega' ? config.taxaEntrega : body.tipo === 'envio' ? envio.preco : 0;
     const total = round2(subtotal + taxa);
     let trocoPara = null;
-    if (body.pagamento === 'Dinheiro' && body.trocoPara != null && body.trocoPara !== '') {
+    if (!online && body.pagamento === 'Dinheiro' && body.trocoPara != null && body.trocoPara !== '') {
       trocoPara = numero(body.trocoPara, 'Troco para', { max: 100000 });
       if (trocoPara < total) falha(400, 'O valor pra troco precisa ser maior que o total (R$ ' + total.toFixed(2).replace('.', ',') + ')');
     }
@@ -2581,10 +2686,15 @@ app.post('/api/lojas/:lojaId/loja/pedidos', limitePedidoSite, rota(async (req, r
     await c.query('SELECT pg_advisory_xact_lock(hashtext($1))', ['pedido_online_numero_' + req.lojaId]);
     const { rows: ult } = await c.query('SELECT COALESCE(MAX(numero), 0) + 1 AS n FROM pedidos_online WHERE loja_id = $1', [req.lojaId]);
     const id = uid(), numeroPedido = ult[0].n, token = crypto.randomBytes(18).toString('base64url');
+    const pagamento = online ? (online === 'pix' ? 'Pix' : 'Crédito') : body.pagamento;
+    const expira = online ? new Date(Date.now() + config.pagamento.minutosPagar * 60000) : null;
     await c.query(
-      `INSERT INTO pedidos_online (id, loja_id, numero, token, cliente_id, cliente_nome, telefone, tipo, endereco, pagamento, troco_para, observacao, subtotal, taxa_entrega, total, origem)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)`,
-      [id, req.lojaId, numeroPedido, token, clienteId, nome, telefone, body.tipo, endereco, body.pagamento, trocoPara, observacao, subtotal, taxa, total, origem]);
+      `INSERT INTO pedidos_online (id, loja_id, numero, token, cliente_id, cliente_nome, telefone, tipo, endereco, pagamento, troco_para, observacao, subtotal, taxa_entrega, total, origem,
+         status, pago_online, pag_metodo, pag_status, pag_expira_em, email, cep, cidade, uf, envio_servico_id, envio_servico, envio_prazo_dias)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28)`,
+      [id, req.lojaId, numeroPedido, token, clienteId, nome, telefone, body.tipo, endereco, pagamento, trocoPara, observacao, subtotal, taxa, total, origem,
+        online ? 'aguardando_pagamento' : 'recebido', !!online, online, online ? 'aguardando' : null, expira, email, cep, cidade, uf,
+        envio ? envio.id : null, envio ? envio.nome : null, envio ? envio.prazo : null]);
     for (const it of gravar) {
       await c.query('INSERT INTO pedidos_online_itens (id, pedido_id, variacao_id, produto_nome, tamanho, cor, qtd, preco_unit, preco_cheio, promocao_id) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)',
         [uid(), id, it.variacaoId, it.produtoNome, it.tamanho, it.cor, it.qtd, it.preco, it.precoCheio, it.promocaoId]);
@@ -2604,10 +2714,34 @@ app.post('/api/lojas/:lojaId/loja/pedidos', limitePedidoSite, rota(async (req, r
         await c.query('UPDATE pedidos_online SET lista_id = $1, presente_de = $2 WHERE id = $3', [ls[0].id, deQuem, id]);
       }
     }
-    return { id, numero: numeroPedido, token, total, telefone };
+    return { id, numero: numeroPedido, token, total, taxa, gravar, expira, maxParcelas: config.pagamento.maxParcelas };
   });
-  notificarBot(req.lojaId, r.id, 'recebido');
-  res.status(201).json({ numero: r.numero, token: r.token, total: r.total });
+
+  if (!online) {
+    notificarBot(req.lojaId, r.id, 'recebido');
+    return res.status(201).json({ numero: r.numero, token: r.token, total: r.total });
+  }
+  // Gera a cobrança no Mercado Pago. Se não der, desfaz o pedido (as peças voltam) e avisa.
+  let pagamento;
+  try {
+    if (online === 'pix') {
+      const pix = await mp.criarPix({ referencia: r.id, valor: r.total, descricao: 'Pedido #' + r.numero + ' - ' + config.nome, email, nome,
+        expiraEm: r.expira, notificacaoUrl: urlNotificacao(req.lojaId) });
+      await pool.query('UPDATE pedidos_online SET mp_pagamento_id = $1, pix_copia_cola = $2, pix_qr_base64 = $3 WHERE id = $4', [pix.id, pix.copiaCola, pix.qrBase64, r.id]);
+      pagamento = { metodo: 'pix', pix: { copiaCola: pix.copiaCola, qrBase64: pix.qrBase64 }, expiraEm: r.expira };
+    } else {
+      const ck = await mp.criarCheckoutCartao({ referencia: r.id, email, nome, frete: r.taxa, maxParcelas: r.maxParcelas, expiraEm: r.expira,
+        itens: r.gravar.map((it) => ({ id: it.variacaoId, titulo: it.produtoNome + ' Tam ' + it.tamanho + (it.cor ? ' ' + it.cor : ''), qtd: it.qtd, preco: it.preco })),
+        voltarUrl: urlSite(req) + '/loja-gutto.html#pedido=' + r.token, notificacaoUrl: urlNotificacao(req.lojaId) });
+      await pool.query('UPDATE pedidos_online SET mp_preferencia_url = $1 WHERE id = $2', [ck.url, r.id]);
+      pagamento = { metodo: 'cartao', checkoutUrl: ck.url, expiraEm: r.expira };
+    }
+  } catch (e) {
+    console.error('Mercado Pago (pedido ' + r.numero + '):', e.message);
+    await transacao((c) => cancelarPedidoTx(c, req.lojaId, r.id, 'Não foi possível gerar o pagamento', null, 'expirado')).catch((e2) => console.error(e2));
+    falha(502, 'Não consegui gerar o pagamento agora. Tente de novo em instantes' + (config.pagamento.naEntrega && body.tipo !== 'envio' ? ' ou escolha pagar na ' + (body.tipo === 'retirada' ? 'retirada' : 'entrega') : '') + '.');
+  }
+  res.status(201).json({ numero: r.numero, token: r.token, total: r.total, pagamento });
 }));
 
 async function detalhePedido(db, where, params) {
@@ -2622,12 +2756,22 @@ async function detalhePedido(db, where, params) {
 // Acompanhamento pelo link que o cliente recebe (token aleatório; sem telefone/endereço na resposta).
 app.get('/api/lojas/:lojaId/loja/pedidos/:token', rota(async (req, res) => {
   if (!/^[A-Za-z0-9_-]{10,60}$/.test(req.params.token)) falha(404, 'Pedido não encontrado');
-  const p = await detalhePedido(pool, 'token = $1 AND loja_id = $2', [req.params.token, req.lojaId]);
+  let p = await detalhePedido(pool, 'token = $1 AND loja_id = $2', [req.params.token, req.lojaId]);
   if (!p) falha(404, 'Pedido não encontrado');
+  // Esperando pagamento: confere no Mercado Pago (no máximo a cada poucos segundos por pedido).
+  if (p.status === 'aguardando_pagamento') {
+    await sincronizarPagamento(req.lojaId, p.id, { volta: req.query.voltou === '1' }).catch((e) => console.error('Conferir pagamento:', e.message));
+    p = await detalhePedido(pool, 'token = $1 AND loja_id = $2', [req.params.token, req.lojaId]);
+  }
   res.set('Cache-Control', 'no-store');
-  res.json({ numero: p.numero, status: p.status, statusLabel: STATUS_LABEL[p.status], tipo: p.tipo, pagamento: p.pagamento, clienteNome: p.cliente_nome.split(' ')[0],
+  const esperando = p.status === 'aguardando_pagamento';
+  res.json({ numero: p.numero, status: p.status, statusLabel: rotuloStatus(p), tipo: p.tipo, pagamento: p.pagamento, clienteNome: p.cliente_nome.split(' ')[0],
     itens: p.itens.map((i) => ({ produtoNome: i.produto_nome, tamanho: i.tamanho, cor: i.cor, qtd: i.qtd, precoUnit: i.preco_unit })),
-    subtotal: p.subtotal, taxaEntrega: p.taxa_entrega, total: p.total, criadoEm: p.criado_em, atualizadoEm: p.atualizado_em });
+    subtotal: p.subtotal, taxaEntrega: p.taxa_entrega, total: p.total, criadoEm: p.criado_em, atualizadoEm: p.atualizado_em,
+    online: p.pago_online ? { metodo: p.pag_metodo, status: p.pag_status, pagoEm: p.pago_em, expiraEm: esperando ? p.pag_expira_em : null, parcelas: p.pag_parcelas,
+      pix: esperando && p.pag_metodo === 'pix' ? { copiaCola: p.pix_copia_cola, qrBase64: p.pix_qr_base64 } : null,
+      checkoutUrl: esperando && p.pag_metodo === 'cartao' ? p.mp_preferencia_url : null, nota: p.pag_nota } : null,
+    envio: p.tipo === 'envio' ? { servico: p.envio_servico, prazoDias: p.envio_prazo_dias, rastreio: p.rastreio, cidade: p.cidade, uf: p.uf } : null });
 }));
 
 /* ---------- Pedidos online (painel) ---------- */
@@ -2647,7 +2791,7 @@ app.get('/api/lojas/:lojaId/pedidos-online', qualquer, rota(async (req, res) => 
      ORDER BY criado_em DESC LIMIT 100`, [req.lojaId]);
   const lista = [];
   for (const r of rows) lista.push(await detalhePedido(pool, 'id = $1', [r.id]));
-  res.json(lista.map(({ token, ...p }) => p));
+  res.json(lista.map(({ token, pix_qr_base64, pix_copia_cola, mp_preferencia_url, ...p }) => p));
 }));
 
 app.get('/api/lojas/:lojaId/pedidos-online/contagem', qualquer, rota(async (req, res) => {
@@ -2665,9 +2809,11 @@ app.put('/api/lojas/:lojaId/pedidos-online/:id/status', qualquer, rota(async (re
     if (!rows.length) falha(404, 'pedido não encontrado');
     const atual = rows[0];
     if (!(PROXIMO_STATUS[atual.status] || []).includes(body.status)) falha(409, 'Esse pedido está "' + STATUS_LABEL[atual.status] + '" — não dá pra mudar pra esse status');
-    if (body.status === 'saiu_entrega' && atual.tipo !== 'entrega') falha(400, 'Pedido é de retirada na loja');
-    const entregador = body.status === 'saiu_entrega' ? texto(body.entregador, 'entregador', { obrigatorio: false, max: 60 }) : null;
-    await c.query('UPDATE pedidos_online SET status = $1, entregador = COALESCE($2, entregador), atualizado_em = now() WHERE id = $3', [body.status, entregador, req.params.id]);
+    if (body.status === 'saiu_entrega' && atual.tipo === 'retirada') falha(400, 'Pedido é de retirada na loja');
+    const entregador = body.status === 'saiu_entrega' && atual.tipo === 'entrega' ? texto(body.entregador, 'entregador', { obrigatorio: false, max: 60 }) : null;
+    const rastreio = body.status === 'saiu_entrega' && atual.tipo === 'envio' ? (texto(body.rastreio, 'código de rastreio', { obrigatorio: false, max: 40 }) || '').replace(/\s+/g, '').toUpperCase() || null : null;
+    await c.query('UPDATE pedidos_online SET status = $1, entregador = COALESCE($2, entregador), rastreio = COALESCE($4, rastreio), atualizado_em = now() WHERE id = $3',
+      [body.status, entregador, req.params.id, rastreio]);
     return { status: body.status };
   });
   notificarBot(req.lojaId, req.params.id, r.status);
@@ -2682,6 +2828,7 @@ app.post('/api/lojas/:lojaId/pedidos-online/:id/concluir', qualquer, rota(async 
     if (!rows.length) falha(404, 'pedido não encontrado');
     const p = await detalhePedido(c, 'id = $1', [req.params.id]);
     if (['entregue', 'cancelado'].includes(p.status)) falha(409, 'Esse pedido já está ' + STATUS_LABEL[p.status].toLowerCase());
+    if (p.status === 'aguardando_pagamento') falha(409, 'Esse pedido ainda não foi pago pelo site');
     const sessao = await sessaoAberta(c, req.lojaId, 'SHARE');
     if (!sessao) falha(409, 'Caixa fechado — abra o caixa no Início pra concluir o pedido', { codigo: 'caixa_fechado' });
     const vendaId = uid();
@@ -2713,28 +2860,118 @@ app.post('/api/lojas/:lojaId/pedidos-online/:id/concluir', qualquer, rota(async 
   res.json(r);
 }));
 
-// Cancelar devolve as peças reservadas pro estoque.
+// Cancela dentro de uma transação: devolve as peças reservadas pro estoque e tira da lista de
+// presentes. Pedido pago pelo site: devolve o dinheiro no Mercado Pago ANTES (se o estorno falhar,
+// nada é cancelado). `pagStatus`: como fica o pagamento online ('expirado' quando não pagou a tempo).
+async function cancelarPedidoTx(c, lojaId, pedidoId, motivo, usuarioId, pagStatus) {
+  const { rows } = await c.query('SELECT id FROM pedidos_online WHERE id = $1 AND loja_id = $2 FOR UPDATE', [pedidoId, lojaId]);
+  if (!rows.length) falha(404, 'pedido não encontrado');
+  const p = await detalhePedido(c, 'id = $1', [pedidoId]);
+  if (['entregue', 'cancelado'].includes(p.status)) falha(409, 'Esse pedido já está ' + STATUS_LABEL[p.status].toLowerCase() + (p.status === 'entregue' ? ' — use Troca/devolução na Venda rápida' : ''));
+  let novoPag = p.pago_online ? (pagStatus || p.pag_status) : null;
+  if (p.pago_online && p.pag_status === 'pago') {
+    try { await mp.estornar(p.mp_pagamento_id); } catch (e) { falha(502, 'Não consegui devolver o dinheiro no Mercado Pago (' + e.message + '). O pedido continua de pé — tente de novo.'); }
+    novoPag = 'estornado';
+  }
+  for (const it of [...p.itens].sort((a, b) => (a.variacao_id < b.variacao_id ? -1 : 1))) {
+    const { rows: v } = await c.query('SELECT custo_unitario FROM produto_variacoes WHERE id = $1 FOR UPDATE', [it.variacao_id]);
+    await c.query('UPDATE produto_variacoes SET estoque = estoque + $1 WHERE id = $2', [it.qtd, it.variacao_id]);
+    await c.query(
+      `INSERT INTO movimentos_estoque_produto (id, loja_id, variacao_id, tipo, quantidade, custo_unitario, valor_total, referencia_tipo, referencia_id, observacao, criado_por)
+       VALUES ($1,$2,$3,'devolucao',$4,$5,$6,'pedido_online',$7,'Pedido online cancelado',$8)`,
+      [uid(), lojaId, it.variacao_id, it.qtd, Number(v[0].custo_unitario), round2(Number(v[0].custo_unitario) * it.qtd), p.id, usuarioId]);
+  }
+  await c.query("UPDATE pedidos_online SET status = 'cancelado', motivo_cancelamento = $1, pag_status = $2, atualizado_em = now() WHERE id = $3", [motivo, novoPag, p.id]);
+  await desfazerPresentes(c, { pedidoId: p.id });
+  return { ...p, pag_status: novoPag };
+}
+
 app.post('/api/lojas/:lojaId/pedidos-online/:id/cancelar', admin, rota(async (req, res) => {
   const motivo = texto((req.body || {}).motivo, 'motivo', { obrigatorio: false, max: 200 });
-  await transacao(async (c) => {
-    const { rows } = await c.query('SELECT id FROM pedidos_online WHERE id = $1 AND loja_id = $2 FOR UPDATE', [req.params.id, req.lojaId]);
-    if (!rows.length) falha(404, 'pedido não encontrado');
-    const p = await detalhePedido(c, 'id = $1', [req.params.id]);
-    if (['entregue', 'cancelado'].includes(p.status)) falha(409, 'Esse pedido já está ' + STATUS_LABEL[p.status].toLowerCase() + (p.status === 'entregue' ? ' — use Troca/devolução na Venda rápida' : ''));
-    for (const it of [...p.itens].sort((a, b) => (a.variacao_id < b.variacao_id ? -1 : 1))) {
-      const { rows: v } = await c.query('SELECT custo_unitario FROM produto_variacoes WHERE id = $1 FOR UPDATE', [it.variacao_id]);
-      await c.query('UPDATE produto_variacoes SET estoque = estoque + $1 WHERE id = $2', [it.qtd, it.variacao_id]);
-      await c.query(
-        `INSERT INTO movimentos_estoque_produto (id, loja_id, variacao_id, tipo, quantidade, custo_unitario, valor_total, referencia_tipo, referencia_id, observacao, criado_por)
-         VALUES ($1,$2,$3,'devolucao',$4,$5,$6,'pedido_online',$7,'Pedido online cancelado',$8)`,
-        [uid(), req.lojaId, it.variacao_id, it.qtd, Number(v[0].custo_unitario), round2(Number(v[0].custo_unitario) * it.qtd), p.id, req.usuario.id]);
-    }
-    await c.query("UPDATE pedidos_online SET status = 'cancelado', motivo_cancelamento = $1, atualizado_em = now() WHERE id = $2", [motivo, p.id]);
-    await desfazerPresentes(c, { pedidoId: p.id });
-  });
-  notificarBot(req.lojaId, req.params.id, 'cancelado');
-  res.json({ ok: true });
+  const p = await transacao((c) => cancelarPedidoTx(c, req.lojaId, req.params.id, motivo, req.usuario.id));
+  if (p.status !== 'aguardando_pagamento') notificarBot(req.lojaId, req.params.id, 'cancelado');
+  res.json({ ok: true, estornado: p.pag_status === 'estornado' });
 }));
+
+/* ---------- Pagamento pelo site (Mercado Pago) ---------- */
+
+// Confere no Mercado Pago se o pedido foi pago. Marca pago (e o pedido entra na fila da loja), ou,
+// se pagaram depois que o pedido já tinha expirado, devolve o dinheiro sozinho.
+// Devolve { pago, emAnalise } — emAnalise = cartão em análise antifraude (não expira ainda).
+const ultimaConferencia = new Map();
+async function sincronizarPagamento(lojaId, pedidoId, { forcar, volta } = {}) {
+  const agora = Date.now();
+  if (!forcar && agora - (ultimaConferencia.get(pedidoId) || 0) < (volta ? 1500 : 4000)) return { pago: false, emAnalise: false, pulou: true };
+  ultimaConferencia.set(pedidoId, agora);
+  if (ultimaConferencia.size > 5000) ultimaConferencia.delete(ultimaConferencia.keys().next().value);
+  const { rows } = await pool.query('SELECT status, pago_online, pag_status, total FROM pedidos_online WHERE id = $1 AND loja_id = $2', [pedidoId, lojaId]);
+  if (!rows.length || !rows[0].pago_online || ['pago', 'estornado'].includes(rows[0].pag_status)) return { pago: rows.length && rows[0].pag_status === 'pago', emAnalise: false };
+  const pagamentos = await mp.buscarPorReferencia(pedidoId);
+  const total = Number(rows[0].total);
+  const aprovado = pagamentos.find((x) => x.status === 'approved' && x.referencia === pedidoId && x.valor >= total - 0.01);
+  const emAnalise = pagamentos.some((x) => ['in_process', 'authorized'].includes(x.status));
+  if (!aprovado) return { pago: false, emAnalise };
+  const r = await transacao(async (c) => {
+    const { rows: ps } = await c.query('SELECT status, pag_status, numero FROM pedidos_online WHERE id = $1 FOR UPDATE', [pedidoId]);
+    const p = ps[0];
+    if (p.status === 'aguardando_pagamento') {
+      await c.query(
+        `UPDATE pedidos_online SET status = 'recebido', pag_status = 'pago', pago_em = COALESCE($1::timestamptz, now()), mp_pagamento_id = $2, pagamento = $3,
+           pag_parcelas = $4, pix_copia_cola = NULL, pix_qr_base64 = NULL, atualizado_em = now() WHERE id = $5`,
+        [aprovado.aprovadoEm, aprovado.id, mp.formaDoPagamento(aprovado.tipo), aprovado.parcelas, pedidoId]);
+      return 'pago';
+    }
+    if (p.status === 'cancelado' && p.pag_status !== 'estornado') {
+      await mp.estornar(aprovado.id);
+      await c.query("UPDATE pedidos_online SET pag_status = 'estornado', mp_pagamento_id = $1, pag_nota = $2 WHERE id = $3",
+        [aprovado.id, 'Pagaram depois que o pedido já tinha sido cancelado — o dinheiro foi devolvido automaticamente', pedidoId]);
+      return 'estornado';
+    }
+    return null;
+  });
+  if (r === 'pago') notificarBot(lojaId, pedidoId, 'recebido');
+  return { pago: r === 'pago', emAnalise };
+}
+
+// Aviso do Mercado Pago ("caiu um pagamento"): só serve de gatilho — o pagamento é consultado lá.
+const limiteWebhook = rateLimit({ windowMs: 60 * 1000, max: 120, ...porVisitante });
+app.post('/api/lojas/:lojaId/loja/pagamentos/webhook', limiteWebhook, async (req, res) => {
+  const body = req.body || {};
+  const tipo = req.query.type || req.query.topic || body.type || body.topic;
+  const id = req.query['data.id'] || (body.data && body.data.id) || req.query.id;
+  if (!id || !/^[A-Za-z0-9-]{1,40}$/.test(String(id))) return res.status(200).json({ ok: true });
+  if (!mp.assinaturaValida(req, id)) return res.status(401).json({ erro: 'assinatura inválida' });
+  res.status(200).json({ ok: true });
+  if (tipo !== 'payment') return;
+  try {
+    const pg = await mp.consultar(id);
+    if (!pg.referencia) return;
+    const { rows } = await pool.query('SELECT id FROM pedidos_online WHERE id = $1 AND loja_id = $2', [pg.referencia, req.lojaId]);
+    if (rows.length) await sincronizarPagamento(req.lojaId, rows[0].id, { forcar: true });
+  } catch (e) { console.error('Webhook do Mercado Pago:', e.message); }
+});
+
+// De minuto em minuto: confere os pedidos esperando pagamento (caso o aviso do Mercado Pago não
+// chegue — ex.: sem domínio) e cancela os que passaram do prazo, devolvendo as peças pro estoque.
+async function rodarPagamentosPendentes() {
+  if (!mp.configurado()) return;
+  const { rows } = await pool.query(
+    `SELECT id, loja_id, mp_pagamento_id, pag_metodo, (pag_expira_em < now()) AS vencido FROM pedidos_online
+     WHERE status = 'aguardando_pagamento' AND criado_em < now() - interval '1 minute' ORDER BY pag_expira_em LIMIT 30`);
+  for (const p of rows) {
+    try {
+      const st = await sincronizarPagamento(p.loja_id, p.id, { forcar: p.vencido });
+      if (!p.vencido || st.pago || st.emAnalise) continue;
+      if (p.pag_metodo === 'pix' && p.mp_pagamento_id) await mp.cancelar(p.mp_pagamento_id).catch(() => {});
+      await transacao((c) => cancelarPedidoTx(c, p.loja_id, p.id, 'Pagamento não foi feito a tempo', null, 'expirado'));
+    } catch (e) { console.error('Pedido esperando pagamento ' + p.id + ':', e.message); }
+  }
+  // Expirou mas a pessoa pagou mesmo assim (Pix já copiado, por exemplo): devolve o dinheiro.
+  const { rows: expirados } = await pool.query(
+    `SELECT id, loja_id FROM pedidos_online WHERE status = 'cancelado' AND pago_online AND pag_status = 'expirado'
+       AND atualizado_em > now() - interval '3 hours' ORDER BY atualizado_em DESC LIMIT 30`);
+  for (const p of expirados) await sincronizarPagamento(p.loja_id, p.id).catch((e) => console.error('Pedido expirado ' + p.id + ':', e.message));
+}
 
 /* ---------- WhatsApp (painel → serviço bot-whatsapp) ---------- */
 
@@ -2889,6 +3126,8 @@ app.post('/api/lojas/:lojaId/backup', admin, rota(async (req, res) => {
 app.use((err, req, res, next) => {
   if (err instanceof ErroApi) return res.status(err.status).json({ erro: err.message, ...(err.extra || {}) });
   if (err instanceof fiscal.ErroFiscal) return res.status(err.status).json({ erro: err.message, codigo: 'fiscal' });
+  if (err instanceof mp.ErroPagamento) return res.status(err.status).json({ erro: err.message, codigo: 'pagamento' });
+  if (err instanceof frete.ErroFrete) return res.status(err.status).json({ erro: err.message, codigo: 'frete' });
   if (err.type === 'entity.parse.failed') return res.status(400).json({ erro: 'JSON inválido' });
   console.error(err);
   res.status(500).json({ erro: 'Erro interno — tente de novo' });
@@ -2903,5 +3142,6 @@ app.listen(PORT, () => {
   const rodarMensagens = () => pool.query('SELECT id FROM lojas').then(({ rows }) => Promise.all(rows.map((l) => gerarMensagens(l.id))))
     .catch((e) => console.error('Mensagens pros clientes:', e.message));
   setTimeout(rodarMensagens, 60 * 1000).unref();
+  setInterval(rodarPagamentosPendentes, Number(process.env.PAGAMENTOS_INTERVALO_MS || 60 * 1000)).unref();
   setInterval(rodarMensagens, 3 * 60 * 60 * 1000).unref();
 });

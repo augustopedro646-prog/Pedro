@@ -147,10 +147,15 @@ const execucoes = {
   async meus_pedidos(_, ctx) {
     if (!ctx.telefoneLocal) return { erro: 'Não dá pra saber o número deste WhatsApp — peça o número do pedido e chame um atendente.' };
     const { rows } = await pool.query(
-      `SELECT numero, status, tipo, total, criado_em FROM pedidos_online WHERE loja_id = $1 AND telefone = $2 ORDER BY criado_em DESC LIMIT 5`,
+      `SELECT numero, status, tipo, total, criado_em, pago_online, pag_status, envio_servico, rastreio FROM pedidos_online WHERE loja_id = $1 AND telefone = $2 ORDER BY criado_em DESC LIMIT 5`,
       [LOJA_ID, ctx.telefoneLocal]);
-    const nomes = { recebido: 'recebido, vai ser separado', separando: 'separando as peças', pronto: 'pronto', saiu_entrega: 'saiu para entrega', entregue: 'concluído', cancelado: 'cancelado' };
-    return rows.length ? { pedidos: rows.map((p) => ({ numero: p.numero, status: nomes[p.status], tipo: p.tipo, total: brl(p.total), feitoEm: new Date(p.criado_em).toLocaleString('pt-BR', { timeZone: 'America/Fortaleza' }) })) }
+    const nomes = { aguardando_pagamento: 'esperando o pagamento pelo site (o link do pedido tem o Pix/cartão; se não pagar no prazo, cancela sozinho)', recebido: 'recebido, vai ser separado',
+      separando: 'separando as peças', pronto: 'pronto', saiu_entrega: 'saiu para entrega', entregue: 'concluído', cancelado: 'cancelado' };
+    const tipos = { entrega: 'entrega da loja', retirada: 'retirada na loja', envio: 'envio pelos Correios' };
+    return rows.length ? { pedidos: rows.map((p) => ({ numero: p.numero, status: p.tipo === 'envio' && p.status === 'saiu_entrega' ? 'enviado pelos Correios' : nomes[p.status], tipo: tipos[p.tipo] || p.tipo, total: brl(p.total),
+      ...(p.pago_online ? { pagamento: p.pag_status === 'pago' ? 'pago pelo site' : p.pag_status === 'estornado' ? 'pago pelo site e devolvido' : 'pagamento pelo site pendente' } : {}),
+      ...(p.envio_servico ? { envio: p.envio_servico } : {}), ...(p.rastreio ? { rastreio: p.rastreio, acompanharEm: 'https://www.melhorrastreio.com.br/rastreio/' + p.rastreio } : {}),
+      feitoEm: new Date(p.criado_em).toLocaleString('pt-BR', { timeZone: 'America/Fortaleza' }) })) }
       : { pedidos: [], dica: 'Nenhum pedido com este número de WhatsApp.' };
   },
 

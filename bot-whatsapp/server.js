@@ -30,14 +30,19 @@ app.use(exigirSegredo);
 
 // Aviso automático de status pro cliente (pedido do site ou do próprio WhatsApp).
 const AVISOS = {
-  recebido: (p) => `Oi, ${p.nome}! Recebemos seu pedido #${p.numero} na Loja Gutto 🛍️ Já vamos separar as peças e te avisamos por aqui a cada etapa.`,
+  recebido: (p) => p.pagoOnline
+    ? `Oi, ${p.nome}! Recebemos seu pedido #${p.numero} e o pagamento ✅ Já vamos separar as peças e te avisamos por aqui a cada etapa.`
+    : `Oi, ${p.nome}! Recebemos seu pedido #${p.numero} na Loja Gutto 🛍️ Já vamos separar as peças e te avisamos por aqui a cada etapa.`,
   separando: (p) => `Estamos separando as peças do seu pedido #${p.numero} 👗`,
   pronto: (p) => p.tipo === 'retirada'
     ? `Seu pedido #${p.numero} está pronto! Pode vir buscar na loja${p.endereco ? ' (' + p.endereco + ')' : ''} 😊`
+    : p.tipo === 'envio' ? `Seu pedido #${p.numero} está embalado e vai ser postado 📦 Te mandamos o código de rastreio assim que sair.`
     : `Seu pedido #${p.numero} está pronto e já vai sair pra entrega!`,
-  saiu_entrega: (p) => `Seu pedido #${p.numero} saiu para entrega 🛵 Já já chega aí!`,
+  saiu_entrega: (p) => p.tipo === 'envio'
+    ? `Seu pedido #${p.numero} foi enviado 📦${p.rastreio ? ` Código de rastreio: ${p.rastreio} — acompanhe em https://www.melhorrastreio.com.br/rastreio/${p.rastreio}` : ' Assim que tiver o código de rastreio, te mandamos por aqui.'}`
+    : `Seu pedido #${p.numero} saiu para entrega 🛵 Já já chega aí!`,
   entregue: (p) => `Pedido #${p.numero} concluído! Obrigado por comprar na Loja Gutto 💛 O cashback dessa compra já está no seu cadastro pra próxima.`,
-  cancelado: (p) => `Seu pedido #${p.numero} foi cancelado. Se tiver qualquer dúvida, é só responder aqui.`,
+  cancelado: (p) => `Seu pedido #${p.numero} foi cancelado.${p.estornado ? ' O valor pago já foi devolvido pelo Mercado Pago (no cartão pode levar alguns dias pra aparecer).' : ''} Se tiver qualquer dúvida, é só responder aqui.`,
 };
 app.post('/webhook/pedido-status', async (req, res) => {
   res.json({ ok: true }); // responde na hora — o envio segue em segundo plano
@@ -45,12 +50,13 @@ app.post('/webhook/pedido-status', async (req, res) => {
   if (!AVISOS[status]) return;
   try {
     const { rows } = await pool.query(
-      `SELECT p.numero, p.telefone, p.tipo, p.cliente_nome, p.origem, l.endereco FROM pedidos_online p JOIN lojas l ON l.id = p.loja_id
+      `SELECT p.numero, p.telefone, p.tipo, p.cliente_nome, p.origem, p.pago_online, p.pag_status, p.rastreio, l.endereco FROM pedidos_online p JOIN lojas l ON l.id = p.loja_id
        WHERE p.id = $1 AND p.loja_id = $2`, [pedidoId, LOJA_ID]);
     if (!rows.length) return;
     const p = rows[0];
     if (status === 'recebido' && p.origem === 'whatsapp') return; // o robô já confirmou na conversa
-    const texto = AVISOS[status]({ numero: p.numero, nome: p.cliente_nome.split(' ')[0], tipo: p.tipo, endereco: p.endereco });
+    const texto = AVISOS[status]({ numero: p.numero, nome: p.cliente_nome.split(' ')[0], tipo: p.tipo, endereco: p.endereco,
+      pagoOnline: p.pago_online, estornado: p.pag_status === 'estornado', rastreio: p.rastreio });
     await conexao.enviarTexto({ telefoneLocal: p.telefone }, texto, 'sistema');
   } catch (e) { console.error('Falha no aviso de status:', e.message); }
 });

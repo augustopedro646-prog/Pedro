@@ -239,6 +239,7 @@
   .status-separando, .status-pronto, .status-saiu_entrega { background: var(--baixo-bg); color: var(--baixo-text); border-color: var(--baixo-border); }
   .status-entregue { background: var(--ok-bg); color: var(--ok-text); border-color: var(--ok-border); }
   .status-cancelado { background: var(--border-2); color: var(--text-2); border-color: var(--border); }
+  .status-aguardando_pagamento { background: var(--border-2); color: var(--text-2); border-color: var(--border); }
   .fotos-grid { display: flex; gap: 8px; flex-wrap: wrap; }
   .foto-item { position: relative; width: 92px; height: 92px; border-radius: 10px; overflow: hidden; border: 1px solid var(--border); background: var(--border-2); }
   .foto-item img { width: 100%; height: 100%; object-fit: cover; display: block; }
@@ -2226,8 +2227,9 @@
   }
 
   /* ================= Pedidos online ================= */
-  const STATUS_PEDIDO = { recebido: 'Novo', separando: 'Separando', pronto: 'Pronto', saiu_entrega: 'Saiu para entrega', entregue: 'Concluído', cancelado: 'Cancelado' };
+  const STATUS_PEDIDO = { aguardando_pagamento: 'Aguardando pagamento', recebido: 'Novo', separando: 'Separando', pronto: 'Pronto', saiu_entrega: 'Saiu para entrega', entregue: 'Concluído', cancelado: 'Cancelado' };
   const MSG_STATUS_CLIENTE = {
+    aguardando_pagamento: 'seu pedido está esperando o pagamento pelo site',
     recebido: 'recebemos seu pedido e já vamos separar as peças',
     separando: 'estamos separando as peças do seu pedido',
     pronto: 'seu pedido está pronto',
@@ -2284,19 +2286,27 @@
     if (p.status === 'recebido') botoes.push(`<button class="btn-primario" data-ped-status="separando" data-ped="${p.id}">Começar a separar</button>`);
     if (p.status === 'separando') botoes.push(`<button class="btn-primario" data-ped-status="pronto" data-ped="${p.id}">Marcar pronto</button>`);
     if (p.status === 'pronto' && p.tipo === 'entrega') botoes.push(`<button class="btn-primario" data-ped-saiu="${p.id}">🛵 Saiu para entrega</button>`);
-    if ((p.status === 'pronto' && p.tipo === 'retirada') || p.status === 'saiu_entrega') botoes.push(`<button class="btn-primario" data-ped-concluir="${p.id}">✓ Concluir (${p.tipo === 'retirada' ? 'cliente retirou' : 'entregue'} e pago)</button>`);
+    if (p.status === 'pronto' && p.tipo === 'envio') botoes.push(`<button class="btn-primario" data-ped-postado="${p.id}">📦 Postado (enviado)</button>`);
+    if ((p.status === 'pronto' && p.tipo === 'retirada') || p.status === 'saiu_entrega') botoes.push(`<button class="btn-primario" data-ped-concluir="${p.id}">✓ Concluir (${p.tipo === 'retirada' ? 'cliente retirou' : 'entregue'}${p.pago_online ? '' : ' e pago'})</button>`);
+    const pagoSite = p.pago_online ? (p.pag_status === 'pago' ? `✅ <b>Pago pelo site</b> — ${esc(p.pagamento)}${p.pag_parcelas > 1 ? ' em ' + p.pag_parcelas + 'x' : ''}${p.pago_em ? ' · ' + dataHora(p.pago_em) : ''}`
+      : p.pag_status === 'estornado' ? '↩ <b>Pago pelo site e devolvido</b> (estornado no Mercado Pago)'
+      : p.pag_status === 'expirado' ? '⌛ Não pagou a tempo pelo site'
+      : `⏳ <b>Esperando o pagamento pelo site</b> (${p.pag_metodo === 'pix' ? 'Pix' : 'cartão'})${p.pag_expira_em ? ' — vence às ' + hora(p.pag_expira_em) : ''}. As peças estão reservadas; se não pagar, o pedido cancela sozinho.`) : '';
     return `<div class="pedido-card ${p.status === 'recebido' ? 'novo' : ''}" style="${aberto ? '' : 'opacity:.6'}">
       <div class="pedido-topo">
         <div><div style="font-size:16px;font-weight:700">#${p.numero} · ${esc(p.cliente_nome)}</div>
           <div style="font-size:12px;color:var(--text-2)">${dataHora(p.criado_em)} · <a class="link-btn" href="${linkWhatsCliente(p)}" target="_blank" rel="noopener">${esc(telefoneBR(p.telefone))} (WhatsApp)</a></div></div>
         <span class="status-pedido status-${p.status}">${STATUS_PEDIDO[p.status]}</span>
       </div>
-      <div style="font-size:13px">${p.tipo === 'entrega' ? `🛵 <b>Entrega:</b> ${esc(p.endereco)} · <a class="link-btn" href="${linkMaps(p.endereco)}" target="_blank" rel="noopener">abrir no mapa</a>${p.entregador ? ' · com ' + esc(p.entregador) : ''}` : '🏬 <b>Retirada na loja</b>'}
-        <div><b>Pagamento:</b> ${esc(p.pagamento)} na ${p.tipo === 'entrega' ? 'entrega' : 'retirada'}${troco}</div>
+      <div style="font-size:13px">${p.tipo === 'entrega' ? `🛵 <b>Entrega:</b> ${esc(p.endereco)} · <a class="link-btn" href="${linkMaps(p.endereco)}" target="_blank" rel="noopener">abrir no mapa</a>${p.entregador ? ' · com ' + esc(p.entregador) : ''}`
+          : p.tipo === 'envio' ? `📦 <b>Envio ${esc(p.envio_servico || '')}</b>${p.envio_prazo_dias ? ' (até ' + p.envio_prazo_dias + ' dias úteis)' : ''}: ${esc(p.endereco)} · <button class="link-btn" data-ped-copiar="${p.id}">copiar endereço pra etiqueta</button>${p.rastreio ? ` · rastreio <b>${esc(p.rastreio)}</b>` : ''}`
+          : '🏬 <b>Retirada na loja</b>'}
+        <div>${p.pago_online ? pagoSite : `<b>Pagamento:</b> ${esc(p.pagamento)} na ${p.tipo === 'entrega' ? 'entrega' : 'retirada'}${troco}`}</div>
+        ${p.pag_nota ? `<div>⚠ ${esc(p.pag_nota)}</div>` : ''}
         ${p.lista_titulo ? `<div>🎁 <b>Presente pra lista:</b> ${esc(p.lista_titulo)}${p.presente_de ? ' — de ' + esc(p.presente_de) : ''}</div>` : ''}
         ${p.observacao ? `<div><b>Obs.:</b> ${esc(p.observacao)}</div>` : ''}${p.status === 'cancelado' && p.motivo_cancelamento ? `<div><b>Cancelado:</b> ${esc(p.motivo_cancelamento)}</div>` : ''}</div>
       <div class="pedido-itens">${p.itens.map(i => `<div class="linha-simples" style="padding:4px 0"><b style="width:32px">${i.qtd}×</b><div style="flex-grow:1">${esc(i.produto_nome)} · Tam ${esc(i.tamanho)}${i.cor ? ' · ' + esc(i.cor) : ''}</div><span>${fmt(i.preco_unit * i.qtd)}</span></div>`).join('')}
-        ${p.taxa_entrega ? `<div class="linha-simples" style="padding:4px 0;color:var(--text-2)"><div style="flex-grow:1">Taxa de entrega</div><span>${fmt(p.taxa_entrega)}</span></div>` : ''}</div>
+        ${p.taxa_entrega ? `<div class="linha-simples" style="padding:4px 0;color:var(--text-2)"><div style="flex-grow:1">${p.tipo === 'envio' ? 'Frete' : 'Taxa de entrega'}</div><span>${fmt(p.taxa_entrega)}</span></div>` : ''}</div>
       <div class="pedido-topo" style="align-items:center">
         <div class="stat-valor" style="margin:0">${fmt(p.total)}</div>
         <div class="pedido-acoes">
@@ -2314,11 +2324,19 @@
     if (!lista) { el.innerHTML = '<div class="carregando">Carregando...</div>'; return; }
     const ordem = { recebido: 0, separando: 1, pronto: 2, saiu_entrega: 3 };
     const abertos = lista.filter(p => ordem[p.status] !== undefined).sort((a, b) => ordem[a.status] - ordem[b.status] || a.numero - b.numero);
-    const fechados = lista.filter(p => ordem[p.status] === undefined);
+    const esperando = lista.filter(p => p.status === 'aguardando_pagamento');
+    const fechados = lista.filter(p => ordem[p.status] === undefined && p.status !== 'aguardando_pagamento');
     el.innerHTML = (abertos.length ? abertos.map(cardPedido).join('') : `<div class="painel"><div class="vazio">Nenhum pedido em aberto. Quando um cliente comprar pelo site, ele aparece aqui (e o menu avisa).</div></div>`)
+      + (esperando.length ? `<div class="painel-titulo" style="margin:18px 0 10px">Esperando o pagamento pelo site</div>` + esperando.map(cardPedido).join('') : '')
       + (fechados.length ? `<div class="painel-titulo" style="margin:18px 0 10px">Concluídos e cancelados (últimos 2 dias)</div>` + fechados.map(cardPedido).join('') : '');
     el.querySelectorAll('[data-ped-status]').forEach(b => b.onclick = () => comBotao(b, '...', () => mudarStatusPedido(b.dataset.ped, b.dataset.pedStatus)));
     el.querySelectorAll('[data-ped-saiu]').forEach(b => b.onclick = () => abrirSaiuEntrega(lista.find(p => p.id === b.dataset.pedSaiu)));
+    el.querySelectorAll('[data-ped-postado]').forEach(b => b.onclick = () => abrirPostado(lista.find(p => p.id === b.dataset.pedPostado)));
+    el.querySelectorAll('[data-ped-copiar]').forEach(b => b.onclick = async () => {
+      const p = lista.find(x => x.id === b.dataset.pedCopiar);
+      const t = p.cliente_nome + '\n' + p.endereco + '\nTelefone: ' + telefoneBR(p.telefone) + (p.email ? '\n' + p.email : '');
+      try { await navigator.clipboard.writeText(t); toast('Endereço copiado — cole no Melhor Envio'); } catch (e) { prompt('Copie o endereço:', t.replace(/\n/g, ' · ')); }
+    });
     el.querySelectorAll('[data-ped-concluir]').forEach(b => b.onclick = () => comBotao(b, 'Concluindo...', () => concluirPedido(lista.find(p => p.id === b.dataset.pedConcluir))));
     el.querySelectorAll('[data-ped-cancelar]').forEach(b => b.onclick = () => abrirCancelarPedido(lista.find(p => p.id === b.dataset.pedCancelar)));
   }
@@ -2341,6 +2359,19 @@
       fecharModal(); toast('Pedido #' + p.numero + ' saiu para entrega');
     }, camada.querySelector('#se-erro'));
   }
+  function abrirPostado(p) {
+    const camada = abrirModal(`<div class="modal-card estreito">${cabecalhoModal('Pedido #' + p.numero + ' postado', (p.envio_servico || 'Envio') + ' · ' + p.endereco)}
+      <label class="campo">Código de rastreio (vem na etiqueta do Melhor Envio / Correios)<input id="po-rastreio" type="text" maxlength="40" placeholder="Ex.: QB123456789BR" style="text-transform:uppercase"></label>
+      <div class="modal-dica">A cliente recebe o código no WhatsApp e vê no acompanhamento do pedido. Dá pra deixar vazio e mandar depois.</div>
+      <div class="erro-modal" id="po-erro"></div>
+      <button class="btn-primario btn-grande" id="po-ok">Confirmar envio</button></div>`);
+    camada.querySelector('#po-rastreio').focus();
+    camada.querySelector('#po-ok').onclick = (ev) => comBotao(ev.target, 'Salvando...', async () => {
+      await api('/pedidos-online/' + p.id + '/status', { method: 'PUT', body: { status: 'saiu_entrega', rastreio: camada.querySelector('#po-rastreio').value } });
+      fecharModal(); toast('Pedido #' + p.numero + ' marcado como enviado');
+      await carregarDadosDaView('online'); verificarPedidosNovos();
+    }, camada.querySelector('#po-erro'));
+  }
   async function concluirPedido(p) {
     if (!confirm('Concluir o pedido #' + p.numero + '? Ele vira uma venda de ' + fmt(p.total) + ' em ' + p.pagamento + ' no caixa aberto.')) return;
     try {
@@ -2353,13 +2384,14 @@
     await carregarDadosDaView('online');
   }
   function abrirCancelarPedido(p) {
-    const camada = abrirModal(`<div class="modal-card estreito">${cabecalhoModal('Cancelar pedido #' + p.numero, 'As peças voltam pro estoque')}
+    const pago = p.pago_online && p.pag_status === 'pago';
+    const camada = abrirModal(`<div class="modal-card estreito">${cabecalhoModal('Cancelar pedido #' + p.numero, pago ? 'As peças voltam pro estoque e o valor (' + fmt(p.total) + ') é devolvido pra cliente pelo Mercado Pago' : 'As peças voltam pro estoque')}
       <label class="campo">Motivo (opcional)<input id="cp-motivo" type="text" placeholder="Ex.: cliente desistiu"></label>
       <div class="erro-modal" id="cp-erro"></div>
       <button class="btn-perigo btn-grande" id="cp-ok">Cancelar pedido</button></div>`);
     camada.querySelector('#cp-ok').onclick = (ev) => comBotao(ev.target, 'Cancelando...', async () => {
       await api('/pedidos-online/' + p.id + '/cancelar', { method: 'POST', body: { motivo: camada.querySelector('#cp-motivo').value } });
-      fecharModal(); toast('Pedido #' + p.numero + ' cancelado — peças de volta no estoque');
+      fecharModal(); toast('Pedido #' + p.numero + ' cancelado — peças de volta no estoque' + (pago ? ' e dinheiro devolvido' : ''));
       await carregarDadosDaView('online'); verificarPedidosNovos();
     }, camada.querySelector('#cp-erro'));
   }
@@ -4108,6 +4140,7 @@
         <label class="campo">Endereço da loja (pra retirada)<input id="cfg-site-endereco" maxlength="200" value="${esc(cfg.site ? cfg.site.endereco : '')}"></label>
         <label class="campo">Aviso no topo do site (opcional)<input id="cfg-site-msg" maxlength="300" value="${esc(cfg.site ? cfg.site.mensagem : '')}" placeholder="Ex.: Entregamos em Parnamirim e Natal"></label>
       </div>
+      ${htmlConfigPagamentoEnvio(cfg)}
       <div style="display:flex;gap:10px;align-items:center;margin-top:12px;flex-wrap:wrap">
         <button class="btn-primario" id="cfg-salvar">Salvar configurações</button>
         <span class="modal-dica">Link do site: <a class="link-btn" href="${esc(cfg.siteUrl ? cfg.siteUrl + '/loja' : '/loja-gutto.html')}" target="_blank" rel="noopener">${esc(cfg.siteUrl || location.origin)}/loja</a></span>
@@ -4125,7 +4158,8 @@
       salvarConfigCupom(Object.assign(configCupom(), { largura: Number(document.getElementById('cfg-cupom-largura').value) }));
       const fiscalCorpo = document.getElementById('cfg-cfop') ? { cfop: document.getElementById('cfg-cfop').value, csosn: document.getElementById('cfg-csosn').value,
         origem: document.getElementById('cfg-origem').value, automatica: document.getElementById('cfg-nfce-auto').checked } : undefined;
-      await api('/config', { method: 'PUT', body: { cashbackPct, descontoLivrePct, comissaoPct, crediario, fiscal: fiscalCorpo, cupomRodape: document.getElementById('cfg-cupom-rodape').value, site: {
+      const { pagamento, envio } = lerConfigPagamentoEnvio();
+      await api('/config', { method: 'PUT', body: { cashbackPct, descontoLivrePct, comissaoPct, crediario, fiscal: fiscalCorpo, pagamento, envio, cupomRodape: document.getElementById('cfg-cupom-rodape').value, site: {
         ativo: document.getElementById('cfg-site-ativo').checked, aceitaRetirada: document.getElementById('cfg-site-retirada').checked,
         aceitaEntrega: document.getElementById('cfg-site-entrega').checked, taxaEntrega: taxa, whatsapp: document.getElementById('cfg-site-whats').value,
         endereco: document.getElementById('cfg-site-endereco').value, mensagem: document.getElementById('cfg-site-msg').value } } });
@@ -4133,6 +4167,50 @@
       renderEquipe();
     }, document.getElementById('cfg-erro'));
     ligarNcmCategorias();
+  }
+
+  // Pagamento pelo site (Mercado Pago) e envio pelos Correios (Melhor Envio).
+  function htmlConfigPagamentoEnvio(cfg) {
+    const pg = cfg.pagamento || {}, ev = cfg.envio || {};
+    const chk = (id, v, rot) => `<label style="display:flex;gap:6px;align-items:center"><input type="checkbox" id="${id}" ${v ? 'checked' : ''}> ${rot}</label>`;
+    const falta = (nome) => `<div class="aviso-caixa" style="margin:0 0 10px"><span>Falta <b>${nome}</b> no api\\.env — veja no README como pegar. Até lá, essa parte não aparece no site.</span></div>`;
+    return `<div class="painel-titulo" style="margin:18px 0 8px;font-size:14px">Pagamento pelo site (Mercado Pago)${pg.configurado && pg.teste ? ' <span class="tag aviso">modo teste</span>' : ''}</div>
+      ${pg.configurado ? '' : falta('MERCADOPAGO_ACCESS_TOKEN')}
+      <div style="display:flex;gap:16px;flex-wrap:wrap;font-size:13px;margin-bottom:10px">
+        ${chk('cfg-pg-pix', pg.pix, 'Pix na hora (QR Code no site)')}
+        ${chk('cfg-pg-cartao', pg.cartao, 'Cartão de crédito')}
+        ${chk('cfg-pg-entrega', pg.naEntrega !== false, 'Também aceitar pagar na entrega/retirada')}
+      </div>
+      <div class="linha-campos" style="max-width:720px">
+        <label class="campo">Parcelas no cartão (máximo)<select id="cfg-pg-parcelas">${Array.from({ length: 12 }, (_, i) => i + 1).map(n => `<option value="${n}" ${n === (pg.maxParcelas || 3) ? 'selected' : ''}>${n === 1 ? 'Só à vista' : 'Até ' + n + 'x'}</option>`).join('')}</select></label>
+        <label class="campo">Prazo pra pagar (minutos)<input id="cfg-pg-minutos" inputmode="numeric" value="${pg.minutosPagar || 30}"></label>
+      </div>
+      <div class="modal-dica" style="margin-top:6px">Enquanto não paga, as peças ficam reservadas; passou do prazo, o pedido cancela sozinho. Os juros das parcelas seguem o que estiver configurado na sua conta do Mercado Pago.</div>
+      <div class="painel-titulo" style="margin:18px 0 8px;font-size:14px">Envio pra outras cidades (Correios via Melhor Envio)</div>
+      ${ev.configurado ? '' : falta('MELHORENVIO_TOKEN')}
+      <div style="display:flex;gap:16px;flex-wrap:wrap;font-size:13px;margin-bottom:10px">${chk('cfg-ev-ativo', ev.ativo, 'Enviar pelos Correios (frete calculado pelo CEP — só com pagamento pelo site)')}</div>
+      <div class="linha-campos" style="max-width:720px">
+        <label class="campo">CEP de onde os pedidos saem<input id="cfg-ev-cep" inputmode="numeric" maxlength="9" value="${esc(ev.cepOrigem ? ev.cepOrigem.slice(0, 5) + '-' + ev.cepOrigem.slice(5) : '')}" placeholder="59000-000"></label>
+        <label class="campo">Dias pra postar (somados ao prazo)<input id="cfg-ev-dias" inputmode="numeric" value="${ev.diasManuseio != null ? ev.diasManuseio : 1}"></label>
+        <label class="campo">Frete grátis a partir de (R$, 0 = nunca)<input id="cfg-ev-gratis" inputmode="decimal" value="${fmtNum(ev.freteGratisAcima || 0)}"></label>
+      </div>
+      <div class="linha-campos" style="max-width:720px;margin-top:10px">
+        <label class="campo">Peso de 1 peça embalada (gramas)<input id="cfg-ev-peso" inputmode="numeric" value="${ev.pesoPecaG || 300}"></label>
+        <label class="campo">Pacote de 1 peça (cm): altura × largura × comprimento
+          <div style="display:flex;gap:6px"><input id="cfg-ev-alt" inputmode="numeric" value="${ev.alturaCm || 4}" style="width:auto;min-width:0;flex:1"><input id="cfg-ev-larg" inputmode="numeric" value="${ev.larguraCm || 20}" style="width:auto;min-width:0;flex:1"><input id="cfg-ev-comp" inputmode="numeric" value="${ev.comprimentoCm || 25}" style="width:auto;min-width:0;flex:1"></div></label>
+      </div>
+      <label class="campo" style="max-width:720px;margin-top:10px">Cidades onde a entrega da própria loja vai (separadas por vírgula; vazio = qualquer uma)<input id="cfg-ev-cidades" maxlength="300" value="${esc(ev.entregaLocalCidades || '')}" placeholder="Natal, Parnamirim"></label>
+      <div class="modal-dica" style="margin-top:6px">Com o envio ligado, o cliente digita o CEP: se a cidade estiver na lista, aparece a entrega da loja (com a taxa acima); senão, as opções dos Correios com preço e prazo. A etiqueta você compra no site do Melhor Envio (o pedido tem o botão "copiar endereço").</div>`;
+  }
+  function lerConfigPagamentoEnvio() {
+    const val = (id) => document.getElementById(id).value, chk = (id) => document.getElementById(id).checked;
+    const inteiro = (id) => parseInt(val(id), 10);
+    const pagamento = { pix: chk('cfg-pg-pix'), cartao: chk('cfg-pg-cartao'), naEntrega: chk('cfg-pg-entrega'), maxParcelas: inteiro('cfg-pg-parcelas'), minutosPagar: inteiro('cfg-pg-minutos') };
+    if (!(pagamento.minutosPagar >= 30 && pagamento.minutosPagar <= 1440)) throw new Error('Prazo pra pagar: de 30 a 1440 minutos (24 horas)');
+    const envio = { ativo: chk('cfg-ev-ativo'), cepOrigem: val('cfg-ev-cep'), diasManuseio: inteiro('cfg-ev-dias'), freteGratisAcima: parseNumBR(val('cfg-ev-gratis') || '0'),
+      pesoPecaG: inteiro('cfg-ev-peso'), alturaCm: inteiro('cfg-ev-alt'), larguraCm: inteiro('cfg-ev-larg'), comprimentoCm: inteiro('cfg-ev-comp'), entregaLocalCidades: val('cfg-ev-cidades') };
+    if (envio.ativo && val('cfg-ev-cep').replace(/\D/g, '').length !== 8) throw new Error('CEP de onde os pedidos saem: 8 números');
+    return { pagamento, envio };
   }
 
   const ORIGENS = [['0', '0 — Nacional'], ['1', '1 — Estrangeira, importação direta'], ['2', '2 — Estrangeira, comprada no Brasil'], ['3', '3 — Nacional, mais de 40% importado'],

@@ -192,6 +192,13 @@ Plano fechado — pronto pra começar a Fase 1.
     - Aniversário da criança, cashback parado e novidade no tamanho que a criança usa.
     - Revisão no painel antes de sair, com envio aos poucos e limite por dia.
     - Quem responde SAIR para de receber.
+- **02/10/2026:**
+  - Pagamento pelo site (Mercado Pago): Pix com QR na própria página e cartão no Checkout Pro.
+    Confirmação automática, prazo pra pagar com cancelamento sozinho e estorno ao cancelar.
+  - Envio pelos Correios via Melhor Envio: frete pelo CEP, entrega da loja só nas cidades da lista,
+    código de rastreio no WhatsApp.
+  - Falta: contas no Mercado Pago e no Melhor Envio (tokens no `.env`), domínio pro webhook, e a
+    contadora confirmar NF-e pra venda a outros estados.
 - **Próximas**:
   - Ligar a NFC-e (acima).
   - Rodar o script do túnel quando o domínio estiver na Cloudflare.
