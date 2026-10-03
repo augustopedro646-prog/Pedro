@@ -109,7 +109,7 @@ async function enviarTexto(destino, texto, remetente) {
       contarEnvio();
       if (remetente) await acrescentar(id, { role: 'assistant', content: texto, remetente });
       await pool.query('UPDATE bot_conversas SET ultima_falha_envio = NULL WHERE loja_id = $1 AND telefone = $2', [LOJA_ID, id]).catch(() => {});
-      return { ok: true };
+      return { ok: true, id };
     } catch (e) {
       console.error('Falha ao enviar WhatsApp pra ' + id + ':', e.message);
       await anotarFalha(id, e.message);
@@ -185,7 +185,7 @@ async function enviarSimulado(destino, texto, remetente) {
   const id = typeof destino === 'string' ? destino : '55' + destino.telefoneLocal;
   if (/falhar-envio/.test(texto)) return { ok: false, erro: 'falha simulada' };
   if (remetente) await acrescentar(id, { role: 'assistant', content: texto, remetente });
-  return { ok: true };
+  return { ok: true, id };
 }
 
 function getStatus() {

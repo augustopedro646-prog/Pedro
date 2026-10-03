@@ -732,3 +732,25 @@ ALTER TABLE pedidos_online ADD COLUMN IF NOT EXISTS envio_servico TEXT;
 ALTER TABLE pedidos_online ADD COLUMN IF NOT EXISTS envio_prazo_dias INTEGER;
 ALTER TABLE pedidos_online ADD COLUMN IF NOT EXISTS rastreio TEXT;
 CREATE INDEX IF NOT EXISTS pedidos_online_aguardando_idx ON pedidos_online(loja_id, pag_expira_em) WHERE status = 'aguardando_pagamento';
+
+-- Face ID do ponto (mesmo desenho do Jabá, 01/10/2026): o rosto vira 128 números ("descritor",
+-- não a foto) guardados AQUI no servidor, com o PIN da pessoa e o consentimento registrado (rosto
+-- é dado biométrico sensível pela LGPD). A comparação é feita só no servidor — o navegador manda o
+-- rosto da tentativa e nunca recebe o de ninguém.
+ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS face_descritores JSONB;
+ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS face_consentimento_em TIMESTAMPTZ;
+
+-- Entregadores da loja (igual aos motoboys do Jabá): ao marcar "saiu para entrega", o robô manda
+-- pro WhatsApp do entregador o cliente, o endereço com link do mapa e quanto receber.
+CREATE TABLE IF NOT EXISTS entregadores (
+  id TEXT PRIMARY KEY,
+  loja_id INTEGER NOT NULL REFERENCES lojas(id) ON DELETE CASCADE,
+  nome TEXT NOT NULL,
+  whatsapp TEXT,
+  ativo BOOLEAN NOT NULL DEFAULT true,
+  criado_em TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- Link "Avaliar no Google" (Google Meu Negócio → Pedir avaliações): aparece no site e vai na
+-- mensagem de pedido concluído, igual ao Jabá.
+ALTER TABLE lojas ADD COLUMN IF NOT EXISTS google_avaliacao_url TEXT;

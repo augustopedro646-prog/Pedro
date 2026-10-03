@@ -16,6 +16,7 @@ const mensagens = require('./mensagens');
 const mp = require('./mercadopago');
 const frete = require('./frete');
 const ExcelJS = require('exceljs');
+const QRCode = require('qrcode');
 const Anthropic = require('@anthropic-ai/sdk');
 const crypto = require('crypto');
 
@@ -261,7 +262,7 @@ app.get('/api/lojas/:lojaId/config', qualquer, rota(async (req, res) => {
       ambiente: fiscal.ambiente(), faltandoNoServidor: fiscal.faltandoNoServidor(),
       pronto: !fiscal.faltandoNoServidor().length && /^\d{4}$/.test(l.fiscal_cfop || '') && /^\d{3}$/.test(l.fiscal_csosn || '') },
     site: { ativo: l.site_ativo, aceitaEntrega: l.aceita_entrega, aceitaRetirada: l.aceita_retirada, taxaEntrega: Number(l.taxa_entrega),
-      whatsapp: l.whatsapp || '', endereco: l.endereco || '', mensagem: l.mensagem_site || '' },
+      whatsapp: l.whatsapp || '', endereco: l.endereco || '', mensagem: l.mensagem_site || '', avaliacaoGoogle: l.google_avaliacao_url || '' },
     pagamento: { ...mesclarPagamento(l.pagamento_config), configurado: mp.configurado(), teste: mp.modoTeste() },
     envio: { ...frete.mesclarConfig(l.envio_config), configurado: frete.configurado() } });
 }));
@@ -313,6 +314,11 @@ app.put('/api/lojas/:lojaId/config', admin, rota(async (req, res) => {
         site.endereco != null ? (texto(site.endereco, 'endereço', { obrigatorio: false, max: 200 }) || '') : null,
         site.mensagem != null ? (texto(site.mensagem, 'mensagem do site', { obrigatorio: false, max: 300 }) || '') : null, req.lojaId]
     );
+    if (site.avaliacaoGoogle != null) {
+      const url = String(site.avaliacaoGoogle).trim();
+      if (url && !/^https:\/\/([a-z0-9-]+\.)*(google\.[a-z.]+|goo\.gl|g\.page)\//i.test(url)) falha(400, 'Link de avaliação: cole o link que o Google dá (começa com https://g.page/, https://search.google.com/... ou https://maps.app.goo.gl/)');
+      await pool.query('UPDATE lojas SET google_avaliacao_url = $1 WHERE id = $2', [url.slice(0, 300) || null, req.lojaId]);
+    }
   }
   if (body.pagamento && typeof body.pagamento === 'object') {
     const pg = mesclarPagamento(body.pagamento);
@@ -1650,6 +1656,31 @@ app.post('/api/lojas/:lojaId/vendas/:id/nfce', qualquer, rota(async (req, res) =
   res.json(notaPublica(nota));
 }));
 
+// Dados pra imprimir o DANFE da NFC-e no formato de cupom (na térmica do caixa, igual ao cupom da
+// venda — lição do Jabá: abrir a página da Focus não sai direito na impressora do caixa).
+// O QR Code (obrigatório no DANFE) vai como imagem PNG.
+app.get('/api/lojas/:lojaId/vendas/:id/nfce/danfe', qualquer, rota(async (req, res) => {
+  const { rows } = await pool.query("SELECT * FROM notas_fiscais WHERE venda_id = $1 AND loja_id = $2 AND status = 'autorizada'", [req.params.id, req.lojaId]);
+  if (!rows.length) falha(404, 'Essa venda não tem NFC-e autorizada');
+  const n = rows[0], bruta = n.resposta_bruta || {};
+  const { rows: itens } = await pool.query('SELECT produto_nome, tamanho, cor, qtd, preco_unit, desconto_item FROM vendas_itens WHERE venda_id = $1 ORDER BY criado_em, id', [req.params.id]);
+  const { rows: pags } = await pool.query('SELECT forma, valor FROM venda_pagamentos WHERE venda_id = $1', [req.params.id]);
+  const { rows: vs } = await pool.query('SELECT total, desconto, taxa_entrega, troco FROM vendas WHERE id = $1', [req.params.id]);
+  const { rows: lj } = await pool.query('SELECT nome, endereco FROM lojas WHERE id = $1', [req.lojaId]);
+  const qrUrl = bruta.qrcode_url || null;
+  res.json({
+    emitente: { nome: process.env.NFCE_EMITENTE_NOME || lj[0].nome, cnpj: String(process.env.FOCUS_NFE_CNPJ_EMITENTE || '').replace(/\D/g, ''),
+      ie: process.env.NFCE_EMITENTE_IE || '', endereco: process.env.NFCE_EMITENTE_ENDERECO || lj[0].endereco || '' },
+    ambiente: n.ambiente, numero: n.numero, serie: n.serie, chave: String(n.chave_acesso || bruta.chave_nfe || '').replace(/^NFe/i, ''),
+    protocolo: bruta.protocolo || null, emitidaEm: bruta.data_emissao || n.criado_em, cpf: n.cpf,
+    consulta: bruta.url_consulta_nf || 'www.nfce.set.rn.gov.br', urlDanfe: n.url_danfe,
+    qrPng: qrUrl ? await QRCode.toDataURL(qrUrl, { errorCorrectionLevel: 'M', margin: 1, width: 240 }) : null,
+    itens: itens.map((i) => ({ nome: i.produto_nome + ' ' + i.tamanho + (i.cor ? ' ' + i.cor : ''), qtd: Number(i.qtd), preco: Number(i.preco_unit), desconto: Number(i.desconto_item) })),
+    pagamentos: pags.map((p) => ({ forma: p.forma, valor: Number(p.valor) })),
+    total: Number(vs[0].total), desconto: Number(vs[0].desconto), taxaEntrega: Number(vs[0].taxa_entrega), troco: Number(vs[0].troco),
+  });
+}));
+
 // Produtos sem NCM, por categoria (pra preencher de uma vez).
 app.get('/api/lojas/:lojaId/fiscal/ncm', admin, rota(async (req, res) => {
   const { rows } = await pool.query(
@@ -2415,16 +2446,78 @@ app.get('/api/lojas/:lojaId/clientes-aniversarios', qualquer, rota(async (req, r
   res.json(rows);
 }));
 
-// Manual exige o PIN da própria pessoa (ninguém bate ponto pelo colega). Facial é
-// aceito de quem está logado no terminal e fica marcado como "facial" pra auditoria.
-app.post('/api/lojas/:lojaId/pontos', pinLimiter, qualquer, rota(async (req, res) => {
+/* ---------- Ponto: Face ID ---------- */
+// Mesmo desenho do Jabá. O que fica guardado é o "descritor" (128 números), nunca a foto.
+// - Cadastro exige o PIN da própria pessoa e o consentimento (LGPD: dado biométrico sensível).
+// - A comparação é feita só aqui no servidor: o navegador manda o rosto da tentativa e nunca
+//   recebe o de ninguém — um navegador adulterado não consegue "dizer" que reconheceu alguém.
+// - Limitação honesta: não detecta foto/vídeo na frente da câmera (prova de vida). Pra um
+//   computador da loja, com a equipe se revezando, basta; não é segurança de banco.
+const FACE_LIMIAR = 0.5; // distância máxima pra considerar a mesma pessoa (face-api sugere ~0.6)
+function descritorValido(d) { return Array.isArray(d) && d.length === 128 && d.every((n) => typeof n === 'number' && Number.isFinite(n)); }
+function distancia(a, b) { let s = 0; for (let i = 0; i < a.length; i++) s += (a[i] - b[i]) ** 2; return Math.sqrt(s); }
+
+app.get('/api/lojas/:lojaId/pontos/faces', qualquer, rota(async (req, res) => {
+  const { rows } = await pool.query(
+    'SELECT id, face_consentimento_em FROM usuarios WHERE loja_id = $1 AND ativo AND face_descritores IS NOT NULL', [req.lojaId]);
+  res.json(rows.map((r) => ({ usuarioId: r.id, desde: r.face_consentimento_em })));
+}));
+
+app.post('/api/lojas/:lojaId/pontos/cadastrar-face', pinLimiter, qualquer, rota(async (req, res) => {
+  const { usuarioId, pin, descritores, consentimento } = req.body || {};
+  if (consentimento !== true) falha(400, 'Precisa do consentimento da pessoa pra guardar o rosto');
+  if (!Array.isArray(descritores) || descritores.length < 1 || descritores.length > 8 || !descritores.every(descritorValido)) falha(400, 'Amostras do rosto inválidas');
+  const { rows } = await pool.query('SELECT id, nome, pin_hash FROM usuarios WHERE id = $1 AND loja_id = $2 AND ativo', [usuarioId, req.lojaId]);
+  if (!rows.length) falha(404, 'pessoa não encontrada');
+  if (!conferirPin(req, rows[0], pin)) falha(401, 'PIN incorreto');
+  await pool.query('UPDATE usuarios SET face_descritores = $1, face_consentimento_em = now() WHERE id = $2', [JSON.stringify(descritores), usuarioId]);
+  res.json({ ok: true });
+}));
+
+// Apagar o rosto: a própria pessoa (com o PIN dela) ou um Administrador.
+app.delete('/api/lojas/:lojaId/pontos/cadastrar-face/:usuarioId', qualquer, rota(async (req, res) => {
+  const { rows } = await pool.query('SELECT id, nome, pin_hash FROM usuarios WHERE id = $1 AND loja_id = $2', [req.params.usuarioId, req.lojaId]);
+  if (!rows.length) falha(404, 'pessoa não encontrada');
+  if (req.usuario.papel !== 'administrador' && !conferirPin(req, rows[0], (req.body || {}).pin)) falha(401, 'PIN incorreto');
+  await pool.query('UPDATE usuarios SET face_descritores = NULL, face_consentimento_em = NULL WHERE id = $1', [req.params.usuarioId]);
+  res.json({ ok: true });
+}));
+
+// Bater ponto. PIN: a própria pessoa digita o dela (ninguém bate pelo colega). Face ID: o
+// navegador manda só o descritor do rosto na câmera e o servidor descobre quem é.
+// O reconhecimento tenta a cada 1–2 s enquanto a câmera está ligada: tem limite próprio (achar um
+// rosto "no chute" com 128 números é impraticável); o PIN continua com o limite apertado.
+const limiteFace = rateLimit({ windowMs: 60 * 1000, max: 90, message: { erro: 'Muitas tentativas do Face ID — aguarde um minuto.' }, ...porVisitante });
+const limitePonto = (req, res, next) => ((req.body || {}).metodo === 'facial' ? limiteFace : pinLimiter)(req, res, next);
+app.post('/api/lojas/:lojaId/pontos', limitePonto, qualquer, rota(async (req, res) => {
   const body = req.body || {};
   if (!['pin', 'facial'].includes(body.metodo)) falha(400, 'metodo deve ser pin ou facial');
+  let usuarioId = body.usuarioId;
+  if (body.metodo === 'facial') {
+    if (!descritorValido(body.descritor)) falha(400, 'Rosto inválido');
+    const { rows: comRosto } = await pool.query('SELECT id, face_descritores FROM usuarios WHERE loja_id = $1 AND ativo AND face_descritores IS NOT NULL', [req.lojaId]);
+    let melhor = null;
+    for (const u of comRosto) {
+      for (const amostra of u.face_descritores || []) {
+        if (!descritorValido(amostra)) continue;
+        const d = distancia(body.descritor, amostra);
+        if (!melhor || d < melhor.d) melhor = { id: u.id, d };
+      }
+    }
+    if (!melhor || melhor.d > FACE_LIMIAR) return res.json({ ok: false, motivo: 'nao_reconhecido' });
+    usuarioId = melhor.id;
+  }
   const r = await transacao(async (c) => {
-    const { rows } = await c.query('SELECT id, nome, pin_hash FROM usuarios WHERE id = $1 AND loja_id = $2 AND ativo FOR UPDATE', [body.usuarioId, req.lojaId]);
+    const { rows } = await c.query('SELECT id, nome, pin_hash FROM usuarios WHERE id = $1 AND loja_id = $2 AND ativo FOR UPDATE', [usuarioId, req.lojaId]);
     const pessoa = rows[0];
     if (!pessoa) falha(404, 'pessoa não encontrada');
     if (body.metodo === 'pin' && !conferirPin(req, pessoa, body.pin)) falha(401, 'PIN incorreto');
+    // Câmera vê a mesma pessoa de novo logo em seguida: não bate duas vezes.
+    if (body.metodo === 'facial') {
+      const { rows: recente } = await c.query(
+        "SELECT tipo, registrado_em FROM pontos WHERE usuario_id = $1 AND registrado_em > now() - interval '2 minutes' ORDER BY registrado_em DESC LIMIT 1", [pessoa.id]);
+      if (recente.length) return { ok: true, repetido: true, usuarioId: pessoa.id, nome: pessoa.nome, tipo: recente[0].tipo, registradoEm: recente[0].registrado_em };
+    }
     const { rows: ultimo } = await c.query(
       `SELECT tipo FROM pontos WHERE usuario_id = $1 AND (registrado_em AT TIME ZONE $2)::date = (now() AT TIME ZONE $2)::date
        ORDER BY registrado_em DESC LIMIT 1`,
@@ -2435,9 +2528,9 @@ app.post('/api/lojas/:lojaId/pontos', pinLimiter, qualquer, rota(async (req, res
       `INSERT INTO pontos (id, loja_id, usuario_id, tipo, metodo, registrado_por) VALUES ($1,$2,$3,$4,$5,$6) RETURNING registrado_em`,
       [uid(), req.lojaId, pessoa.id, tipo, body.metodo, req.usuario.id]
     );
-    return { nome: pessoa.nome, tipo, registradoEm: novo[0].registrado_em };
+    return { ok: true, usuarioId: pessoa.id, nome: pessoa.nome, tipo, registradoEm: novo[0].registrado_em };
   });
-  res.status(201).json(r);
+  res.status(r.repetido ? 200 : 201).json(r);
 }));
 
 /* ---------- Fotos dos produtos ---------- */
@@ -2494,13 +2587,13 @@ app.get('/api/lojas/:lojaId/fotos/:id', rota(async (req, res) => {
 const limitePedidoSite = rateLimit({ windowMs: 15 * 60 * 1000, max: 15, message: { erro: 'Muitos pedidos seguidos — aguarde alguns minutos ou chame a loja no WhatsApp.' }, ...porVisitante });
 
 async function configSite(db, lojaId) {
-  const { rows } = await db.query('SELECT nome, site_ativo, aceita_entrega, aceita_retirada, taxa_entrega, whatsapp, endereco, mensagem_site, pagamento_config, envio_config FROM lojas WHERE id = $1', [lojaId]);
+  const { rows } = await db.query('SELECT nome, site_ativo, aceita_entrega, aceita_retirada, taxa_entrega, whatsapp, endereco, mensagem_site, pagamento_config, envio_config, google_avaliacao_url FROM lojas WHERE id = $1', [lojaId]);
   if (!rows.length) falha(404, 'loja não encontrada');
   const l = rows[0];
   const pg = mesclarPagamento(l.pagamento_config), ev = frete.mesclarConfig(l.envio_config);
   const pix = pg.pix && mp.configurado(), cartao = pg.cartao && mp.configurado();
   return { nome: l.nome, ativo: l.site_ativo, aceitaEntrega: l.aceita_entrega, aceitaRetirada: l.aceita_retirada, taxaEntrega: Number(l.taxa_entrega),
-    whatsapp: l.whatsapp || '', endereco: l.endereco || '', mensagem: l.mensagem_site || '',
+    whatsapp: l.whatsapp || '', endereco: l.endereco || '', mensagem: l.mensagem_site || '', avaliacaoGoogle: l.google_avaliacao_url || '',
     // naEntrega cai pra true se nenhuma forma online estiver de pé (nunca deixa o site sem como pagar)
     pagamento: { pix, cartao, naEntrega: pg.naEntrega || (!pix && !cartao), maxParcelas: pg.maxParcelas, minutosPagar: pg.minutosPagar },
     envio: { ativo: ev.ativo && !!ev.cepOrigem && frete.configurado() && (pix || cartao), freteGratisAcima: ev.freteGratisAcima },
@@ -2584,6 +2677,40 @@ app.post('/api/lojas/:lojaId/loja/frete', limiteFrete, rota(async (req, res) => 
     try { opcoes = await frete.cotar(config._envio, end.cep, pecas, subtotal); } catch (e) { erroEnvio = e.message; }
   }
   res.json({ endereco: end, entregaLocal: entregaLocal ? { taxa: config.taxaEntrega } : null, opcoes, erroEnvio });
+}));
+
+// Prévia do pedido (o robô do WhatsApp mostra antes de o cliente confirmar — igual ao Jabá):
+// peças com o preço de verdade (promoção incluída), taxa, total e troco. Não reserva nada.
+// Corpo: { itens, tipo: 'retirada'|'entrega', pagamento?, trocoPara? }
+app.post('/api/lojas/:lojaId/loja/pedidos/previa', limiteFrete, rota(async (req, res) => {
+  const body = req.body || {};
+  const itens = lerItensSacola(body.itens);
+  const config = await configSite(pool, req.lojaId);
+  if (!['retirada', 'entrega'].includes(body.tipo)) falha(400, 'Escolha retirada ou entrega');
+  const promos = await promocoes.ativas(pool, req.lojaId, TZ);
+  const { rows } = await pool.query(
+    `SELECT v.id, v.tamanho, v.cor, v.estoque, v.preco_venda, p.id AS produto_id, p.nome, p.categoria FROM produto_variacoes v JOIN produtos p ON p.id = v.produto_id
+     WHERE v.id = ANY($1) AND v.loja_id = $2 AND v.ativo AND p.ativo AND p.publicado AND v.preco_venda > 0`, [itens.map((i) => i.variacaoId), req.lojaId]);
+  const porId = Object.fromEntries(rows.map((r) => [r.id, r]));
+  let subtotal = 0;
+  const linhas = [], problemas = [];
+  for (const it of itens) {
+    const v = porId[it.variacaoId];
+    if (!v) { problemas.push({ variacaoId: it.variacaoId, motivo: 'peça não está mais à venda' }); continue; }
+    const pr = promocoes.precoComPromo(promos, v.produto_id, v.categoria, v.preco_venda);
+    if (Number(v.estoque) < it.qtd) problemas.push({ variacaoId: v.id, motivo: 'só tem ' + Math.max(0, Number(v.estoque)) + ' de ' + v.nome + ' ' + v.tamanho });
+    subtotal = round2(subtotal + pr.preco * it.qtd);
+    linhas.push({ variacaoId: v.id, produto: v.nome, tamanho: v.tamanho, cor: v.cor || undefined, qtd: it.qtd, preco: pr.preco,
+      ...(pr.promo ? { precoSemPromocao: pr.precoCheio, promocao: pr.promo.nome } : {}) });
+  }
+  const taxaEntrega = body.tipo === 'entrega' ? config.taxaEntrega : 0;
+  const total = round2(subtotal + taxaEntrega);
+  let pagaCom = null, troco = null;
+  if (body.pagamento === 'Dinheiro' && body.trocoPara != null && body.trocoPara !== '') {
+    pagaCom = Number(String(body.trocoPara).replace(/[^\d,.]/g, '').replace(',', '.'));
+    if (Number.isFinite(pagaCom) && pagaCom > 0) troco = round2(Math.max(0, pagaCom - total)); else pagaCom = null;
+  }
+  res.json({ itens: linhas, subtotal, taxaEntrega, total, ...(pagaCom != null ? { pagaCom, troco, trocoSuficiente: pagaCom >= total } : {}), problemas });
 }));
 
 function urlSite(req) { return (process.env.SITE_URL || (req.protocol + '://' + req.get('host'))).replace(/\/+$/, ''); }
@@ -2801,6 +2928,63 @@ app.get('/api/lojas/:lojaId/pedidos-online/contagem', qualquer, rota(async (req,
   res.json(rows[0]);
 }));
 
+/* ---------- Entregadores ---------- */
+function dadosEntregador(body) {
+  const nome = texto(body.nome, 'nome do entregador', { max: 60 });
+  const whatsapp = soDigitos(body.whatsapp) || null;
+  if (whatsapp && (whatsapp.length < 10 || whatsapp.length > 11)) falha(400, 'WhatsApp do entregador: DDD + número (ex.: 84999998888)');
+  return { nome, whatsapp };
+}
+app.get('/api/lojas/:lojaId/entregadores', qualquer, rota(async (req, res) => {
+  const { rows } = await pool.query('SELECT id, nome, whatsapp FROM entregadores WHERE loja_id = $1 AND ativo ORDER BY nome', [req.lojaId]);
+  res.json(rows);
+}));
+app.post('/api/lojas/:lojaId/entregadores', admin, rota(async (req, res) => {
+  const d = dadosEntregador(req.body || {});
+  const id = uid();
+  await pool.query('INSERT INTO entregadores (id, loja_id, nome, whatsapp) VALUES ($1,$2,$3,$4)', [id, req.lojaId, d.nome, d.whatsapp]);
+  res.status(201).json({ id, ...d });
+}));
+app.put('/api/lojas/:lojaId/entregadores/:id', admin, rota(async (req, res) => {
+  const d = dadosEntregador(req.body || {});
+  const { rowCount } = await pool.query('UPDATE entregadores SET nome = $1, whatsapp = $2 WHERE id = $3 AND loja_id = $4', [d.nome, d.whatsapp, req.params.id, req.lojaId]);
+  if (!rowCount) falha(404, 'entregador não encontrado');
+  res.json({ ok: true });
+}));
+app.delete('/api/lojas/:lojaId/entregadores/:id', admin, rota(async (req, res) => {
+  await pool.query('UPDATE entregadores SET ativo = false WHERE id = $1 AND loja_id = $2', [req.params.id, req.lojaId]);
+  res.json({ ok: true });
+}));
+
+// Mensagem pro entregador: cliente, telefone, endereço com mapa e quanto receber.
+function textoEntregador(p, entregador) {
+  const receber = p.pago_online && p.pag_status === 'pago' ? 'Já está PAGO pelo site — não cobrar nada.'
+    : p.pagamento === 'Dinheiro' ? `Receber ${brlTexto(p.total)} em DINHEIRO${p.troco_para ? ` (cliente paga com ${brlTexto(p.troco_para)} — levar ${brlTexto(round2(p.troco_para - p.total))} de troco)` : ''}.`
+    : `Receber ${brlTexto(p.total)} no ${p.pagamento === 'Pix' ? 'Pix' : 'cartão (' + p.pagamento.toLowerCase() + ') — levar a maquininha'}.`;
+  const pecas = p.itens.reduce((t, i) => t + i.qtd, 0);
+  return `Oi, ${entregador.nome.split(' ')[0]}! 🛵 Entrega da Loja Gutto — pedido #${p.numero}\n\n`
+    + `Cliente: ${p.cliente_nome}\nTelefone: ${p.telefone}\nEndereço: ${p.endereco}\n`
+    + `Mapa: https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(p.endereco || '')}\n\n`
+    + `${pecas} peça${pecas === 1 ? '' : 's'}. ${receber}`;
+}
+function brlTexto(v) { return 'R$ ' + Number(v).toFixed(2).replace('.', ','); }
+
+// Manda pelo número do robô (sem precisar clicar "enviar"). A conversa com o entregador fica pausada
+// pro robô (ele não é cliente). Bot desligado: devolve o link wa.me pra mandar pelo celular.
+async function avisarEntregador(p, entregador) {
+  const texto = textoEntregador(p, entregador);
+  const linkManual = 'https://wa.me/55' + entregador.whatsapp + '?text=' + encodeURIComponent(texto);
+  if (!process.env.BOT_WEBHOOK_SECRET) return { ok: false, motivo: 'Atendente de WhatsApp não configurado', linkManual };
+  try {
+    const r = await fetch(BOT_URL + '/enviar-equipe', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Bot-Secret': process.env.BOT_WEBHOOK_SECRET },
+      body: JSON.stringify({ telefoneLocal: entregador.whatsapp, texto, nome: 'Entregador ' + entregador.nome }), signal: AbortSignal.timeout(20000) });
+    const d = await r.json().catch(() => ({}));
+    return r.ok ? { ok: true } : { ok: false, motivo: d.erro || 'falha ao enviar', linkManual };
+  } catch (e) {
+    return { ok: false, motivo: 'O atendente de WhatsApp não está rodando', linkManual };
+  }
+}
+
 const PROXIMO_STATUS = { recebido: ['separando', 'pronto'], separando: ['pronto'], pronto: ['saiu_entrega'] };
 app.put('/api/lojas/:lojaId/pedidos-online/:id/status', qualquer, rota(async (req, res) => {
   const body = req.body || {};
@@ -2810,14 +2994,25 @@ app.put('/api/lojas/:lojaId/pedidos-online/:id/status', qualquer, rota(async (re
     const atual = rows[0];
     if (!(PROXIMO_STATUS[atual.status] || []).includes(body.status)) falha(409, 'Esse pedido está "' + STATUS_LABEL[atual.status] + '" — não dá pra mudar pra esse status');
     if (body.status === 'saiu_entrega' && atual.tipo === 'retirada') falha(400, 'Pedido é de retirada na loja');
-    const entregador = body.status === 'saiu_entrega' && atual.tipo === 'entrega' ? texto(body.entregador, 'entregador', { obrigatorio: false, max: 60 }) : null;
+    let entregador = body.status === 'saiu_entrega' && atual.tipo === 'entrega' ? texto(body.entregador, 'entregador', { obrigatorio: false, max: 60 }) : null;
+    let cadastro = null;
+    if (body.status === 'saiu_entrega' && atual.tipo === 'entrega' && body.entregadorId) {
+      const { rows: es } = await c.query('SELECT id, nome, whatsapp FROM entregadores WHERE id = $1 AND loja_id = $2 AND ativo', [body.entregadorId, req.lojaId]);
+      if (!es.length) falha(404, 'entregador não encontrado');
+      cadastro = es[0]; entregador = cadastro.nome;
+    }
     const rastreio = body.status === 'saiu_entrega' && atual.tipo === 'envio' ? (texto(body.rastreio, 'código de rastreio', { obrigatorio: false, max: 40 }) || '').replace(/\s+/g, '').toUpperCase() || null : null;
     await c.query('UPDATE pedidos_online SET status = $1, entregador = COALESCE($2, entregador), rastreio = COALESCE($4, rastreio), atualizado_em = now() WHERE id = $3',
       [body.status, entregador, req.params.id, rastreio]);
-    return { status: body.status };
+    return { status: body.status, cadastro };
   });
   notificarBot(req.lojaId, req.params.id, r.status);
-  res.json(r);
+  let avisoEntregador;
+  if (r.cadastro && body.avisarEntregador) {
+    if (!r.cadastro.whatsapp) avisoEntregador = { ok: false, motivo: 'Esse entregador não tem WhatsApp cadastrado' };
+    else avisoEntregador = await avisarEntregador(await detalhePedido(pool, 'id = $1', [req.params.id]), r.cadastro);
+  }
+  res.json({ status: r.status, ...(avisoEntregador ? { avisoEntregador } : {}) });
 }));
 
 // Concluir = o cliente recebeu e pagou: vira uma venda do caixa aberto (entra no Livro caixa,

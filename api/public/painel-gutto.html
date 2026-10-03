@@ -11,7 +11,7 @@
 <link rel="manifest" href="/manifest.webmanifest">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700&family=Work+Sans:wght@400;500;600&display=swap" rel="stylesheet">
-<script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
+<script src="vendor/face-api.min.js" defer></script>
 <style>
   :root {
     --bg: #FFF8F0;
@@ -549,9 +549,13 @@
         <button class="chip" data-cfg-ir="cfg-sec-vendas">Vendas e crediário</button><button class="chip" data-cfg-ir="cfg-sec-cupom">Cupom</button>
         <button class="chip" data-cfg-ir="cfg-sec-fiscal">Nota fiscal</button><button class="chip" data-cfg-ir="cfg-sec-site">Site da loja</button>
         <button class="chip" data-cfg-ir="cfg-sec-pagamento">Pagamento pelo site</button><button class="chip" data-cfg-ir="cfg-sec-envio">Envio</button>
+        <button class="chip" data-cfg-ir="cfg-sec-entregadores">Entregadores</button>
         <button class="chip" data-cfg-ir="cfg-sec-backup">Backup</button>
       </div>
       <div class="painel"><div class="painel-titulo" id="cfg-sec-vendas">Vendas e crediário</div><div id="config-loja"></div></div>
+      <div class="painel" style="margin-top:16px" id="cfg-sec-entregadores"><div class="painel-titulo-linha"><div class="painel-titulo">Entregadores</div><button class="btn-secundario" id="btn-novo-entregador">+ Entregador</button></div>
+        <p class="modal-dica" style="margin-top:0">Com o WhatsApp cadastrado, ao marcar "Saiu para entrega" o robô manda pro entregador o cliente, o endereço com o mapa e quanto receber.</p>
+        <div id="entregadores-lista"></div></div>
       <div class="painel" style="margin-top:16px" id="cfg-sec-backup"><div class="painel-titulo-linha"><div class="painel-titulo">Backup do banco</div><button class="btn-secundario" id="btn-backup-agora">Fazer backup agora</button></div><div id="backup-info"></div></div>
     </div>
 
@@ -772,7 +776,7 @@
     contas: null, contasFiltro: 'abertas', contasResumo: null, fluxoAba: 'mes',
     rel: null, relFiltro: null, relPedido: null, relCarregando: false, relVer: {}, relTodos: {},
     tema: temaInicial, sidebarCollapsed: false,
-    rostos: carregarRostos(),
+    faces: {},
   };
   function setState(patch) { Object.assign(state, patch); render(); }
 
@@ -877,13 +881,14 @@
       } else if (view === 'equipe') {
         state.equipe = await api('/equipe');
       } else if (view === 'configuracoes') {
-        const [bkp, ncm] = await Promise.all([api('/backup'), api('/fiscal/ncm'), carregarConfig()]);
-        state.backup = bkp; state.fiscalNcm = ncm;
+        const [bkp, ncm, entregadores] = await Promise.all([api('/backup'), api('/fiscal/ncm'), api('/entregadores'), carregarConfig()]);
+        state.backup = bkp; state.fiscalNcm = ncm; state.entregadores = entregadores;
       } else if (view === 'whatsapp') {
         await carregarWhatsApp(true);
         carregarMensagensClientes();
       } else if (view === 'online') {
-        state.pedidosOnline = await api('/pedidos-online');
+        const [pedidos, entregadores] = await Promise.all([api('/pedidos-online'), api('/entregadores')]);
+        state.pedidosOnline = pedidos; state.entregadores = entregadores;
       } else if (view === 'calendario') {
         const { inicio, fim } = limitesMes(state.calMes);
         const mesCarregado = state.calMes;
@@ -891,7 +896,8 @@
           api('/clientes-aniversarios?mes=' + Number(state.calMes.slice(5, 7)) + '&ano=' + state.calMes.slice(0, 4))]);
         if (mesCarregado === state.calMes) Object.assign(state, { calAgenda: agenda, calPontos: pontos, calAniversarios: aniversarios });
       } else if (view === 'ponto') {
-        state.pontos = await api('/pontos');
+        const [pontos, faces] = await Promise.all([api('/pontos'), api('/pontos/faces')]);
+        state.pontos = pontos; state.faces = Object.fromEntries(faces.map(f => [f.usuarioId, f.desde]));
       } else if (view === 'relatorios') {
         await carregarRelatorio();
       }
@@ -1642,6 +1648,40 @@
   /* ---------- NFC-e (nota fiscal do consumidor, via Focus NFe) ---------- */
   function fiscalPronto() { return !!(state.config.fiscal && state.config.fiscal.pronto); }
   function mascaraCpf(c) { const d = String(c || '').replace(/\D/g, ''); return d.length === 11 ? d.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4') : String(c || ''); }
+  // DANFE da NFC-e no formato de cupom, na térmica do caixa (como o Jabá faz). Leva o QR Code
+  // (obrigatório) como imagem: impressora térmica que não imprime imagem vinda do navegador precisa
+  // do caminho do app de computador — ver README.
+  async function imprimirDanfeCupom(vendaId) {
+    const d = await api('/vendas/' + vendaId + '/nfce/danfe');
+    const largura = configCupom().largura;
+    const cnpj = d.emitente.cnpj.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, '$1.$2.$3/$4-$5');
+    const totalItens = d.itens.reduce((t, i) => t + i.preco * i.qtd, 0);
+    const chave = (d.chave.match(/.{1,4}/g) || []).join(' ');
+    imprimirDocumento(`<!doctype html><html><head><meta charset="utf-8"><title>NFC-e</title><style>${estiloCupom(largura)} .qr { display:block; margin: 2mm auto; width: 34mm; height: 34mm; } .ch { font: 10px/1.3 monospace; text-align:center; word-break: break-all; }</style></head><body>
+      <div class="c b">${esc(d.emitente.nome)}</div>
+      <div class="c p">CNPJ ${esc(cnpj)}${d.emitente.ie ? ' · IE ' + esc(d.emitente.ie) : ''}</div>
+      ${d.emitente.endereco ? `<div class="c p">${esc(d.emitente.endereco)}</div>` : ''}
+      <hr><div class="c b">DANFE NFC-e</div><div class="c p">Documento Auxiliar da Nota Fiscal de Consumidor Eletrônica</div>
+      ${d.ambiente !== 'producao' ? '<div class="c b">EMITIDA EM AMBIENTE DE HOMOLOGAÇÃO — SEM VALOR FISCAL</div>' : ''}
+      <hr>
+      ${d.itens.map((i, k) => `<div class="it"><div>${String(k + 1).padStart(3, '0')} ${esc(i.nome)}</div>
+        <div class="l"><span>${i.qtd} UN x ${fmt(i.preco)}</span><span>${fmt(i.preco * i.qtd)}</span></div>${i.desconto ? `<div class="l p"><span>desconto</span><span>- ${fmt(i.desconto)}</span></div>` : ''}</div>`).join('')}
+      <hr>
+      <div class="l"><span>Qtd. total de itens</span><span>${d.itens.reduce((t, i) => t + i.qtd, 0)}</span></div>
+      <div class="l"><span>Valor total</span><span>${fmt(totalItens)}</span></div>
+      ${d.desconto ? `<div class="l"><span>Descontos</span><span>- ${fmt(d.desconto)}</span></div>` : ''}
+      ${d.taxaEntrega ? `<div class="l"><span>Entrega</span><span>${fmt(d.taxaEntrega)}</span></div>` : ''}
+      <div class="l t"><span>VALOR A PAGAR</span><span>${fmt(d.total)}</span></div>
+      <div class="p b" style="margin-top:1mm">FORMA DE PAGAMENTO</div>
+      ${d.pagamentos.map(p => `<div class="l"><span>${esc(p.forma)}</span><span>${fmt(p.valor)}</span></div>`).join('')}
+      ${d.troco > 0.005 ? `<div class="l"><span>Troco</span><span>${fmt(d.troco)}</span></div>` : ''}
+      <hr><div class="c p">Consulte pela Chave de Acesso em<br>${esc(d.consulta)}</div><div class="ch">${esc(chave)}</div>
+      <hr><div class="c p">${d.cpf ? 'CONSUMIDOR CPF ' + esc(mascaraCpf(d.cpf)) : 'CONSUMIDOR NÃO IDENTIFICADO'}</div>
+      <div class="c p b">NFC-e nº ${esc(d.numero || '')} Série ${esc(d.serie || '')} · ${dataHora(d.emitidaEm)}</div>
+      ${d.protocolo ? `<div class="c p">Protocolo de autorização: ${esc(d.protocolo)}</div>` : ''}
+      ${d.qrPng ? `<img class="qr" src="${d.qrPng}" alt="QR Code">` : ''}
+    </body></html>`, largura);
+  }
   function abrirDanfe(url) { if (!window.open(url, '_blank')) toast('O navegador bloqueou a janela da nota: permita pop-ups deste endereço', 'erro'); }
   // Emite, mostra o resultado (autorizada / motivo da recusa) e imprime. `auto`: já emite ao abrir.
   function areaNfce(el, vendaId, cpfInicial, nota, auto) {
@@ -1650,9 +1690,11 @@
     const desenhar = (n, erro) => {
       if (n && n.status === 'autorizada') {
         el.innerHTML = `<div class="nfce-box ok" data-nfce-status="autorizada"><div>✓ NFC-e nº ${esc(n.numero)} autorizada${n.cpf ? ' · CPF ' + esc(mascaraCpf(n.cpf)) : ''}${teste ? ' <span class="tag aviso">teste, sem valor fiscal</span>' : ''}</div>
-          ${n.url_danfe ? '<button class="btn-secundario" data-nfce-imprimir>🧾 Imprimir NFC-e</button>' : ''}</div>`;
+          <span style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn-secundario" data-nfce-imprimir>🧾 Imprimir NFC-e</button>${n.url_danfe ? '<button class="link-btn" data-nfce-focus>ver na Focus</button>' : ''}</span></div>`;
         const b = el.querySelector('[data-nfce-imprimir]');
-        if (b) b.onclick = () => abrirDanfe(n.url_danfe);
+        if (b) b.onclick = () => comBotao(b, 'Preparando...', () => imprimirDanfeCupom(vendaId));
+        const f = el.querySelector('[data-nfce-focus]');
+        if (f) f.onclick = () => abrirDanfe(n.url_danfe);
         return;
       }
       if (n && n.status === 'cancelada') { el.innerHTML = `<div class="nfce-box" data-nfce-status="cancelada">NFC-e nº ${esc(n.numero)} cancelada</div>`; return; }
@@ -2324,6 +2366,7 @@
       <div class="pedido-topo" style="align-items:center">
         <div class="stat-valor" style="margin:0">${fmt(p.total)}</div>
         <div class="pedido-acoes">
+          <button class="btn-secundario" data-ped-imprimir="${p.id}" title="Recibo pra separar e mandar com a entrega">🖨 Imprimir</button>
           ${aberto ? `<a class="btn-secundario" style="text-decoration:none" href="${linkWhatsCliente(p)}" target="_blank" rel="noopener">Avisar cliente</a>` : ''}
           ${botoes.join('')}
           ${aberto && ehAdmin() ? `<button class="link-btn" style="color:var(--zero-text)" data-ped-cancelar="${p.id}">cancelar pedido</button>` : ''}
@@ -2345,6 +2388,7 @@
       + (fechados.length ? `<div class="painel-titulo" style="margin:18px 0 10px">Concluídos e cancelados (últimos 2 dias)</div>` + fechados.map(cardPedido).join('') : '');
     el.querySelectorAll('[data-ped-status]').forEach(b => b.onclick = () => comBotao(b, '...', () => mudarStatusPedido(b.dataset.ped, b.dataset.pedStatus)));
     el.querySelectorAll('[data-ped-saiu]').forEach(b => b.onclick = () => abrirSaiuEntrega(lista.find(p => p.id === b.dataset.pedSaiu)));
+    el.querySelectorAll('[data-ped-imprimir]').forEach(b => b.onclick = () => imprimirPedidoOnline(lista.find(p => p.id === b.dataset.pedImprimir)));
     el.querySelectorAll('[data-ped-postado]').forEach(b => b.onclick = () => abrirPostado(lista.find(p => p.id === b.dataset.pedPostado)));
     el.querySelectorAll('[data-ped-copiar]').forEach(b => b.onclick = async () => {
       const p = lista.find(x => x.id === b.dataset.pedCopiar);
@@ -2364,14 +2408,59 @@
     const camada = abrirModal(`<div class="modal-card estreito">${cabecalhoModal('Saiu para entrega — #' + p.numero, p.endereco)}
       <a class="btn-secundario" style="text-decoration:none;text-align:center" href="${linkMaps(p.endereco)}" target="_blank" rel="noopener">📍 Abrir endereço no mapa</a>
       ${p.pagamento === 'Dinheiro' ? `<div class="modal-dica">💵 Receber em dinheiro ${fmt(p.total)}${p.troco_para ? ' — levar troco de ' + fmt(p.troco_para - p.total) : ''}</div>` : `<div class="modal-dica">Pagamento: ${esc(p.pagamento)}</div>`}
-      <label class="campo">Quem vai entregar?<input id="se-entregador" type="text" placeholder="Nome do entregador"></label>
+      ${(state.entregadores || []).length ? `<label class="campo">Quem vai entregar?<select id="se-cadastrado">${state.entregadores.map(e => `<option value="${e.id}">${esc(e.nome)}${e.whatsapp ? '' : ' (sem WhatsApp)'}</option>`).join('')}<option value="">Outra pessoa...</option></select></label>` : ''}
+      <label class="campo" id="se-outro-wrap" style="${(state.entregadores || []).length ? 'display:none' : ''}">${(state.entregadores || []).length ? 'Nome' : 'Quem vai entregar?'}<input id="se-entregador" type="text" placeholder="Nome do entregador"></label>
+      ${(state.entregadores || []).length ? `<label style="display:flex;gap:6px;align-items:center;font-size:13px" id="se-avisar-wrap"><input type="checkbox" id="se-avisar" checked style="width:auto;min-width:0"> Avisar o entregador no WhatsApp (endereço, mapa e quanto receber)</label>` : `<div class="modal-dica">Dica: cadastre os entregadores em Configurações → Entregadores pra eles receberem o endereço no WhatsApp.</div>`}
       <div class="erro-modal" id="se-erro"></div>
       <button class="btn-primario btn-grande" id="se-ok">Confirmar saída</button></div>`);
-    camada.querySelector('#se-entregador').focus();
+    const sel = camada.querySelector('#se-cadastrado');
+    const ajustar = () => {
+      const outro = !sel || !sel.value;
+      camada.querySelector('#se-outro-wrap').style.display = outro ? '' : 'none';
+      const av = camada.querySelector('#se-avisar-wrap');
+      if (av) { const e = state.entregadores.find(x => x.id === (sel && sel.value)); av.style.display = e && e.whatsapp ? '' : 'none'; }
+    };
+    if (sel) { sel.onchange = ajustar; ajustar(); } else camada.querySelector('#se-entregador').focus();
     camada.querySelector('#se-ok').onclick = (ev) => comBotao(ev.target, 'Salvando...', async () => {
-      await mudarStatusPedido(p.id, 'saiu_entrega', camada.querySelector('#se-entregador').value);
-      fecharModal(); toast('Pedido #' + p.numero + ' saiu para entrega');
+      const entregadorId = sel && sel.value ? sel.value : null;
+      const avisar = !!entregadorId && camada.querySelector('#se-avisar') && camada.querySelector('#se-avisar').checked;
+      const r = await api('/pedidos-online/' + p.id + '/status', { method: 'PUT', body: { status: 'saiu_entrega', entregadorId, entregador: entregadorId ? null : camada.querySelector('#se-entregador').value, avisarEntregador: avisar } });
+      await carregarDadosDaView('online'); verificarPedidosNovos();
+      fecharModal();
+      const a = r.avisoEntregador;
+      if (!a || a.ok) { toast('Pedido #' + p.numero + ' saiu para entrega' + (a ? ' — entregador avisado no WhatsApp' : '')); return; }
+      abrirModal(`<div class="modal-card estreito">${cabecalhoModal('Pedido #' + p.numero + ' saiu para entrega', 'Mas não consegui avisar o entregador pelo robô: ' + esc(a.motivo))}
+        ${a.linkManual ? `<a class="btn-primario btn-grande" style="text-decoration:none;text-align:center" href="${esc(a.linkManual)}" target="_blank" rel="noopener">Mandar pelo WhatsApp do celular</a>` : ''}
+        <button class="btn-secundario" onclick="fecharModal()">Fechar</button></div>`);
     }, camada.querySelector('#se-erro'));
+  }
+  // Recibo do pedido online (igual ao "recibo de caixa" do Jabá): pra separar as peças e pra ir
+  // junto com a entrega — diz claramente se já está pago ou quanto o entregador recebe.
+  function imprimirPedidoOnline(p) {
+    const largura = configCupom().largura;
+    const pago = p.pago_online && p.pag_status === 'pago';
+    const receber = pago ? '<div class="c t">PAGO PELO SITE</div>'
+      : `<div class="l t"><span>RECEBER</span><span>${fmt(p.total)}</span></div><div class="l"><span>Forma</span><span>${esc(p.pagamento)}</span></div>
+        ${p.pagamento === 'Dinheiro' && p.troco_para ? `<div class="l"><span>Cliente paga com</span><span>${fmt(p.troco_para)}</span></div><div class="l b"><span>Levar de troco</span><span>${fmt(p.troco_para - p.total)}</span></div>` : ''}`;
+    imprimirDocumento(`<!doctype html><html><head><meta charset="utf-8"><title>Pedido</title><style>${estiloCupom(largura)} .x { display:inline-block; width:3mm; height:3mm; border:1px solid #000; margin-right:1.5mm; vertical-align:-0.5mm; }</style></head><body>
+      ${cabecalhoCupom()}
+      <hr><div class="c t">PEDIDO ONLINE #${p.numero}</div>
+      <div class="c p">${dataHora(p.criado_em)} · ${p.origem === 'whatsapp' ? 'pelo WhatsApp' : 'pelo site'}</div>
+      <hr><div class="b">${esc(p.cliente_nome)}</div><div>Tel.: ${esc(telefoneBR(p.telefone))}</div>
+      <div class="b" style="margin-top:1mm">${p.tipo === 'retirada' ? 'RETIRADA NA LOJA' : p.tipo === 'envio' ? 'ENVIO: ' + esc(p.envio_servico || 'Correios') : 'ENTREGA'}</div>
+      ${p.tipo !== 'retirada' ? `<div>${esc(p.endereco || '')}</div>` : ''}${p.entregador ? `<div class="p">Entregador: ${esc(p.entregador)}</div>` : ''}
+      ${p.lista_titulo ? `<div class="p">Presente pra lista: ${esc(p.lista_titulo)}${p.presente_de ? ' — de ' + esc(p.presente_de) : ''}</div>` : ''}
+      ${p.observacao ? `<div class="p">Obs.: ${esc(p.observacao)}</div>` : ''}
+      <hr>
+      ${p.itens.map(i => `<div class="it"><div><span class="x"></span>${i.qtd}x ${esc(i.produto_nome)} · ${esc(i.tamanho)}${i.cor ? ' · ' + esc(i.cor) : ''}</div>
+        <div class="l p"><span>${i.qtd} x ${fmt(i.preco_unit)}</span><span>${fmt(i.qtd * i.preco_unit)}</span></div></div>`).join('')}
+      <hr>
+      <div class="l"><span>Peças</span><span>${fmt(p.subtotal)}</span></div>
+      ${p.taxa_entrega ? `<div class="l"><span>${p.tipo === 'envio' ? 'Frete' : 'Entrega'}</span><span>${fmt(p.taxa_entrega)}</span></div>` : ''}
+      <div class="l b"><span>Total</span><span>${fmt(p.total)}</span></div>
+      <hr>${receber}
+      <hr><div class="c p">Obrigado pela preferência!</div>
+    </body></html>`, largura);
   }
   function abrirPostado(p) {
     const camada = abrirModal(`<div class="modal-card estreito">${cabecalhoModal('Pedido #' + p.numero + ' postado', (p.envio_servico || 'Envio') + ' · ' + p.endereco)}
@@ -4124,9 +4213,37 @@
   }
 
   /* ================= Configurações ================= */
+  function renderEntregadores() {
+    const el = document.getElementById('entregadores-lista');
+    const lista = state.entregadores || [];
+    el.innerHTML = lista.length ? lista.map(e => `<div class="linha-simples"><div style="flex-grow:1"><b>${esc(e.nome)}</b>
+        <div style="font-size:12px;color:var(--text-2)">${e.whatsapp ? '📱 ' + esc(telefoneBR(e.whatsapp)) : 'sem WhatsApp (não recebe o aviso)'}</div></div>
+        <button class="btn-secundario" data-ent-editar="${e.id}">Editar</button><button class="link-btn" style="color:var(--zero-text)" data-ent-remover="${e.id}">remover</button></div>`).join('')
+      : '<div class="vazio">Nenhum entregador cadastrado.</div>';
+    el.querySelectorAll('[data-ent-editar]').forEach(b => b.onclick = () => abrirEntregador(lista.find(e => e.id === b.dataset.entEditar)));
+    el.querySelectorAll('[data-ent-remover]').forEach(b => b.onclick = async () => {
+      const e = lista.find(x => x.id === b.dataset.entRemover);
+      if (!confirm('Remover ' + e.nome + ' da lista de entregadores?')) return;
+      try { await api('/entregadores/' + e.id, { method: 'DELETE' }); state.entregadores = await api('/entregadores'); renderEntregadores(); toast('Removido'); } catch (err) { toast(err.message, 'erro'); }
+    });
+  }
+  function abrirEntregador(e) {
+    const camada = abrirModal(`<div class="modal-card estreito">${cabecalhoModal(e ? 'Editar entregador' : 'Novo entregador', 'O WhatsApp é pra onde vai o aviso de cada entrega')}
+      <label class="campo">Nome<input id="en-nome" maxlength="60" value="${esc(e ? e.nome : '')}"></label>
+      <label class="campo">WhatsApp (DDD + número)<input id="en-whats" inputmode="numeric" value="${esc(e && e.whatsapp ? telefoneBR(e.whatsapp) : '')}" placeholder="(84) 99999-8888"></label>
+      <div class="erro-modal" id="en-erro"></div><button class="btn-primario btn-grande" id="en-salvar">Salvar</button></div>`);
+    camada.querySelector('#en-nome').focus();
+    camada.querySelector('#en-salvar').onclick = (ev) => comBotao(ev.target, 'Salvando...', async () => {
+      const corpo = { nome: camada.querySelector('#en-nome').value, whatsapp: camada.querySelector('#en-whats').value };
+      await api('/entregadores' + (e ? '/' + e.id : ''), { method: e ? 'PUT' : 'POST', body: corpo });
+      state.entregadores = await api('/entregadores'); fecharModal(); renderEntregadores(); toast('Entregador salvo');
+    }, camada.querySelector('#en-erro'));
+  }
   function renderConfiguracoes() {
+    renderEntregadores();
     const cfg = state.config;
-    if (!cfg || !state.backup) { document.getElementById('config-loja').innerHTML = '<div class="carregando">Carregando...</div>'; return; }
+    // Só desenha com tudo carregado (o backup e a config podem já ter vindo do Início, mas o NCM não).
+    if (!cfg || !state.backup || !state.fiscalNcm) { document.getElementById('config-loja').innerHTML = '<div class="carregando">Carregando...</div>'; return; }
     document.getElementById('config-loja').innerHTML = `
       <div class="linha-campos" style="max-width:520px;align-items:flex-end">
         <label class="campo">Cashback pro cliente (%)<input id="cfg-cashback" inputmode="decimal" value="${String(cfg.cashbackPct).replace('.', ',')}"></label>
@@ -4159,6 +4276,8 @@
         <label class="campo">Endereço da loja (pra retirada)<input id="cfg-site-endereco" maxlength="200" value="${esc(cfg.site ? cfg.site.endereco : '')}"></label>
         <label class="campo">Aviso no topo do site (opcional)<input id="cfg-site-msg" maxlength="300" value="${esc(cfg.site ? cfg.site.mensagem : '')}" placeholder="Ex.: Entregamos em Parnamirim e Natal"></label>
       </div>
+      <label class="campo" style="max-width:720px;margin-top:10px">Link pra avaliar no Google (opcional)<input id="cfg-site-avaliacao" maxlength="300" value="${esc(cfg.site ? cfg.site.avaliacaoGoogle || '' : '')}" placeholder="https://g.page/r/..."></label>
+      <div class="modal-dica" style="margin-top:4px">No Google Meu Negócio (ou no Google Maps, no perfil da loja) → <b>Pedir avaliações</b> → copiar o link. Aparece no site e vai na mensagem de pedido concluído.</div>
       ${htmlConfigPagamentoEnvio(cfg)}
       <div style="display:flex;gap:10px;align-items:center;margin-top:12px;flex-wrap:wrap">
         <button class="btn-primario" id="cfg-salvar">Salvar configurações</button>
@@ -4181,7 +4300,7 @@
       await api('/config', { method: 'PUT', body: { cashbackPct, descontoLivrePct, comissaoPct, crediario, fiscal: fiscalCorpo, pagamento, envio, cupomRodape: document.getElementById('cfg-cupom-rodape').value, site: {
         ativo: document.getElementById('cfg-site-ativo').checked, aceitaRetirada: document.getElementById('cfg-site-retirada').checked,
         aceitaEntrega: document.getElementById('cfg-site-entrega').checked, taxaEntrega: taxa, whatsapp: document.getElementById('cfg-site-whats').value,
-        endereco: document.getElementById('cfg-site-endereco').value, mensagem: document.getElementById('cfg-site-msg').value } } });
+        endereco: document.getElementById('cfg-site-endereco').value, mensagem: document.getElementById('cfg-site-msg').value, avaliacaoGoogle: document.getElementById('cfg-site-avaliacao').value } } });
       await carregarConfig(); toast('Configurações salvas');
       renderConfiguracoes();
     }, document.getElementById('cfg-erro'));
@@ -4727,10 +4846,11 @@
   }
 
   /* ================= Bater ponto ================= */
-  const MODEL_URL = 'https://cdn.jsdelivr.net/gh/justadudewhohacks/face-api.js@master/weights';
-  const LIMIAR_RECONHECIMENTO = 0.5;
+  // Face ID igual ao do Jabá: os modelos vêm do próprio computador da loja (pasta vendor, funciona
+  // sem internet) e quem reconhece é o servidor — aqui só se calcula o "descritor" do rosto.
+  const MODEL_URL = 'vendor/face-models';
   let modelsPromise = null, modelosProntos = false, cameraStream = null, cadastroStream = null, reconhecendoAtivo = false;
-  const ultimoReconhecimentoPorUsuario = {};
+  try { localStorage.removeItem('gutto-rostos'); } catch (e) {} // versão antiga guardava o rosto no navegador
   function carregarModelos() {
     if (modelsPromise) return modelsPromise;
     if (typeof faceapi === 'undefined') { modelsPromise = Promise.resolve(); return modelsPromise; }
@@ -4741,8 +4861,6 @@
     ]).then(() => { modelosProntos = true; }).catch((e) => { console.error('Falha ao carregar modelo de reconhecimento facial', e); modelsPromise = null; modelosProntos = false; });
     return modelsPromise;
   }
-  function carregarRostos() { try { return JSON.parse(localStorage.getItem('gutto-rostos') || '{}'); } catch (e) { return {}; } }
-  function salvarRostos(rostos) { try { localStorage.setItem('gutto-rostos', JSON.stringify(rostos)); } catch (e) {} }
   async function ligarCamera(videoEl) {
     const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' }, audio: false });
     videoEl.srcObject = stream; await videoEl.play(); return stream;
@@ -4763,14 +4881,14 @@
     const pontos = state.pontos;
     document.getElementById('ponto-grid').innerHTML = state.usuarios.map(u => {
       const status = statusPessoa(u.id);
-      const temRosto = !!state.rostos[u.id];
+      const temRosto = !!state.faces[u.id];
       return `<div class="ponto-card">
         <div class="avatar" style="width:44px;height:44px;font-size:16px;background:var(--teal)">${esc(u.nome.charAt(0))}</div>
         <div style="font-weight:600;font-size:14px">${esc(u.nome)}</div>
-        <div class="rosto-tag ${temRosto ? 'ok' : ''}">${temRosto ? '✓ Rosto cadastrado neste computador' : 'Rosto não cadastrado'}</div>
+        <div class="rosto-tag ${temRosto ? 'ok' : ''}">${temRosto ? '✓ Face ID cadastrado' + ` <button class="link-btn" data-remover-face="${u.id}" style="font-size:10px">remover</button>` : 'Sem Face ID'}</div>
         <div style="font-size:11px;color:${status === 'dentro' ? 'var(--ok-text)' : 'var(--text-2)'}">${status === 'dentro' ? 'Dentro' : 'Fora'}</div>
         <div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:center">
-          <button class="btn-secundario" data-cadastrar="${u.id}">${temRosto ? 'Recadastrar rosto' : 'Cadastrar rosto'}</button>
+          <button class="btn-secundario" data-cadastrar="${u.id}">${temRosto ? 'Recadastrar Face ID' : 'Cadastrar Face ID'}</button>
           <button class="btn-ponto ${status === 'dentro' ? 'saida' : 'entrada'}" data-usuario="${u.id}">${status === 'dentro' ? 'Bater saída' : 'Bater entrada'}</button>
         </div></div>`;
     }).join('');
@@ -4782,6 +4900,14 @@
       catch (e) { toast(e.message, 'erro'); }
     }));
     document.querySelectorAll('#ponto-grid [data-cadastrar]').forEach(b => b.addEventListener('click', () => abrirCadastroRosto(state.usuarios.find(u => u.id === b.dataset.cadastrar))));
+    document.querySelectorAll('#ponto-grid [data-remover-face]').forEach(b => b.addEventListener('click', async () => {
+      const u = state.usuarios.find(x => x.id === b.dataset.removerFace);
+      let pin;
+      if (ehAdmin()) { if (!confirm('Apagar o Face ID de ' + u.nome + '? Pra usar de novo, vai precisar cadastrar.')) return; }
+      else { pin = await pedirPin('PIN de ' + u.nome, 'Pra apagar o Face ID'); if (!pin) return; }
+      try { await api('/pontos/cadastrar-face/' + u.id, { method: 'DELETE', body: { pin } }); delete state.faces[u.id]; toast('Face ID de ' + u.nome + ' apagado'); renderPonto(); }
+      catch (e) { toast(e.message, 'erro'); }
+    }));
     document.getElementById('ponto-historico').innerHTML = pontos == null ? '<div class="carregando">Carregando...</div>' : pontos.length ? pontos.slice().reverse().map(p => `
       <div class="linha-simples">
         <div class="avatar" style="width:28px;height:28px;font-size:11px">${esc(p.nome.charAt(0))}</div>
@@ -4813,55 +4939,74 @@
   }
   async function loopReconhecimento(video, statusEl) {
     if (!reconhecendoAtivo) return;
+    let espera = 1200;
     try {
-      const deteccao = await faceapi.detectSingleFace(video, new faceapi.TinyFaceDetectorOptions()).withFaceLandmarks().withFaceDescriptor();
-      if (deteccao) {
-        let melhorId = null, melhorDist = 999;
-        Object.keys(state.rostos).forEach((id) => { const d = faceapi.euclideanDistance(deteccao.descriptor, state.rostos[id]); if (d < melhorDist) { melhorDist = d; melhorId = id; } });
-        const usuario = melhorId && melhorDist < LIMIAR_RECONHECIMENTO ? state.usuarios.find(u => u.id === melhorId) : null;
-        if (usuario) {
-          const agora = Date.now();
-          if (agora - (ultimoReconhecimentoPorUsuario[usuario.id] || 0) > 15000) {
-            ultimoReconhecimentoPorUsuario[usuario.id] = agora;
-            try {
-              const r = await registrarPonto(usuario, 'facial');
-              statusEl.className = 'facial-status ok';
-              statusEl.textContent = '✓ ' + usuario.nome + ' reconhecido — ' + (r.tipo === 'entrada' ? 'entrada' : 'saída') + ' às ' + hora(r.registradoEm);
-            } catch (e) { statusEl.className = 'facial-status erro'; statusEl.textContent = e.message; }
-          }
+      const deteccao = await faceapi.detectSingleFace(video, new faceapi.TinyFaceDetectorOptions({ inputSize: 224, scoreThreshold: 0.5 })).withFaceLandmarks().withFaceDescriptor();
+      if (!deteccao) { statusEl.className = 'facial-status'; statusEl.textContent = 'Procurando rosto...'; }
+      else if (!Object.keys(state.faces).length) { statusEl.className = 'facial-status'; statusEl.textContent = 'Ninguém tem Face ID ainda — cadastre no cartão da pessoa, ou use o botão com PIN.'; }
+      else {
+        const r = await api('/pontos', { method: 'POST', body: { metodo: 'facial', descritor: Array.from(deteccao.descriptor) } });
+        if (r.ok) {
+          espera = 4000;
+          statusEl.className = 'facial-status ok';
+          statusEl.textContent = '✓ ' + r.nome + (r.repetido ? ' — já registrado' : ' reconhecido') + ': ' + (r.tipo === 'entrada' ? 'entrada' : 'saída') + ' às ' + hora(r.registradoEm);
+          if (!r.repetido) { state.pontos = await api('/pontos'); renderPonto(); }
         } else {
           statusEl.className = 'facial-status';
-          statusEl.textContent = 'Rosto não reconhecido — cadastre o rosto no cartão da pessoa, ou use o botão com PIN.';
+          statusEl.textContent = 'Rosto não reconhecido — cadastre o Face ID no cartão da pessoa, ou use o botão com PIN.';
+          espera = 2000;
         }
-      } else { statusEl.className = 'facial-status'; statusEl.textContent = 'Procurando rosto...'; }
-    } catch (e) {}
-    if (reconhecendoAtivo) setTimeout(() => loopReconhecimento(video, statusEl), 1200);
+      }
+    } catch (e) { statusEl.className = 'facial-status erro'; statusEl.textContent = e.message; espera = 3000; }
+    if (reconhecendoAtivo) setTimeout(() => loopReconhecimento(video, statusEl), espera);
   }
+  // Cadastro: 3 amostras do rosto (de frente e um pouco pra cada lado), depois o PIN da pessoa e o
+  // consentimento. Só o descritor (números) vai pro servidor, nunca a imagem.
+  const PASSOS_FACE = ['Olhe reto pra câmera', 'Agora vire o rosto um pouquinho pra um lado', 'E um pouquinho pro outro lado'];
   function abrirCadastroRosto(usuario) {
     const camada = abrirModal(`<div class="modal-card" style="align-items:center;text-align:center">
-      ${cabecalhoModal('Cadastrar rosto — ' + usuario.nome, 'Posicione o rosto dentro da oval, com boa luz')}
+      ${cabecalhoModal('Face ID — ' + usuario.nome, 'Posicione o rosto dentro da oval, com boa luz')}
       <div class="facial-video-wrap" style="width:280px;height:210px"><video id="video-cadastro" autoplay muted playsinline></video><div class="facial-oval"></div></div>
       <div class="facial-status" id="cadastro-status">Ligando câmera...</div>
-      <button class="btn-primario" id="btn-capturar-rosto" disabled>Capturar e salvar</button></div>`, () => { pararStream(cadastroStream); cadastroStream = null; });
+      <div id="cadastro-fim" style="display:none;width:100%;text-align:left">
+        <label style="display:flex;gap:8px;align-items:flex-start;font-size:12px;margin:6px 0"><input type="checkbox" id="face-consent" style="width:auto;min-width:0;margin-top:2px">
+          <span>Autorizo a Loja Gutto a guardar um código numérico do meu rosto (não a foto), só pra bater o ponto. Posso pedir pra apagar quando quiser.</span></label>
+        <label class="campo">PIN de ${esc(usuario.nome)}<input id="face-pin" type="password" inputmode="numeric" maxlength="4" autocomplete="off"></label>
+        <div class="erro-modal" id="face-erro"></div>
+        <button class="btn-primario btn-grande" id="face-salvar" style="width:100%;margin-top:8px">Salvar Face ID</button>
+      </div></div>`, () => { pararStream(cadastroStream); cadastroStream = null; });
     iniciarCadastroRosto(usuario, camada);
   }
   async function iniciarCadastroRosto(usuario, camada) {
-    const video = camada.querySelector('#video-cadastro'), statusEl = camada.querySelector('#cadastro-status'), btn = camada.querySelector('#btn-capturar-rosto');
+    const video = camada.querySelector('#video-cadastro'), statusEl = camada.querySelector('#cadastro-status');
     try { cadastroStream = await ligarCamera(video); } catch (e) { statusEl.className = 'facial-status erro'; statusEl.textContent = 'Não foi possível acessar a câmera.'; return; }
-    statusEl.textContent = 'Carregando modelo...';
+    statusEl.textContent = 'Carregando o reconhecimento...';
     await carregarModelos();
-    if (!modelosProntos) { statusEl.className = 'facial-status erro'; statusEl.textContent = 'Reconhecimento indisponível (sem internet?).'; return; }
-    statusEl.textContent = 'Pronto — clique em "Capturar e salvar".';
-    btn.disabled = false;
-    btn.onclick = async () => {
-      statusEl.textContent = 'Capturando...';
-      const d = await faceapi.detectSingleFace(video, new faceapi.TinyFaceDetectorOptions()).withFaceLandmarks().withFaceDescriptor();
-      if (!d) { statusEl.className = 'facial-status erro'; statusEl.textContent = 'Nenhum rosto detectado — tente com mais luz.'; return; }
-      state.rostos = Object.assign({}, state.rostos, { [usuario.id]: Array.from(d.descriptor) });
-      salvarRostos(state.rostos);
-      statusEl.className = 'facial-status ok'; statusEl.textContent = '✓ Rosto salvo pra ' + usuario.nome + '.';
-      setTimeout(() => { pararStream(cadastroStream); cadastroStream = null; fecharModal(); render(); }, 900);
-    };
+    if (!modelosProntos) { statusEl.className = 'facial-status erro'; statusEl.textContent = 'Não consegui carregar o reconhecimento facial.'; return; }
+    const amostras = [];
+    let ultima = 0;
+    statusEl.textContent = PASSOS_FACE[0];
+    while (amostras.length < PASSOS_FACE.length && cadastroStream && document.body.contains(video)) {
+      let d = null;
+      try { d = await faceapi.detectSingleFace(video, new faceapi.TinyFaceDetectorOptions({ inputSize: 224, scoreThreshold: 0.5 })).withFaceLandmarks().withFaceDescriptor(); } catch (e) { /* tenta de novo */ }
+      if (d && Date.now() - ultima > 1500) {
+        amostras.push(Array.from(d.descriptor)); ultima = Date.now();
+        statusEl.className = 'facial-status ok';
+        statusEl.textContent = amostras.length < PASSOS_FACE.length ? '✓ ' + amostras.length + ' de ' + PASSOS_FACE.length + ' — ' + PASSOS_FACE[amostras.length] : '✓ Rosto capturado';
+      }
+      await new Promise(r => setTimeout(r, 400));
+    }
+    if (amostras.length < PASSOS_FACE.length) return;
+    pararStream(cadastroStream); cadastroStream = null;
+    const fim = camada.querySelector('#cadastro-fim');
+    fim.style.display = 'block';
+    camada.querySelector('#face-pin').focus();
+    camada.querySelector('#face-salvar').onclick = (ev) => comBotao(ev.target, 'Salvando...', async () => {
+      if (!camada.querySelector('#face-consent').checked) throw new Error('Marque a autorização pra guardar o Face ID');
+      await api('/pontos/cadastrar-face', { method: 'POST', body: { usuarioId: usuario.id, pin: camada.querySelector('#face-pin').value, descritores: amostras, consentimento: true } });
+      state.faces[usuario.id] = new Date().toISOString();
+      fecharModal(); toast('Face ID de ' + usuario.nome + ' salvo'); render();
+    }, camada.querySelector('#face-erro'));
   }
 
   /* ================= Relatórios (Fase 4) ================= */
@@ -5205,6 +5350,7 @@
     if (arquivos.length) lerNotaArquivos(arquivos);
   });
   document.getElementById('btn-novo-usuario').addEventListener('click', () => abrirUsuario(null));
+  document.getElementById('btn-novo-entregador').addEventListener('click', () => abrirEntregador(null));
   document.querySelectorAll('[data-cfg-ir]').forEach(b => b.addEventListener('click', () => {
     const alvo = document.getElementById(b.dataset.cfgIr);
     if (alvo) alvo.scrollIntoView({ behavior: 'smooth', block: 'start' });

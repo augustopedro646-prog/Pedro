@@ -41,8 +41,25 @@ const definicoes = [
     input_schema: { type: 'object', properties: {} },
   },
   {
+    name: 'calcular_pedido',
+    description: 'Prévia do pedido SEM fechar nada (não reserva peça nenhuma): preço de cada peça (com promoção), taxa de entrega, total e troco se for dinheiro. Chame SEMPRE antes de criar_pedido, com as mesmas peças, tipo e pagamento, e mostre esse resumo pro cliente confirmar. Se vier algo em "problemas" (peça acabou, estoque menor), resolva com o cliente antes.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        tipo: { type: 'string', enum: ['retirada', 'entrega'] },
+        pagamento: { type: 'string', enum: ['Pix', 'Dinheiro', 'Débito', 'Crédito'] },
+        trocoPara: { type: 'number', description: 'só se Dinheiro: o valor da nota que o cliente vai usar' },
+        itens: {
+          type: 'array',
+          items: { type: 'object', properties: { variacaoId: { type: 'string' }, qtd: { type: 'integer' } }, required: ['variacaoId', 'qtd'] },
+        },
+      },
+      required: ['tipo', 'itens'],
+    },
+  },
+  {
     name: 'criar_pedido',
-    description: 'Fecha o pedido de verdade: reserva as peças no estoque e ele aparece na tela da loja. Só use DEPOIS de o cliente confirmar explicitamente: as peças (variacaoId de buscar_produtos, com quantidade), retirada ou entrega (endereço completo com rua, número e bairro), forma de pagamento (paga na entrega/retirada) e o nome. Nunca calcule o total por conta própria — o sistema devolve o total certo.',
+    description: 'Fecha o pedido de verdade: reserva as peças no estoque e ele aparece na tela da loja. Só use DEPOIS de chamar calcular_pedido, mostrar o resumo com os valores e o cliente confirmar explicitamente: as peças (variacaoId de buscar_produtos, com quantidade), retirada ou entrega (endereço completo com rua, número e bairro), forma de pagamento (paga na entrega/retirada) e o nome. Nunca calcule valores por conta própria.',
     input_schema: {
       type: 'object',
       properties: {
@@ -126,6 +143,22 @@ const execucoes = {
       loja: 'Loja Gutto', endereco: config.endereco || null, recebendoPedidos: config.ativo,
       retiradaNaLoja: config.aceitaRetirada, entrega: config.aceitaEntrega, taxaEntrega: config.aceitaEntrega ? config.taxaEntrega : null,
       siteParaVerVitrineEPedir: process.env.SITE_URL || null, aviso: config.mensagem || null,
+    };
+  },
+
+  async calcular_pedido(input) {
+    const r = await api('/loja/pedidos/previa', { method: 'POST', body: {
+      tipo: input.tipo, pagamento: input.pagamento || null, trocoPara: input.pagamento === 'Dinheiro' ? input.trocoPara : null,
+      itens: (input.itens || []).map((i) => ({ variacaoId: i.variacaoId, qtd: i.qtd })),
+    } });
+    if (!r.ok) return { erro: r.dados.erro || 'Não consegui calcular agora.' };
+    const d = r.dados;
+    return {
+      pecas: d.itens.map((i) => ({ ...i, preco: brl(i.preco), ...(i.precoSemPromocao ? { precoSemPromocao: brl(i.precoSemPromocao) } : {}), totalDaLinha: brl(i.preco * i.qtd) })),
+      subtotal: brl(d.subtotal), taxaEntrega: d.taxaEntrega ? brl(d.taxaEntrega) : 'sem taxa', total: brl(d.total),
+      ...(d.pagaCom != null ? { pagaCom: brl(d.pagaCom), troco: d.trocoSuficiente ? brl(d.troco) : 'o valor não cobre o total — pergunte de novo' } : {}),
+      ...(d.problemas.length ? { problemas: d.problemas.map((p) => p.motivo) } : {}),
+      lembrete: 'Mostre esse resumo e só chame criar_pedido depois do "sim" do cliente.',
     };
   },
 

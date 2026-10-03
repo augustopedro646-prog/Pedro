@@ -209,7 +209,8 @@
     const whats = document.getElementById('btn-whats');
     if (c.whatsapp) { whats.href = 'https://wa.me/55' + c.whatsapp; whats.style.display = ''; }
     document.getElementById('hero-sub').textContent = 'Escolha o tamanho e a cor e faça o pedido aqui' + (c.aceitaRetirada && c.aceitaEntrega ? ': retire na loja ou receba em casa.' : c.aceitaEntrega ? ' — entregamos na sua casa.' : ' e retire na loja.');
-    document.getElementById('rodape').innerHTML = esc(c.nome ? 'Loja ' + c.nome : 'Loja Gutto') + (c.endereco ? ' · ' + esc(c.endereco) : '') + (c.whatsapp ? ' · WhatsApp ' + esc(telefoneBR(c.whatsapp)) : '');
+    document.getElementById('rodape').innerHTML = esc(c.nome ? 'Loja ' + c.nome : 'Loja Gutto') + (c.endereco ? ' · ' + esc(c.endereco) : '') + (c.whatsapp ? ' · WhatsApp ' + esc(telefoneBR(c.whatsapp)) : '')
+      + (c.avaliacaoGoogle ? `<div style="margin-top:8px"><a href="${esc(c.avaliacaoGoogle)}" target="_blank" rel="noopener" id="link-avaliar">⭐ Avalie a loja no Google</a></div>` : '');
     renderVitrine();
   }
 
@@ -606,6 +607,7 @@
         ${p.taxaEntrega ? `<div class="linha-total"><span>${p.tipo === 'envio' ? 'Frete' : 'Entrega'}</span><span>${brl(p.taxaEntrega)}</span></div>` : ''}
         <div class="linha-total grande"><span>Total</span><span>${brl(p.total)}</span></div>
         <div class="dica">${p.tipo === 'envio' ? 'Envio pelos Correios' : p.tipo === 'entrega' ? 'Entrega' : 'Retirada na loja'} · ${o ? (o.status === 'pago' || o.status === 'estornado' ? 'pago pelo site' : 'pagamento pelo site') + ' (' + esc(o.metodo === 'pix' ? 'Pix' : p.pagamento === 'Crédito' ? 'cartão' : p.pagamento) + ')' : 'pagamento em ' + esc(p.pagamento)}</div></div>
+      ${p.status === 'entregue' && state.config && state.config.avaliacaoGoogle ? `<a class="btn" style="display:flex;align-items:center;justify-content:center;text-decoration:none" href="${esc(state.config.avaliacaoGoogle)}" target="_blank" rel="noopener">⭐ Gostou? Avalie a loja no Google</a>` : ''}
       ${state.config && state.config.whatsapp ? `<a class="btn-sec" href="https://wa.me/55${esc(state.config.whatsapp)}?text=${encodeURIComponent('Oi! Queria saber do meu pedido #' + p.numero + '.')}" target="_blank" rel="noopener">Falar com a loja</a>` : ''}`);
     const copiar = folha.querySelector('#pix-copiar');
     if (copiar) copiar.onclick = async () => {

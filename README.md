@@ -57,6 +57,20 @@ WhatsApp, endereço). Produto aparece no site se estiver ativo, marcado "Mostrar
 edição do produto, onde também vão as fotos) e com estoque. As peças de um pedido ficam
 reservadas na hora; ao concluir na aba **Pedidos online**, o pedido vira venda do caixa aberto.
 
+### Pedidos online no dia a dia
+
+- **🖨 Imprimir** em cada pedido: recibo pra separar as peças (com quadradinhos pra ir marcando) e
+  pra ir com a entrega. Mostra se está **pago pelo site** ou quanto o entregador recebe, e o troco.
+- **Entregadores** (Configurações → Entregadores): nome e WhatsApp. No "Saiu para entrega" você
+  escolhe quem leva, e o robô manda pro WhatsApp dele o cliente, o telefone, o endereço com o link
+  do mapa e quanto receber. A conversa com o entregador fica fora do atendimento automático. Se o
+  robô estiver desligado, aparece o botão pra mandar pelo celular.
+- **Avaliação no Google** (Configurações → Site da loja): cole o link do Google Meu Negócio
+  (Pedir avaliações). Ele aparece no rodapé do site, no acompanhamento do pedido concluído e na
+  mensagem de "pedido concluído" do WhatsApp.
+- No WhatsApp, o robô mostra o resumo do pedido (peças com o preço certo, taxa, total e troco)
+  **antes** de fechar, e só fecha depois do "sim" do cliente.
+
 ## Pagamento pelo site (Mercado Pago)
 
 Configure em **Configurações → Pagamento pelo site**: Pix, cartão de crédito
@@ -224,7 +238,13 @@ com a contadora.
 - Depois da venda aparece **Emitir NFC-e**, com o **CPF na nota** opcional. Se a cliente está
   identificada e tem CPF no cadastro, ele já vem preenchido.
 - Pra emitir sozinho em toda venda, marque **Emitir automaticamente**.
-- **Imprimir NFC-e** abre a nota pronta pra impressora térmica.
+- **Imprimir NFC-e** imprime o DANFE no formato de cupom, na térmica do caixa (com o QR Code de
+  consulta). "ver na Focus" abre a página da nota na Focus NFe, se precisar.
+  - Pra sair o nome, a IE e o endereço certos no topo do DANFE, coloque no `api\.env`:
+    `NFCE_EMITENTE_NOME=`, `NFCE_EMITENTE_IE=` e `NFCE_EMITENTE_ENDERECO=`.
+  - ⚠ Lição do Jabá: a térmica **Elgin i8** não imprime imagem mandada pelo navegador, e aí o QR
+    Code não sai. No Jabá isso foi resolvido pelo app de computador, que imprime pelo Windows. Se
+    a térmica da Gutto também for uma i8, avise que eu trago essa parte.
 - Se a SEFAZ recusar, aparece o motivo (ex.: NCM errado): corrija e clique em **Tentar de novo**.
   Se a internet cair no meio, clique de novo; o sistema confere antes de reenviar, então nunca sai
   nota duplicada.
@@ -234,6 +254,22 @@ com a contadora.
   contadora (nota de devolução).
 - Troca/devolução não mexe na NFC-e original. O vale-troca é controle interno da loja; se a
   contadora pedir nota de devolução pra isso, é à parte.
+
+## Bater ponto com Face ID
+
+Na aba **Bater ponto**, cada pessoa cadastra o próprio Face ID no cartão dela: a câmera tira 3
+amostras do rosto (de frente e um pouco pra cada lado), e a pessoa digita o **PIN** e marca a
+**autorização** (rosto é dado sensível pela LGPD). Depois é só ligar a câmera e olhar: o sistema
+reconhece e bate a entrada ou a saída.
+
+- O que fica guardado é um código numérico do rosto, **não a foto**, e fica no servidor (vale em
+  qualquer computador da loja). Quem reconhece é o servidor, não o navegador.
+- O reconhecimento funciona sem internet (os arquivos ficam no próprio computador).
+- Dá pra apagar o Face ID no cartão da pessoa ("remover"): a própria pessoa com o PIN dela, ou o
+  Administrador.
+- Limite honesto: não detecta foto na frente da câmera. Pra um computador da loja é suficiente.
+- Quem tinha cadastrado o rosto na versão antiga precisa cadastrar de novo (antes ficava só no
+  navegador, sem PIN nem autorização).
 
 ## Relatórios (só Administrador)
 

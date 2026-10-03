@@ -41,7 +41,8 @@ const AVISOS = {
   saiu_entrega: (p) => p.tipo === 'envio'
     ? `Seu pedido #${p.numero} foi enviado 📦${p.rastreio ? ` Código de rastreio: ${p.rastreio} — acompanhe em https://www.melhorrastreio.com.br/rastreio/${p.rastreio}` : ' Assim que tiver o código de rastreio, te mandamos por aqui.'}`
     : `Seu pedido #${p.numero} saiu para entrega 🛵 Já já chega aí!`,
-  entregue: (p) => `Pedido #${p.numero} concluído! Obrigado por comprar na Loja Gutto 💛 O cashback dessa compra já está no seu cadastro pra próxima.`,
+  entregue: (p) => `Pedido #${p.numero} concluído! Obrigado por comprar na Loja Gutto 💛 O cashback dessa compra já está no seu cadastro pra próxima.`
+    + (p.avaliacao ? `\n\nSe gostou, deixa uma avaliação pra gente no Google? Ajuda muito uma loja pequena ⭐ ${p.avaliacao}` : ''),
   cancelado: (p) => `Seu pedido #${p.numero} foi cancelado.${p.estornado ? ' O valor pago já foi devolvido pelo Mercado Pago (no cartão pode levar alguns dias pra aparecer).' : ''} Se tiver qualquer dúvida, é só responder aqui.`,
 };
 app.post('/webhook/pedido-status', async (req, res) => {
@@ -50,13 +51,13 @@ app.post('/webhook/pedido-status', async (req, res) => {
   if (!AVISOS[status]) return;
   try {
     const { rows } = await pool.query(
-      `SELECT p.numero, p.telefone, p.tipo, p.cliente_nome, p.origem, p.pago_online, p.pag_status, p.rastreio, l.endereco FROM pedidos_online p JOIN lojas l ON l.id = p.loja_id
+      `SELECT p.numero, p.telefone, p.tipo, p.cliente_nome, p.origem, p.pago_online, p.pag_status, p.rastreio, l.endereco, l.google_avaliacao_url FROM pedidos_online p JOIN lojas l ON l.id = p.loja_id
        WHERE p.id = $1 AND p.loja_id = $2`, [pedidoId, LOJA_ID]);
     if (!rows.length) return;
     const p = rows[0];
     if (status === 'recebido' && p.origem === 'whatsapp') return; // o robô já confirmou na conversa
     const texto = AVISOS[status]({ numero: p.numero, nome: p.cliente_nome.split(' ')[0], tipo: p.tipo, endereco: p.endereco,
-      pagoOnline: p.pago_online, estornado: p.pag_status === 'estornado', rastreio: p.rastreio });
+      pagoOnline: p.pago_online, estornado: p.pag_status === 'estornado', rastreio: p.rastreio, avaliacao: p.google_avaliacao_url });
     await conexao.enviarTexto({ telefoneLocal: p.telefone }, texto, 'sistema');
   } catch (e) { console.error('Falha no aviso de status:', e.message); }
 });
@@ -84,6 +85,22 @@ app.post('/enviar', async (req, res) => {
      ON CONFLICT (loja_id, telefone) DO UPDATE SET pausado = true, pausado_em = now(), precisa_humano = false`, [LOJA_ID, telefone]);
   const r = await conexao.enviarTexto(telefone, texto.trim(), 'equipe');
   if (!r.ok) return res.status(502).json({ erro: r.erro || 'falha ao enviar' });
+  res.json({ ok: true });
+});
+
+// Recado pra alguém da equipe (ex.: entregador): manda pelo número do robô e deixa a conversa
+// pausada — o robô não responde o entregador como se fosse cliente.
+app.post('/enviar-equipe', async (req, res) => {
+  const { telefoneLocal: tel, texto, nome } = req.body || {};
+  if (typeof tel !== 'string' || !/^\d{10,11}$/.test(tel) || typeof texto !== 'string' || !texto.trim() || texto.length > 2000) {
+    return res.status(400).json({ erro: 'telefoneLocal (DDD + número) e texto são obrigatórios' });
+  }
+  const r = await conexao.enviarTexto({ telefoneLocal: tel }, texto.trim(), 'equipe');
+  if (!r.ok) return res.status(502).json({ erro: r.erro || 'falha ao enviar' });
+  await pool.query(
+    `INSERT INTO bot_conversas (loja_id, telefone, pausado, pausado_em, precisa_humano, cliente_nome) VALUES ($1, $2, true, now(), false, $3)
+     ON CONFLICT (loja_id, telefone) DO UPDATE SET pausado = true, pausado_em = now(), cliente_nome = COALESCE(bot_conversas.cliente_nome, $3)`,
+    [LOJA_ID, r.id, typeof nome === 'string' ? nome.slice(0, 80) : null]);
   res.json({ ok: true });
 });
 
