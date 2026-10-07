@@ -35,7 +35,7 @@ app.use(seguranca.filtroInternet); // pela internet (túnel), só o site da loja
 app.use(cors());
 // Só a leitura de nota recebe arquivo grande (fotos/PDF em base64); o resto fica no limite pequeno.
 const jsonPadrao = express.json({ limit: '1mb' });
-app.use((req, res, next) => (req.path.endsWith('/compras/ler-nota') || /\/produtos\/[^/]+\/fotos$/.test(req.path) ? next() : jsonPadrao(req, res, next)));
+app.use((req, res, next) => (req.path.endsWith('/compras/ler-nota') || req.path.endsWith('/produtos/importar-planilha') || /\/produtos\/[^/]+\/fotos$/.test(req.path) ? next() : jsonPadrao(req, res, next)));
 app.use(express.static(path.join(__dirname, 'public')));
 app.get('/', (req, res) => res.redirect('/painel-gutto.html'));
 app.get('/loja', (req, res) => res.redirect('/loja-gutto.html'));
@@ -1663,6 +1663,187 @@ app.post('/api/lojas/:lojaId/vendas/:id/nfce', qualquer, rota(async (req, res) =
   res.json(notaPublica(nota));
 }));
 
+/* ---------- Importar produtos por planilha ---------- */
+// Uma linha por tamanho/cor. "Produto" em branco = mesmo produto da linha de cima (e preço/custo
+// em branco repetem os de cima). Produto que já existe no sistema (mesmo nome) é pulado, então
+// importar o mesmo arquivo duas vezes não duplica nada.
+const COLS_IMPORT = [
+  ['produto', 'Produto', 34], ['categoria', 'Categoria', 16], ['grade', 'Grade', 12], ['tamanho', 'Tamanho', 10], ['cor', 'Cor', 14],
+  ['quantidade', 'Quantidade', 11], ['preco', 'Preço de venda', 14], ['custo', 'Custo', 11], ['codigo', 'Código de barras (opcional)', 22],
+  ['ncm', 'NCM (opcional)', 14], ['descricao', 'Descrição (opcional)', 30],
+];
+const semAcentoMin = (t) => String(t || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase();
+function numeroPlanilha(cel) {
+  if (cel == null || cel === '') return null;
+  if (typeof cel === 'number') return cel;
+  let t = String(cel).replace(/r\$|\s/gi, '');
+  if (!t) return null;
+  if (t.includes(',')) t = t.replace(/\./g, '').replace(',', '.');
+  const n = Number(t);
+  return Number.isFinite(n) ? n : NaN;
+}
+function valorCelula(c) {
+  const v = c.value;
+  if (v == null) return '';
+  if (typeof v === 'object' && v.result !== undefined) return v.result; // fórmula
+  if (typeof v === 'object' && v.richText) return v.richText.map((r) => r.text).join('');
+  return v;
+}
+
+app.get('/api/lojas/:lojaId/produtos/planilha-modelo', admin, rota(async (req, res) => {
+  const { rows: grades } = await pool.query('SELECT nome, tamanhos FROM grades_tamanho WHERE loja_id = $1 ORDER BY nome', [req.lojaId]);
+  const livro = new ExcelJS.Workbook();
+  const aba = livro.addWorksheet('Produtos', { views: [{ state: 'frozen', ySplit: 1 }] });
+  aba.columns = COLS_IMPORT.map(([key, header, width]) => ({ key, header, width }));
+  aba.getRow(1).font = { bold: true };
+  aba.getRow(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFE3D6' } };
+  ['codigo', 'ncm', 'tamanho'].forEach((k) => { aba.getColumn(k).numFmt = '@'; });
+  if (grades.length) {
+    for (let r = 2; r <= 1000; r++) aba.getCell('C' + r).dataValidation = { type: 'list', allowBlank: true, formulae: ['"' + grades.map((g) => g.nome).join(',') + '"'] };
+  }
+  const ex = livro.addWorksheet('Exemplo');
+  ex.columns = COLS_IMPORT.map(([key, header, width]) => ({ key, header, width }));
+  ex.getRow(1).font = { bold: true };
+  [
+    { produto: 'Body Ursinho Manga Longa', categoria: 'Bodies', grade: 'Bebê', tamanho: '0-3M', cor: 'Branco', quantidade: 3, preco: 39.9, custo: 18 },
+    { tamanho: '3-6M', cor: 'Branco', quantidade: 2 },
+    { tamanho: '0-3M', cor: 'Azul', quantidade: 2 },
+    { tamanho: '3-6M', cor: 'Azul', quantidade: 1 },
+    { produto: 'Vestido Floral Alcinha', categoria: 'Vestidos', grade: 'Infantil', tamanho: '2', cor: '', quantidade: 2, preco: 89.9, custo: 40, descricao: 'Viscose, forrado' },
+    { tamanho: '4', quantidade: 3 },
+    { tamanho: '6', quantidade: 1, preco: 94.9 },
+  ].forEach((r) => ex.addRow(r));
+  const ajuda = livro.addWorksheet('Como preencher');
+  ajuda.getColumn(1).width = 120;
+  ['Cadastro de produtos da Loja Gutto por planilha', '',
+    'Preencha a aba "Produtos": UMA LINHA PARA CADA TAMANHO/COR (veja a aba "Exemplo").',
+    '• Produto: nome sem tamanho e sem cor. Deixe EM BRANCO nas linhas de baixo do mesmo produto.',
+    '• Tamanho: obrigatório (ex.: 0-3M, 2, 4, P, M). Cor: deixe em branco se a peça só tem uma cor.',
+    '• Quantidade: quantas peças tem agora na loja (pode ser 0).',
+    '• Preço de venda: obrigatório na 1ª linha do produto; em branco nas de baixo = mesmo preço.',
+    '• Custo: quanto pagou por peça (opcional, mas ajuda nos relatórios de lucro).',
+    '• Grade: ' + (grades.length ? grades.map((g) => g.nome + ' (' + g.tamanhos.join(', ') + ')').join('; ') : 'nenhuma grade cadastrada ainda') + '. Opcional — ajuda a ordenar os tamanhos.',
+    '• Código de barras: só se a peça JÁ TEM etiqueta com código. Em branco = o sistema cria um e você imprime a etiqueta.',
+    '• NCM: se souber (8 números). Se não, a contadora preenche depois pela planilha de NCM.',
+    '', 'Produto que já existe no sistema com o mesmo nome é pulado (não duplica).',
+    'Antes de importar, o sistema mostra uma prévia com tudo que vai entrar e o que precisa corrigir.',
+  ].forEach((t) => ajuda.addRow([t]));
+  ajuda.getRow(1).font = { bold: true, size: 14 };
+  res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+  res.setHeader('Content-Disposition', 'attachment; filename="cadastro-produtos-loja-gutto.xlsx"');
+  res.send(Buffer.from(await livro.xlsx.writeBuffer()));
+}));
+
+// Corpo: { arquivo (base64), nome, importar: bool }. Sem "importar": só a prévia.
+app.post('/api/lojas/:lojaId/produtos/importar-planilha', admin, express.json({ limit: '15mb' }), rota(async (req, res) => {
+  const body = req.body || {};
+  if (typeof body.arquivo !== 'string' || !body.arquivo) falha(400, 'Envie o arquivo da planilha');
+  const livro = await abrirPlanilhaEnviada(body);
+  // Aba "Produtos" (ou a primeira que tiver as colunas Produto e Tamanho), colunas pelo cabeçalho.
+  let aba = null, cols = null;
+  const tentar = (a) => {
+    if (aba || /^exemplo|^como preencher/i.test(a.name)) return;
+    const achadas = {};
+    a.getRow(1).eachCell((cel, n) => {
+      const t = semAcentoMin(cel.text);
+      for (const [key, header] of COLS_IMPORT) if (!achadas[key] && t.startsWith(semAcentoMin(header).split(' (')[0])) achadas[key] = n;
+      if (!achadas.preco && t.startsWith('preco')) achadas.preco = n;
+    });
+    if (achadas.produto && achadas.tamanho) { aba = a; cols = achadas; }
+  };
+  const principal = livro.getWorksheet('Produtos');
+  if (principal) tentar(principal);
+  livro.eachSheet(tentar);
+  if (!aba) falha(400, 'Não achei as colunas "Produto" e "Tamanho" — use a planilha modelo do sistema');
+
+  const { rows: grades } = await pool.query('SELECT id, nome, tamanhos FROM grades_tamanho WHERE loja_id = $1', [req.lojaId]);
+  const gradePorNome = new Map(grades.map((g) => [semAcentoMin(g.nome), g]));
+  const { rows: existentes } = await pool.query('SELECT nome FROM produtos WHERE loja_id = $1', [req.lojaId]);
+  const nomesExistentes = new Set(existentes.map((p) => semAcentoMin(p.nome)));
+  const { rows: codigos } = await pool.query('SELECT codigo_barras FROM produto_variacoes WHERE loja_id = $1 AND codigo_barras IS NOT NULL', [req.lojaId]);
+  const codigosUsados = new Set(codigos.map((c) => c.codigo_barras));
+
+  const produtos = new Map(); // nome normalizado → produto
+  const problemas = [], avisos = [];
+  let atual = null, ultimoPreco = null, ultimoCusto = null;
+  const cel = (linha, key) => (cols[key] ? valorCelula(linha.getCell(cols[key])) : '');
+  aba.eachRow((linha, n) => {
+    if (n === 1) return;
+    const txt = (key) => String(cel(linha, key) == null ? '' : cel(linha, key)).trim();
+    const nomeLinha = txt('produto'), tamanho = txt('tamanho');
+    if (!nomeLinha && !tamanho && !txt('cor') && !txt('quantidade') && !txt('preco')) return; // linha vazia
+    if (nomeLinha) {
+      const chave = semAcentoMin(nomeLinha);
+      atual = produtos.get(chave);
+      if (!atual) {
+        atual = { nome: nomeLinha.slice(0, 120), categoria: txt('categoria').slice(0, 60) || null, gradeNome: txt('grade'), grade: null,
+          ncm: txt('ncm').replace(/\D/g, '') || null, descricao: txt('descricao').slice(0, 500) || null, variacoes: [], linha: n,
+          jaExiste: nomesExistentes.has(chave) };
+        if (atual.gradeNome) {
+          atual.grade = gradePorNome.get(semAcentoMin(atual.gradeNome)) || null;
+          if (!atual.grade) problemas.push({ linha: n, produto: atual.nome, motivo: 'grade "' + atual.gradeNome + '" não existe (deixe em branco ou crie a grade antes)' });
+        }
+        if (atual.ncm && atual.ncm.length === 7) atual.ncm = '0' + atual.ncm;
+        if (atual.ncm && atual.ncm.length !== 8) problemas.push({ linha: n, produto: atual.nome, motivo: 'NCM precisa ter 8 números' });
+        produtos.set(chave, atual);
+      }
+      ultimoPreco = null; ultimoCusto = null;
+    }
+    if (!atual) { problemas.push({ linha: n, motivo: 'linha sem produto (preencha a coluna Produto na primeira linha de cada produto)' }); return; }
+    if (!tamanho) { problemas.push({ linha: n, produto: atual.nome, motivo: 'falta o tamanho' }); return; }
+    const cor = txt('cor').slice(0, 40);
+    let preco = numeroPlanilha(cel(linha, 'preco'));
+    if (preco == null) preco = ultimoPreco;
+    if (preco == null || !(preco > 0)) { problemas.push({ linha: n, produto: atual.nome, motivo: 'preço de venda inválido ou em branco' }); return; }
+    let custo = numeroPlanilha(cel(linha, 'custo'));
+    if (custo == null) custo = ultimoCusto;
+    if (custo != null && !(custo >= 0)) { problemas.push({ linha: n, produto: atual.nome, motivo: 'custo inválido' }); return; }
+    let qtd = numeroPlanilha(cel(linha, 'quantidade'));
+    if (qtd == null) qtd = 0;
+    if (!Number.isInteger(qtd) || qtd < 0 || qtd > 100000) { problemas.push({ linha: n, produto: atual.nome, motivo: 'quantidade precisa ser um número inteiro' }); return; }
+    const codigo = txt('codigo').replace(/\D/g, '') || null;
+    if (codigo && (codigosUsados.has(codigo) || atual.variacoes.some((v) => v.codigo === codigo) || [...produtos.values()].some((p) => p.variacoes.some((v) => v.codigo === codigo)))) {
+      problemas.push({ linha: n, produto: atual.nome, motivo: 'código de barras ' + codigo + ' repetido (já está em outra peça)' }); return;
+    }
+    if (atual.variacoes.some((v) => semAcentoMin(v.tamanho) === semAcentoMin(tamanho) && semAcentoMin(v.cor) === semAcentoMin(cor))) {
+      problemas.push({ linha: n, produto: atual.nome, motivo: 'tamanho ' + tamanho + (cor ? ' ' + cor : '') + ' repetido nesse produto' }); return;
+    }
+    if (atual.grade && !atual.grade.tamanhos.some((t) => semAcentoMin(t) === semAcentoMin(tamanho))) {
+      avisos.push({ linha: n, produto: atual.nome, motivo: 'tamanho ' + tamanho + ' não está na grade ' + atual.grade.nome + ' (entra assim mesmo)' });
+    }
+    ultimoPreco = preco; ultimoCusto = custo;
+    atual.variacoes.push({ tamanho: tamanho.slice(0, 10), cor, preco: round2(preco), custo: custo != null ? round2(custo) : 0, qtd, codigo, linha: n });
+  });
+  const lista = [...produtos.values()];
+  lista.filter((p) => p.jaExiste).forEach((p) => avisos.push({ linha: p.linha, produto: p.nome, motivo: 'já existe no sistema — vai ser pulado' }));
+  lista.filter((p) => !p.jaExiste && !p.variacoes.length).forEach((p) => problemas.push({ linha: p.linha, produto: p.nome, motivo: 'produto sem nenhum tamanho válido' }));
+  const novos = lista.filter((p) => !p.jaExiste && p.variacoes.length);
+  const resumo = {
+    produtos: lista.map((p) => ({ nome: p.nome, categoria: p.categoria, grade: p.grade ? p.grade.nome : null, variacoes: p.variacoes.length,
+      pecas: p.variacoes.reduce((t, v) => t + v.qtd, 0), jaExiste: p.jaExiste,
+      precos: [...new Set(p.variacoes.map((v) => v.preco))] })),
+    totais: { produtos: novos.length, variacoes: novos.reduce((t, p) => t + p.variacoes.length, 0), pecas: novos.reduce((t, p) => t + p.variacoes.reduce((s, v) => s + v.qtd, 0), 0) },
+    problemas: problemas.slice(0, 100), avisos: avisos.slice(0, 100),
+  };
+  if (!body.importar) return res.json(resumo);
+  if (problemas.length) falha(400, 'Corrija as linhas com problema antes de importar', { codigo: 'planilha_com_problemas', ...resumo });
+  if (!novos.length) falha(400, 'Nenhum produto novo pra importar');
+  const criados = await transacao(async (c) => {
+    const ids = [];
+    for (const p of novos) {
+      const id = uid();
+      await c.query('INSERT INTO produtos (id, loja_id, nome, categoria, descricao, grade_tamanho_id, ncm) VALUES ($1,$2,$3,$4,$5,$6,$7)',
+        [id, req.lojaId, p.nome, p.categoria, p.descricao, p.grade ? p.grade.id : null, p.ncm]);
+      for (const v of p.variacoes) {
+        await inserirVariacao(c, req.lojaId, id, { tamanho: v.tamanho, cor: v.cor, preco: v.preco, custo: v.custo, minimo: 0, inicial: v.qtd, codigo: v.codigo, sku: null }, req.usuario.id);
+      }
+      ids.push(id);
+    }
+    return ids;
+  });
+  res.status(201).json({ ...resumo, importados: criados });
+}));
+
 // Dados pra imprimir o DANFE da NFC-e no formato de cupom (na térmica do caixa, igual ao cupom da
 // venda — lição do Jabá: abrir a página da Focus não sai direito na impressora do caixa).
 // O QR Code (obrigatório no DANFE) vai como imagem PNG.
@@ -1743,10 +1924,8 @@ app.get('/api/lojas/:lojaId/fiscal/planilha', admin, rota(async (req, res) => {
   res.send(Buffer.from(await livro.xlsx.writeBuffer()));
 }));
 
-// Planilha preenchida de volta (.xlsx ou .csv, em base64). Aplica o NCM de cada linha preenchida.
-app.post('/api/lojas/:lojaId/fiscal/planilha', admin, express.json({ limit: '8mb' }), rota(async (req, res) => {
-  const body = req.body || {};
-  if (typeof body.arquivo !== 'string' || !body.arquivo) falha(400, 'Envie o arquivo da planilha');
+// Abre a planilha mandada pelo painel (.xlsx ou .csv, em base64).
+async function abrirPlanilhaEnviada(body) {
   const buf = Buffer.from(body.arquivo, 'base64');
   const livro = new ExcelJS.Workbook();
   const ehCsv = /\.csv$/i.test(String(body.nome || ''));
@@ -1766,6 +1945,14 @@ app.post('/api/lojas/:lojaId/fiscal/planilha', admin, express.json({ limit: '8mb
   } catch (e) {
     falha(400, 'Não consegui abrir essa planilha — salve como .xlsx (Excel) e tente de novo');
   }
+  return livro;
+}
+
+// Planilha preenchida de volta (.xlsx ou .csv, em base64). Aplica o NCM de cada linha preenchida.
+app.post('/api/lojas/:lojaId/fiscal/planilha', admin, express.json({ limit: '8mb' }), rota(async (req, res) => {
+  const body = req.body || {};
+  if (typeof body.arquivo !== 'string' || !body.arquivo) falha(400, 'Envie o arquivo da planilha');
+  const livro = await abrirPlanilhaEnviada(body);
   // Acha a aba e as colunas pelo cabeçalho (a contadora pode ter mudado a ordem das colunas).
   let aba = null, colCodigo = 0, colNcm = 0;
   livro.eachSheet((a) => {

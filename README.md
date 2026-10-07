@@ -25,6 +25,45 @@ Plano e decisões: `docs/plano-loja-gutto.md`. Código da API + tela: `api/`.
    ```
    Ele cria o banco, as tabelas e os usuários Pedro (PIN 1103) e Lorena (PIN 1007).
 
+## Configuração inicial da loja (uma vez)
+
+Depois do `npm run setup`, rode na pasta `api` (no Windows: `npm.cmd run configurar`):
+
+```
+npm run configurar
+```
+
+Ele aplica o que foi combinado e pode rodar de novo sem duplicar nada:
+- **Grades de tamanho:** Bebê (0-3M, 3-6M, 6-9M, G), Infantil (1, 2, 3, 4, 6, 8, 10) e Juvenil
+  (12, 14, 16).
+- **Cashback:** 5%.
+- **Desconto que a vendedora dá sem PIN:** até 20%.
+- **Limite do crediário:** R$ 700 por cliente.
+- **Troca:** 15 dias na loja e 30 dias pelo site. O rodapé do cupom fica "Trocas em até 15 dias com
+  a etiqueta e este cupom".
+
+Tudo isso continua editável na aba Configurações.
+
+**Prazo de troca:** a tela de troca mostra há quantos dias foi a compra e o prazo (da loja ou do
+site). Fora do prazo, a troca pede o PIN de um Administrador e fica anotada como "fora do prazo,
+autorizada por ...". O prazo do site aparece pro cliente no site, e o robô sabe responder.
+
+## Importar produtos por planilha (Estoque → "Importar planilha")
+
+Pra cadastrar muitos produtos de uma vez:
+1. **Baixar planilha modelo**: vem com uma aba de exemplo e a explicação.
+2. Preencha no Excel, **uma linha pra cada tamanho/cor**:
+   - "Produto" em branco nas linhas de baixo = o mesmo produto da linha de cima.
+   - Preço e custo em branco repetem os de cima.
+   - Quantidade = peças que tem agora.
+   - Código de barras só se a peça já tiver etiqueta; senão o sistema cria.
+3. **Escolher planilha**: aparece a prévia com tudo que vai entrar e, se tiver, as linhas pra
+   corrigir. Com problema, nada entra até corrigir.
+4. **Importar**, e no fim **Imprimir as etiquetas** de tudo que entrou.
+
+Produto com o mesmo nome de um que já existe é pulado, então importar o mesmo arquivo de novo não
+duplica. Aceita também CSV salvo pelo Excel.
+
 ## Cadastro rápido de produtos (Estoque → "+ Novo produto")
 
 - Uma tabela **tamanho × cor** pra digitar quantas peças tem de cada uma (ou "Todos com N").

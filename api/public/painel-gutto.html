@@ -500,7 +500,7 @@
         <div class="lista-topo">
           <div class="lista-topo-head">
             <h2 class="titulo">Produtos</h2>
-            <div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end"><button class="btn-secundario" id="btn-contagem">Contagem</button><button class="btn-secundario" id="btn-promocoes">Promoções</button><button class="btn-primario" id="btn-novo-produto">+ Novo produto</button></div>
+            <div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end"><button class="btn-secundario" id="btn-contagem">Contagem</button><button class="btn-secundario" id="btn-promocoes">Promoções</button><button class="btn-secundario" id="btn-importar-planilha">Importar planilha</button><button class="btn-primario" id="btn-novo-produto">+ Novo produto</button></div>
           </div>
           <input id="busca" data-leitor class="input-busca" type="text" placeholder="Buscar produto ou código de barras...">
           <div class="chips" id="categorias-chips"></div>
@@ -954,6 +954,7 @@
     }));
     document.getElementById('btn-novo-produto').style.display = ehAdmin() ? '' : 'none';
     document.getElementById('btn-promocoes').style.display = ehAdmin() ? '' : 'none';
+    document.getElementById('btn-importar-planilha').style.display = ehAdmin() ? '' : 'none';
     document.getElementById('btn-novo-evento').style.display = ehAdmin() ? '' : 'none';
     document.getElementById('btn-escalar').style.display = ehAdmin() ? '' : 'none';
     iniciarAvisoPedidos();
@@ -3238,6 +3239,64 @@
       imprimirDocumento(documentoEtiquetas(lista2, cfg));
     };
   }
+  // Cadastro em lote: baixa o modelo, preenche no Excel (uma linha por tamanho/cor), confere a
+  // prévia e importa. No fim, imprime as etiquetas de tudo que entrou.
+  function abrirImportarPlanilha() {
+    let arquivo = null, previa = null;
+    const camada = abrirModal(`<div class="modal-card largo">${cabecalhoModal('Importar produtos por planilha', 'Pra cadastrar muitos produtos de uma vez')}
+      <div class="painel" style="padding:12px 14px"><b>1.</b> Baixe o modelo, preencha no Excel (uma linha pra cada tamanho/cor — tem exemplo e explicação dentro) e salve.
+        <div style="margin-top:8px"><button class="btn-secundario" id="ip-modelo">⬇ Baixar planilha modelo</button></div></div>
+      <div class="painel" style="padding:12px 14px"><b>2.</b> Escolha a planilha preenchida. Antes de entrar, aparece uma prévia pra conferir.
+        <div style="margin-top:8px"><input type="file" id="ip-arquivo" accept=".xlsx,.csv" style="display:none"><button class="btn-secundario" id="ip-escolher">📄 Escolher planilha</button> <span class="modal-dica" id="ip-nome"></span></div></div>
+      <div id="ip-previa"></div>
+      <div class="erro-modal" id="ip-erro"></div>
+      <button class="btn-primario btn-grande" id="ip-importar" style="display:none">Importar</button></div>`);
+    camada.querySelector('#ip-modelo').onclick = (ev) => comBotao(ev.target, 'Gerando...', async () => {
+      const res = await fetch(API_BASE + '/produtos/planilha-modelo', { headers: { Authorization: 'Bearer ' + state.token } });
+      if (!res.ok) throw new Error('Não consegui gerar a planilha (' + res.status + ')');
+      const url = URL.createObjectURL(await res.blob());
+      const a = document.createElement('a'); a.href = url; a.download = 'cadastro-produtos-loja-gutto.xlsx';
+      document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 2000);
+    }, camada.querySelector('#ip-erro'));
+    const input = camada.querySelector('#ip-arquivo'), btnImp = camada.querySelector('#ip-importar'), elPrev = camada.querySelector('#ip-previa');
+    camada.querySelector('#ip-escolher').onclick = () => input.click();
+    const mostrarPrevia = (r) => {
+      const lin = (x) => `<div style="font-size:12px">Linha ${x.linha}${x.produto ? ' (' + esc(x.produto) + ')' : ''}: ${esc(x.motivo)}</div>`;
+      elPrev.innerHTML = `
+        ${r.problemas.length ? `<div class="nfce-box erro" style="align-items:flex-start;flex-direction:column"><b>Corrija na planilha e escolha de novo (${r.problemas.length}):</b>${r.problemas.map(lin).join('')}</div>` : ''}
+        ${r.avisos.length ? `<div class="aviso-caixa" style="flex-direction:column;align-items:flex-start"><b>Atenção:</b>${r.avisos.map(lin).join('')}</div>` : ''}
+        <div class="tabela-scroll" style="max-height:320px"><table class="tabela"><tr><th>Produto</th><th>Categoria</th><th>Grade</th><th>Tamanhos/cores</th><th>Peças</th><th>Preço</th></tr>
+          ${r.produtos.map(p => `<tr style="${p.jaExiste ? 'opacity:.5' : ''}"><td>${esc(p.nome)}${p.jaExiste ? ' <span class="tag cinza">já existe</span>' : ''}</td><td>${esc(p.categoria || '—')}</td><td>${esc(p.grade || '—')}</td>
+            <td>${p.variacoes}</td><td>${p.pecas}</td><td>${p.precos.map(fmt).join(' / ')}</td></tr>`).join('')}</table></div>
+        <div class="modal-dica" style="margin:0">Vão entrar <b>${r.totais.produtos} produto${r.totais.produtos === 1 ? '' : 's'}</b>, ${r.totais.variacoes} tamanhos/cores e <b>${r.totais.pecas} peças</b>.</div>`;
+      btnImp.style.display = !r.problemas.length && r.totais.produtos ? '' : 'none';
+      btnImp.textContent = 'Importar ' + r.totais.produtos + ' produto' + (r.totais.produtos === 1 ? '' : 's');
+    };
+    input.onchange = async () => {
+      const f = input.files[0]; input.value = '';
+      if (!f) return;
+      camada.querySelector('#ip-nome').textContent = f.name;
+      camada.querySelector('#ip-erro').textContent = ''; elPrev.innerHTML = '<div class="carregando">Lendo a planilha...</div>'; btnImp.style.display = 'none';
+      try {
+        arquivo = { arquivo: (await lerArquivoComo(f)).split(',')[1], nome: f.name };
+        previa = await api('/produtos/importar-planilha', { method: 'POST', body: arquivo });
+        mostrarPrevia(previa);
+      } catch (e) { elPrev.innerHTML = ''; camada.querySelector('#ip-erro').textContent = e.message; }
+    };
+    btnImp.onclick = (ev) => comBotao(ev.target, 'Importando...', async () => {
+      const r = await api('/produtos/importar-planilha', { method: 'POST', body: Object.assign({ importar: true }, arquivo) });
+      await carregarProdutos(); render();
+      const novos = state.produtos.filter(p => r.importados.includes(p.id));
+      const etiquetas = novos.flatMap(p => etiquetasDoProduto(p));
+      abrirModal(`<div class="modal-card estreito" style="text-align:center">${cabecalhoModal('Produtos importados', '')}
+        <div class="stat-valor" style="font-size:28px;color:var(--teal)">${r.totais.produtos} produto${r.totais.produtos === 1 ? '' : 's'}</div>
+        <div>${r.totais.variacoes} tamanhos/cores · ${r.totais.pecas} peças no estoque</div>
+        ${etiquetas.length ? `<button class="btn-primario btn-grande" id="ip-etiquetas">🏷 Imprimir as etiquetas (${etiquetas.reduce((t, e) => t + e.qtd, 0)})</button>` : ''}
+        <button class="btn-secundario" data-fechar>Fechar</button></div>`);
+      const b = document.getElementById('ip-etiquetas');
+      if (b) b.onclick = () => abrirImprimirEtiquetas(etiquetas, 'Etiquetas dos produtos importados');
+    }, camada.querySelector('#ip-erro'));
+  }
   function etiquetasDoProduto(p, qtdPor) {
     const ordem = p.tamanhos;
     return p.variacoes.filter(v => v.ativo).sort((a, b) => ordem.indexOf(a.tamanho) - ordem.indexOf(b.tamanho) || a.cor.localeCompare(b.cor))
@@ -5353,6 +5412,7 @@
   document.getElementById('confirmar').addEventListener('click', () => confirmarVenda());
   document.getElementById('btn-novo-produto').addEventListener('click', () => abrirNovoProduto());
   document.getElementById('btn-promocoes').addEventListener('click', () => abrirPromocoes());
+  document.getElementById('btn-importar-planilha').addEventListener('click', () => abrirImportarPlanilha());
   document.getElementById('btn-contagem').addEventListener('click', () => abrirContagem());
   document.getElementById('btn-troca').addEventListener('click', () => abrirTroca(false));
   document.getElementById('btn-condicionais').addEventListener('click', () => abrirCondicionais(false));
