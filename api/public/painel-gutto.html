@@ -1042,8 +1042,14 @@
     fecharModal(); fecharCamada('modal-topo');
     document.getElementById('livro-caixa').innerHTML = '';
     clearInterval(timerPedidos); timerPedidos = null; state.ultimoPedidoVisto = null;
+    // Dados da pessoa que saiu não ficam pra quem entrar depois (ex.: Caixa veria o ponto de todos).
     Object.assign(state, { logado: null, token: null, loginStep: 'cargo', loginCargo: null, loginPessoaId: null, loginPin: '',
-      cart: [], cliente: null, pagamentos: [], view: 'inicio' });
+      cart: [], cliente: null, pagamentos: [], view: 'inicio',
+      trocaAtual: null, trocaEmCurso: null, trocasHistorico: null, vendasHoje: null, pontos: null, clientes: null, compras: null,
+      fluxo: null, equipe: null, caixaSessoes: null, calAgenda: null, calPontos: [], calAniversarios: [], pedidosOnline: null,
+      wa: { status: null, conversas: null, sel: null, detalhe: null, erro: null }, msgs: { ver: 'revisar', dados: null, resumo: null },
+      backup: null, condicional: null, condicionaisResumo: null, crediario: null, crediarioResumo: null, listaPresente: null,
+      contas: null, contasResumo: null, rel: null, relPedido: null, faces: {} });
     render();
   }
 
