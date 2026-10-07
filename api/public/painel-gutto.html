@@ -2841,11 +2841,14 @@
           <span style="flex:1"></span><b id="np-qtd-total" style="color:var(--text)"></b>
         </div>
         <label style="display:flex;gap:6px;align-items:center;font-size:12px;color:var(--text-2)"><input type="checkbox" id="np-so-com-estoque" ${modelo.soComEstoque ? 'checked' : ''}> Não criar os tamanhos/cores com 0 peças (dá pra criar depois em "+ Nova cor" / Editar)</label>
+        <label style="display:flex;gap:6px;align-items:center;font-size:13px;font-weight:600"><input type="checkbox" id="np-ja-etiqueta" ${modelo.jaEtiqueta ? 'checked' : ''} style="width:auto;min-width:0"> As peças já têm etiqueta com código de barras (bipar o código de cada tamanho/cor)</label>
+        <div id="np-codigos"></div>
         <div class="erro-modal" id="np-erro"></div>
         <button class="btn-primario btn-grande" id="np-salvar">Criar produto</button>
       </div>`);
     const $ = (sel) => camada.querySelector(sel);
     const qtds = {}; // "tamanho|cor" → texto digitado (sobrevive a trocar grade/cores)
+    const codigos = {}; // "tamanho|cor" → código da etiqueta que a peça já tem
     const tamanhosAtuais = () => {
       if ($('#np-grade').value === '__nova__') return $('#np-grade-tamanhos').value.split(',').map(s => s.trim()).filter(Boolean);
       const g = state.grades.find(x => x.id === $('#np-grade').value);
@@ -2864,9 +2867,41 @@
       $('#np-qtd').innerHTML = `<div class="tabela-scroll"><table class="tabela"><tr><th>${cores.length > 1 || cores[0] ? 'Cor' : ''}</th>${tams.map(t => `<th style="text-align:center">${esc(t)}</th>`).join('')}</tr>
         ${cores.map(cor => `<tr><td style="white-space:nowrap">${cor ? esc(cor) : '<span style="color:var(--text-2)">cor única</span>'}</td>
           ${tams.map(t => `<td><input data-qtd="${esc(t + '|' + cor)}" inputmode="numeric" placeholder="0" value="${esc(qtds[t + '|' + cor] || '')}" style="text-align:center;min-width:48px"></td>`).join('')}</tr>`).join('')}</table></div>`;
-      $('#np-qtd').querySelectorAll('[data-qtd]').forEach(i => i.addEventListener('input', () => { qtds[i.dataset.qtd] = i.value.replace(/\D/g, ''); atualizarTotal(); }));
+      $('#np-qtd').querySelectorAll('[data-qtd]').forEach(i => i.addEventListener('input', () => { qtds[i.dataset.qtd] = i.value.replace(/\D/g, ''); atualizarTotal(); desenharCodigos(); }));
       atualizarTotal();
+      desenharCodigos();
     };
+    // Etiqueta que a peça já tem (do sistema antigo ou do fabricante): bipa um código por tamanho/cor,
+    // e o cursor pula sozinho pro próximo. Sem código = o sistema cria um novo.
+    const desenharCodigos = () => {
+      const el = $('#np-codigos');
+      if (!$('#np-ja-etiqueta').checked) { el.innerHTML = ''; return; }
+      const linhas = [];
+      for (const t of tamanhosAtuais()) for (const cor of coresAtuais()) {
+        const qtd = parseInt(qtds[t + '|' + cor], 10) || 0;
+        if ($('#np-so-com-estoque').checked && !qtd) continue;
+        linhas.push({ chave: t + '|' + cor, rotulo: 'Tam ' + t + (cor ? ' · ' + cor : ''), qtd });
+      }
+      const foco = document.activeElement && document.activeElement.dataset ? document.activeElement.dataset.cod : null;
+      el.innerHTML = linhas.length ? `<div class="modal-dica" style="margin:0 0 6px">Clique no primeiro campo e bipe a etiqueta de uma peça de cada tamanho/cor. Pode deixar em branco quem não tem etiqueta.</div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:6px">${linhas.map(l => `<label style="display:flex;gap:6px;align-items:center;font-size:12px">
+          <span style="min-width:86px">${esc(l.rotulo)}${l.qtd ? ' <span style="color:var(--text-2)">(' + l.qtd + ')</span>' : ''}</span>
+          <input data-cod="${esc(l.chave)}" data-leitor class="mono" inputmode="numeric" autocomplete="off" placeholder="bipe aqui" value="${esc(codigos[l.chave] || '')}" style="flex:1;min-width:0;padding:6px 8px;border-radius:7px;border:1px solid var(--border)"></label>`).join('')}</div>`
+        : '<div class="modal-dica">Escolha a grade e as quantidades pra bipar as etiquetas.</div>';
+      const inputs = [...el.querySelectorAll('[data-cod]')];
+      inputs.forEach((i, k) => {
+        i.addEventListener('input', () => { codigos[i.dataset.cod] = i.value.replace(/\D/g, ''); });
+        i.addEventListener('keydown', (e) => {
+          if (e.key !== 'Enter') return;
+          e.preventDefault();
+          codigos[i.dataset.cod] = i.value.replace(/\D/g, '');
+          if (inputs[k + 1]) inputs[k + 1].focus(); else $('#np-salvar').focus();
+        });
+        if (foco === i.dataset.cod) i.focus();
+      });
+    };
+    $('#np-ja-etiqueta').addEventListener('change', () => { desenharCodigos(); const i = $('#np-codigos [data-cod]'); if (i) i.focus(); });
+    $('#np-so-com-estoque').addEventListener('change', desenharCodigos);
     // Categoria que já tem NCM em outro produto: copia (o NCM costuma ser o mesmo na categoria).
     const sugerirNcm = () => {
       const cat = $('#np-categoria').value.trim().toLowerCase();
@@ -2905,7 +2940,18 @@
       for (const tamanho of tamanhos) for (const cor of cores) {
         const qtd = parseInt(qtds[tamanho + '|' + cor], 10) || 0;
         if (soComEstoque && !qtd) continue;
-        variacoes.push({ tamanho, cor, precoVenda: preco, custoUnitario: custo, estoqueMinimo: minimo, estoqueInicial: qtd });
+        const codigoBarras = $('#np-ja-etiqueta').checked ? (codigos[tamanho + '|' + cor] || '') : '';
+        variacoes.push({ tamanho, cor, precoVenda: preco, custoUnitario: custo, estoqueMinimo: minimo, estoqueInicial: qtd, ...(codigoBarras ? { codigoBarras } : {}) });
+      }
+      // Código repetido (bipou a mesma etiqueta duas vezes) ou que já está em outra peça.
+      const vistos = new Map();
+      for (const v of variacoes) {
+        if (!v.codigoBarras) continue;
+        const rot = 'Tam ' + v.tamanho + (v.cor ? ' ' + v.cor : '');
+        if (vistos.has(normalizarCodigo(v.codigoBarras))) throw new Error('O código ' + v.codigoBarras + ' foi bipado em dois tamanhos/cores (' + vistos.get(normalizarCodigo(v.codigoBarras)) + ' e ' + rot + ').');
+        vistos.set(normalizarCodigo(v.codigoBarras), rot);
+        const outro = acharPorCodigo(v.codigoBarras, true);
+        if (outro) throw new Error('O código ' + v.codigoBarras + ' (' + rot + ') já está em ' + outro.produto.nome + ' ' + outro.variacao.tamanho + (outro.variacao.cor ? ' ' + outro.variacao.cor : '') + '.');
       }
       if (!variacoes.length) throw new Error('Digite a quantidade de pelo menos um tamanho (ou desmarque "não criar com 0 peças").');
       if (gradeId === '__nova__') {
@@ -2919,18 +2965,22 @@
       setState({ estoqueSelecionadoId: r.id, busca: '', filtroCategoria: null });
       document.getElementById('busca').value = '';
       const pecas = variacoes.reduce((t, v) => t + v.estoqueInicial, 0);
-      const parecido = { categoria: $('#np-categoria').value, ncm, gradeId, cores: cores.filter(Boolean), preco, custo, minimo, soComEstoque, parecido: nome };
+      const parecido = { categoria: $('#np-categoria').value, ncm, gradeId, cores: cores.filter(Boolean), preco, custo, minimo, soComEstoque, parecido: nome, jaEtiqueta: $('#np-ja-etiqueta').checked };
+      const comCodigo = variacoes.filter(v => v.codigoBarras).length;
+      const semEtiqueta = variacoes.filter(v => !v.codigoBarras).reduce((t, v) => t + v.estoqueInicial, 0);
       const fim = abrirModal(`<div class="modal-card estreito" style="text-align:center">${cabecalhoModal('Produto criado', '')}
         <div style="font-size:15px"><b>${esc(nome)}</b></div>
         <div style="font-size:13px;color:var(--text-2)">${variacoes.length} tamanho${variacoes.length === 1 ? '' : 's'}/cor${variacoes.length === 1 ? '' : 'es'} · ${pecas} peça${pecas === 1 ? '' : 's'} no estoque</div>
-        ${pecas ? `<button class="btn-primario btn-grande" id="np-etiquetas">🏷 Imprimir ${pecas} etiqueta${pecas === 1 ? '' : 's'}</button>` : ''}
-        <button class="btn-secundario btn-grande" id="np-parecido">+ Cadastrar outro parecido</button>
+        ${comCodigo ? `<div style="font-size:12px;color:var(--ok-text)">✓ ${comCodigo} código${comCodigo === 1 ? '' : 's'} de etiqueta já ligado${comCodigo === 1 ? '' : 's'} — é só bipar na venda</div>` : ''}
+        ${semEtiqueta ? `<button class="${comCodigo ? 'btn-secundario' : 'btn-primario'} btn-grande" id="np-etiquetas">🏷 Imprimir ${semEtiqueta} etiqueta${semEtiqueta === 1 ? '' : 's'}${comCodigo ? ' (das peças sem código)' : ''}</button>` : ''}
+        <button class="${semEtiqueta && !comCodigo ? 'btn-secundario' : 'btn-primario'} btn-grande" id="np-parecido">+ Cadastrar outro parecido</button>
         <button class="link-btn" id="np-fim">Concluir</button></div>`);
       const prod = state.produtos.find(p => p.id === r.id);
-      if (pecas) fim.querySelector('#np-etiquetas').onclick = () => abrirImprimirEtiquetas(etiquetasDoProduto(prod), 'Etiquetas — ' + nome);
+      const temCodigo = (v) => variacoes.some(x => x.codigoBarras && x.tamanho === v.tamanho && x.cor === v.cor);
+      if (semEtiqueta) fim.querySelector('#np-etiquetas').onclick = () => abrirImprimirEtiquetas(etiquetasDoProduto(prod).filter(e => !temCodigo(prod.variacoes.find(v => v.id === e.variacaoId))), 'Etiquetas — ' + nome);
       fim.querySelector('#np-parecido').onclick = () => abrirNovoProduto(parecido);
       fim.querySelector('#np-fim').onclick = () => fecharModal();
-      (pecas ? fim.querySelector('#np-etiquetas') : fim.querySelector('#np-parecido')).focus();
+      (semEtiqueta && !comCodigo ? fim.querySelector('#np-etiquetas') : fim.querySelector('#np-parecido')).focus();
     }, $('#np-erro'));
   }
 

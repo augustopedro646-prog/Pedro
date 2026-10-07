@@ -48,6 +48,20 @@ Tudo isso continua editável na aba Configurações.
 site). Fora do prazo, a troca pede o PIN de um Administrador e fica anotada como "fora do prazo,
 autorizada por ...". O prazo do site aparece pro cliente no site, e o robô sabe responder.
 
+## Peças que já têm etiqueta (sistema antigo ou do fabricante)
+
+No **+ Novo produto**, marque **"As peças já têm etiqueta com código de barras"**:
+- aparece um campo por tamanho/cor; clique no primeiro e bipe a etiqueta de uma peça de cada
+  tamanho/cor. O cursor pula sozinho pro próximo;
+- quem ficar em branco ganha um código novo (e aí sim imprime etiqueta só dessas).
+
+Na venda, é só bipar a etiqueta antiga. Esqueceu de bipar no cadastro? Na venda, o Administrador
+bipa a peça, o sistema avisa que o código não está cadastrado e deixa escolher de qual
+produto/tamanho é. Dali pra frente bipa direto.
+
+Antes de começar, teste com 1 peça: se o bipador não colocar nada no campo, a etiqueta antiga pode
+ter letras no código, e aí me avise.
+
 ## Importar produtos por planilha (Estoque → "Importar planilha")
 
 Pra cadastrar muitos produtos de uma vez:
