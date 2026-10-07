@@ -143,6 +143,7 @@ const execucoes = {
       loja: 'Loja Gutto', endereco: config.endereco || null, recebendoPedidos: config.ativo,
       retiradaNaLoja: config.aceitaRetirada, entrega: config.aceitaEntrega, taxaEntrega: config.aceitaEntrega ? config.taxaEntrega : null,
       siteParaVerVitrineEPedir: process.env.SITE_URL || null, aviso: config.mensagem || null,
+      politicaDeTroca: `Troca em até ${config.trocaDiasLoja} dias pra compras na loja e até ${config.trocaDiasSite} dias pra compras pelo site/WhatsApp, com a etiqueta.`,
     };
   },
 

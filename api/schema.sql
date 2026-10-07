@@ -754,3 +754,8 @@ CREATE TABLE IF NOT EXISTS entregadores (
 -- Link "Avaliar no Google" (Google Meu Negócio → Pedir avaliações): aparece no site e vai na
 -- mensagem de pedido concluído, igual ao Jabá.
 ALTER TABLE lojas ADD COLUMN IF NOT EXISTS google_avaliacao_url TEXT;
+
+-- Prazo de troca: loja física e site (compra online, inclusive de outros estados). Fora do prazo,
+-- a troca precisa do PIN de um Administrador.
+ALTER TABLE lojas ADD COLUMN IF NOT EXISTS troca_dias_loja INTEGER NOT NULL DEFAULT 15;
+ALTER TABLE lojas ADD COLUMN IF NOT EXISTS troca_dias_site INTEGER NOT NULL DEFAULT 30;

@@ -1106,7 +1106,7 @@
       camada.querySelectorAll('[data-admin]').forEach(b => b.addEventListener('click', async () => {
         const admin = admins.find(a => a.id === b.dataset.admin);
         fecharCamada('modal-topo');
-        const pin = await pedirPin('PIN de ' + admin.nome, 'Pra aprovar o desconto');
+        const pin = await pedirPin('PIN de ' + admin.nome, 'Pra autorizar');
         resolve(pin ? { usuarioId: admin.id, pin } : null);
       }));
     });
@@ -2228,9 +2228,14 @@
     try { venda = await api('/vendas/' + vendaId); } catch (e) { toast(e.message, 'erro'); return; }
     let cliente = venda.cliente_id ? { id: venda.cliente_id, nome: venda.cliente_nome } : null;
     const itens = venda.itens.map(i => Object.assign({}, i, { disponivel: Number(i.qtd) - Number(i.qtd_devolvida) }));
+    const tr = (state.config && state.config.troca) || { diasLoja: 15, diasSite: 30 };
+    const prazo = venda.canal === 'online' ? tr.diasSite : tr.diasLoja;
+    const dias = Math.round((Date.parse(hojeLocal() + 'T12:00:00Z') - Date.parse(new Date(venda.criado_em).toLocaleDateString('en-CA', { timeZone: TZ }) + 'T12:00:00Z')) / 864e5);
+    const foraPrazo = dias > prazo;
     const desenhar = () => {
       const camada = abrirModal(`<div class="modal-card largo">
         ${cabecalhoModal('Troca / devolução', 'Venda de ' + dataHora(venda.criado_em) + ' · ' + fmt(venda.total))}
+        <div class="${foraPrazo ? 'aviso-caixa' : 'modal-dica'}" style="margin:0">${foraPrazo ? '⚠ ' : ''}Comprada há ${dias} dia${dias === 1 ? '' : 's'} — prazo de troca ${venda.canal === 'online' ? 'do site' : 'da loja'}: ${prazo} dias.${foraPrazo ? (ehAdmin() ? ' Fora do prazo (você é Administrador, pode autorizar).' : ' Fora do prazo: vai pedir o PIN de um Administrador.') : ''}</div>
         <div class="tabela-scroll"><table class="tabela"><tr><th>Peça</th><th>Vendidas</th><th>Já devolvidas</th><th>Valor pago/un.</th><th style="width:110px">Devolver</th></tr>
           ${itens.map((i, k) => {
             const unit = (Number(i.preco_unit) * Number(i.qtd) - Number(i.desconto_item)) / Number(i.qtd);
@@ -2267,7 +2272,15 @@
         const pedidos = [...inputs].map(inp => ({ vendaItemId: itens[Number(inp.dataset.dev)].id, qtd: Math.floor(Number(inp.value) || 0) })).filter(p => p.qtd > 0);
         if (!pedidos.length) throw new Error('Informe quantas peças vão voltar.');
         if (!cliente) throw new Error('Escolha o cliente que fica com o vale-troca.');
-        const r = await api('/vendas/' + venda.id + '/devolucoes', { method: 'POST', body: { itens: pedidos, clienteId: cliente.id } });
+        let r;
+        try { r = await api('/vendas/' + venda.id + '/devolucoes', { method: 'POST', body: { itens: pedidos, clienteId: cliente.id } }); }
+        catch (e) {
+          const cod = e.data && e.data.codigo;
+          if (cod !== 'aprovacao_necessaria' && cod !== 'aprovacao_invalida') throw e;
+          const ap = await escolherAdministrador(e.message);
+          if (!ap) throw new Error('Troca fora do prazo não autorizada.');
+          r = await api('/vendas/' + venda.id + '/devolucoes', { method: 'POST', body: { itens: pedidos, clienteId: cliente.id, aprovacao: ap } });
+        }
         fecharModal();
         await carregarProdutos(); render();
         abrirModal(`<div class="modal-card estreito" style="text-align:center">${cabecalhoModal('Devolução registrada', '')}
@@ -4255,6 +4268,11 @@
         <label class="campo">Crediário: máximo de parcelas<input id="cfg-cred-max" inputmode="numeric" value="${(cfg.crediario || {}).maxParcelas || 6}"></label>
       </div>
       <div class="modal-dica" style="margin:4px 0 0">Acima do limite da cliente, o crediário pede PIN de Administrador. Dá pra dar um limite diferente pra cada cliente no cadastro dela.</div>
+      <div class="linha-campos" style="max-width:520px;align-items:flex-end;margin-top:10px">
+        <label class="campo">Prazo de troca na loja (dias)<input id="cfg-troca-loja" inputmode="numeric" value="${(cfg.troca || {}).diasLoja != null ? cfg.troca.diasLoja : 15}"></label>
+        <label class="campo">Prazo de troca do site (dias)<input id="cfg-troca-site" inputmode="numeric" value="${(cfg.troca || {}).diasSite != null ? cfg.troca.diasSite : 30}"></label>
+      </div>
+      <div class="modal-dica" style="margin:4px 0 0">Depois do prazo, a troca pede PIN de Administrador. O prazo do site aparece pro cliente no site.</div>
       <div class="painel-titulo" id="cfg-sec-cupom" style="margin:18px 0 8px;font-size:14px">Cupom da venda</div>
       <div class="linha-campos" style="max-width:720px;align-items:flex-end">
         <label class="campo" style="flex:3">Rodapé do cupom (ex.: política de troca)<input id="cfg-cupom-rodape" maxlength="300" value="${esc(cfg.cupomRodape || '')}" placeholder="Trocas em até 30 dias com a etiqueta e o cupom."></label>
@@ -4297,7 +4315,9 @@
       const fiscalCorpo = document.getElementById('cfg-cfop') ? { cfop: document.getElementById('cfg-cfop').value, csosn: document.getElementById('cfg-csosn').value,
         origem: document.getElementById('cfg-origem').value, automatica: document.getElementById('cfg-nfce-auto').checked } : undefined;
       const { pagamento, envio } = lerConfigPagamentoEnvio();
-      await api('/config', { method: 'PUT', body: { cashbackPct, descontoLivrePct, comissaoPct, crediario, fiscal: fiscalCorpo, pagamento, envio, cupomRodape: document.getElementById('cfg-cupom-rodape').value, site: {
+      const troca = { diasLoja: parseInt(document.getElementById('cfg-troca-loja').value, 10), diasSite: parseInt(document.getElementById('cfg-troca-site').value, 10) };
+      if (!(troca.diasLoja >= 0 && troca.diasLoja <= 365) || !(troca.diasSite >= 0 && troca.diasSite <= 365)) throw new Error('Prazo de troca: de 0 a 365 dias');
+      await api('/config', { method: 'PUT', body: { cashbackPct, descontoLivrePct, comissaoPct, crediario, troca, fiscal: fiscalCorpo, pagamento, envio, cupomRodape: document.getElementById('cfg-cupom-rodape').value, site: {
         ativo: document.getElementById('cfg-site-ativo').checked, aceitaRetirada: document.getElementById('cfg-site-retirada').checked,
         aceitaEntrega: document.getElementById('cfg-site-entrega').checked, taxaEntrega: taxa, whatsapp: document.getElementById('cfg-site-whats').value,
         endereco: document.getElementById('cfg-site-endereco').value, mensagem: document.getElementById('cfg-site-msg').value, avaliacaoGoogle: document.getElementById('cfg-site-avaliacao').value } } });

@@ -257,6 +257,7 @@ app.get('/api/lojas/:lojaId/config', qualquer, rota(async (req, res) => {
   const l = rows[0];
   res.json({ nome: l.nome, cashbackPct: Number(l.cashback_pct), descontoLivrePct: Number(l.desconto_livre_pct), comissaoPct: Number(l.comissao_pct), leituraIA: !!anthropic,
     crediario: { limitePadrao: Number(l.crediario_limite_padrao), maxParcelas: l.crediario_max_parcelas },
+    troca: { diasLoja: l.troca_dias_loja, diasSite: l.troca_dias_site },
     cupomRodape: l.cupom_rodape || '', siteUrl: (process.env.SITE_URL || '').replace(/\/+$/, '') || null,
     fiscal: { cfop: l.fiscal_cfop || '', csosn: l.fiscal_csosn || '', origem: l.fiscal_origem || '0', automatica: !!l.nfce_automatica,
       ambiente: fiscal.ambiente(), faltandoNoServidor: fiscal.faltandoNoServidor(),
@@ -280,6 +281,12 @@ app.put('/api/lojas/:lojaId/config', admin, rota(async (req, res) => {
     await pool.query('UPDATE lojas SET crediario_limite_padrao = COALESCE($1, crediario_limite_padrao), crediario_max_parcelas = COALESCE($2, crediario_max_parcelas) WHERE id = $3',
       [cr.limitePadrao != null ? numero(cr.limitePadrao, 'limite padrão do crediário', { max: 1e6 }) : null,
         cr.maxParcelas != null ? numero(cr.maxParcelas, 'máximo de parcelas', { min: 1, max: 24, inteiro: true }) : null, req.lojaId]);
+  }
+  if (body.troca && typeof body.troca === 'object') {
+    const t = body.troca;
+    await pool.query('UPDATE lojas SET troca_dias_loja = COALESCE($1, troca_dias_loja), troca_dias_site = COALESCE($2, troca_dias_site) WHERE id = $3',
+      [t.diasLoja != null ? numero(t.diasLoja, 'prazo de troca na loja', { min: 0, max: 365, inteiro: true }) : null,
+        t.diasSite != null ? numero(t.diasSite, 'prazo de troca do site', { min: 0, max: 365, inteiro: true }) : null, req.lojaId]);
   }
   if (body.comissaoPct != null) {
     await pool.query('UPDATE lojas SET comissao_pct = $1 WHERE id = $2', [numero(body.comissaoPct, 'comissão', { max: 50 }), req.lojaId]);
@@ -1813,6 +1820,22 @@ app.post('/api/lojas/:lojaId/vendas/:id/devolucoes', qualquer, rota(async (req, 
     if (!venda) falha(404, 'venda não encontrada');
     if (venda.cancelada) falha(400, 'venda cancelada não aceita devolução');
 
+    // Prazo de troca (loja física × compra pelo site). Passou: só com o PIN de um Administrador.
+    const { rows: pz } = await c.query(
+      `SELECT CASE WHEN $2 = 'online' THEN troca_dias_site ELSE troca_dias_loja END AS prazo,
+              ((now() AT TIME ZONE $3)::date - ($4::timestamptz AT TIME ZONE $3)::date) AS dias
+       FROM lojas WHERE id = $1`, [req.lojaId, venda.canal, TZ, venda.criado_em]);
+    const { prazo, dias } = pz[0];
+    let aprovadoPor = null;
+    if (dias > prazo && req.usuario.papel !== 'administrador') {
+      const ap = body.aprovacao || {};
+      const motivo = 'Compra feita há ' + dias + ' dias — o prazo de troca ' + (venda.canal === 'online' ? 'do site' : 'da loja') + ' é ' + prazo + ' dias. Precisa do PIN de um Administrador';
+      if (typeof ap.usuarioId !== 'string' || typeof ap.pin !== 'string') falha(403, motivo, { codigo: 'aprovacao_necessaria' });
+      const { rows: adm } = await c.query("SELECT id, nome, pin_hash FROM usuarios WHERE id = $1 AND loja_id = $2 AND ativo AND papel = 'administrador'", [ap.usuarioId, req.lojaId]);
+      if (!adm.length || !conferirPin(req, adm[0], ap.pin)) falha(403, 'PIN de Administrador incorreto', { codigo: 'aprovacao_invalida' });
+      aprovadoPor = adm[0].nome;
+    }
+
     const clienteId = venda.cliente_id || body.clienteId;
     if (!clienteId) falha(400, 'Identifique o cliente — o vale-troca fica no nome dele', { codigo: 'cliente_obrigatorio' });
     const { rowCount } = await c.query('SELECT 1 FROM clientes WHERE id = $1 AND loja_id = $2 FOR UPDATE', [clienteId, req.lojaId]);
@@ -1839,7 +1862,9 @@ app.post('/api/lojas/:lojaId/vendas/:id/devolucoes', qualquer, rota(async (req, 
     }
     await c.query(
       `INSERT INTO devolucoes (id, loja_id, venda_id, cliente_id, valor_total, observacao, criado_por) VALUES ($1,$2,$3,$4,$5,$6,$7)`,
-      [devolucaoId, req.lojaId, venda.id, clienteId, valorTotal, texto(body.observacao, 'observacao', { obrigatorio: false, max: 300 }), req.usuario.id]
+      [devolucaoId, req.lojaId, venda.id, clienteId, valorTotal,
+        [texto(body.observacao, 'observacao', { obrigatorio: false, max: 300 }), dias > prazo ? `Fora do prazo (${dias} de ${prazo} dias)${aprovadoPor ? ', autorizada por ' + aprovadoPor : ''}` : null].filter(Boolean).join(' · ') || null,
+        req.usuario.id]
     );
     for (const l of linhas.sort((a, b) => (a.item.variacao_id < b.item.variacao_id ? -1 : 1))) {
       await c.query(
@@ -2587,13 +2612,14 @@ app.get('/api/lojas/:lojaId/fotos/:id', rota(async (req, res) => {
 const limitePedidoSite = rateLimit({ windowMs: 15 * 60 * 1000, max: 15, message: { erro: 'Muitos pedidos seguidos — aguarde alguns minutos ou chame a loja no WhatsApp.' }, ...porVisitante });
 
 async function configSite(db, lojaId) {
-  const { rows } = await db.query('SELECT nome, site_ativo, aceita_entrega, aceita_retirada, taxa_entrega, whatsapp, endereco, mensagem_site, pagamento_config, envio_config, google_avaliacao_url FROM lojas WHERE id = $1', [lojaId]);
+  const { rows } = await db.query('SELECT nome, site_ativo, aceita_entrega, aceita_retirada, taxa_entrega, whatsapp, endereco, mensagem_site, pagamento_config, envio_config, google_avaliacao_url, troca_dias_loja, troca_dias_site FROM lojas WHERE id = $1', [lojaId]);
   if (!rows.length) falha(404, 'loja não encontrada');
   const l = rows[0];
   const pg = mesclarPagamento(l.pagamento_config), ev = frete.mesclarConfig(l.envio_config);
   const pix = pg.pix && mp.configurado(), cartao = pg.cartao && mp.configurado();
   return { nome: l.nome, ativo: l.site_ativo, aceitaEntrega: l.aceita_entrega, aceitaRetirada: l.aceita_retirada, taxaEntrega: Number(l.taxa_entrega),
     whatsapp: l.whatsapp || '', endereco: l.endereco || '', mensagem: l.mensagem_site || '', avaliacaoGoogle: l.google_avaliacao_url || '',
+    trocaDiasSite: l.troca_dias_site, trocaDiasLoja: l.troca_dias_loja,
     // naEntrega cai pra true se nenhuma forma online estiver de pé (nunca deixa o site sem como pagar)
     pagamento: { pix, cartao, naEntrega: pg.naEntrega || (!pix && !cartao), maxParcelas: pg.maxParcelas, minutosPagar: pg.minutosPagar },
     envio: { ativo: ev.ativo && !!ev.cepOrigem && frete.configurado() && (pix || cartao), freteGratisAcima: ev.freteGratisAcima },

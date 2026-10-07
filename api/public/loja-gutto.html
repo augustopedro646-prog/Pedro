@@ -210,6 +210,7 @@
     if (c.whatsapp) { whats.href = 'https://wa.me/55' + c.whatsapp; whats.style.display = ''; }
     document.getElementById('hero-sub').textContent = 'Escolha o tamanho e a cor e faça o pedido aqui' + (c.aceitaRetirada && c.aceitaEntrega ? ': retire na loja ou receba em casa.' : c.aceitaEntrega ? ' — entregamos na sua casa.' : ' e retire na loja.');
     document.getElementById('rodape').innerHTML = esc(c.nome ? 'Loja ' + c.nome : 'Loja Gutto') + (c.endereco ? ' · ' + esc(c.endereco) : '') + (c.whatsapp ? ' · WhatsApp ' + esc(telefoneBR(c.whatsapp)) : '')
+      + (c.trocaDiasSite ? `<div style="margin-top:6px">Trocas em até ${c.trocaDiasSite} dias pras compras pelo site</div>` : '')
       + (c.avaliacaoGoogle ? `<div style="margin-top:8px"><a href="${esc(c.avaliacaoGoogle)}" target="_blank" rel="noopener" id="link-avaliar">⭐ Avalie a loja no Google</a></div>` : '');
     renderVitrine();
   }
@@ -475,6 +476,7 @@
           <label class="campo">Seu nome no presente (pra família saber)<input data-campo="presente_de" maxlength="80" value="${v('presente_de', cli.nome)}"></label>
           <label class="campo">Mensagem pra família (opcional)<input data-campo="presente_msg" maxlength="300" value="${v('presente_msg')}"></label></div>` : ''}
         <label class="campo">Observação (opcional)<textarea data-campo="obs" maxlength="300" placeholder="Ex.: é presente, pode embalar?">${v('obs')}</textarea></label>
+        ${c.trocaDiasSite ? `<div class="dica">Troca em até ${c.trocaDiasSite} dias depois de receber, com a etiqueta.</div>` : ''}
         <div>
           <div class="linha-total"><span>${state.sacola.reduce((s, i) => s + i.qtd, 0)} peça(s)</span><span>${brl(subtotal())}</span></div>
           ${tipo === 'casa' && (!precisaCep || opcao) ? `<div class="linha-total"><span>${ehEnvio() ? 'Frete' : 'Entrega'}</span><span>${taxa ? brl(taxa) : 'grátis'}</span></div>` : ''}

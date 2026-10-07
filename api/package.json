@@ -6,7 +6,8 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "setup": "node setup.js"
+    "setup": "node setup.js",
+    "configurar": "node configurar-loja.js"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.129.0",
