@@ -51,6 +51,27 @@ Tudo isso continua editável na aba Configurações.
 site). Fora do prazo, a troca pede o PIN de um Administrador e fica anotada como "fora do prazo,
 autorizada por ...". O prazo do site aparece pro cliente no site, e o robô sabe responder.
 
+## Trocas e devoluções (aba Trocas)
+
+Todo cupom de venda sai com um **código de barras de troca** (12 números começando com 98). Na
+tela de "Venda concluída" tem também o **🎁 Cupom de troca**: mostra as peças e o "Troca até
+dd/mm", **sem os preços**, pra ir junto com presente (reimpressão em Vendas / troca → "cupom de troca").
+
+Quando a cliente volta pra trocar:
+1. Aba **Trocas** → bipe o código do cupom (ou digite o número "Venda 1A2B3C" dos cupons antigos;
+   sem cupom, "Procurar venda sem cupom"). Bipar o cupom na Venda rápida também abre a troca.
+2. Bipe a etiqueta de cada peça que voltou (ou digite a quantidade).
+3. O crédito fica com quem comprou; se for presente, "É outra pessoa (presente)" escolhe ou
+   cadastra quem trouxe. Venda sem cliente pede o cadastro.
+4. **Trocar por outras peças** → vai pra Venda rápida com a cliente e o crédito já abatendo do
+   total: se a compra nova passar do crédito, ela paga a diferença; se for menor, a sobra **fica de
+   vale-troca no cadastro** (aparece no recibo e no cupom). **Só devolver** → o valor todo vira
+   vale-troca (com comprovante pra imprimir).
+
+As peças voltam pro estoque na hora, o cashback daquela compra é estornado na proporção e tudo
+fica no histórico da aba (últimos 30 dias). Prazo e PIN de Administrador fora do prazo continuam
+valendo.
+
 ## Peças que já têm etiqueta (sistema antigo ou do fabricante)
 
 No **+ Novo produto**, marque **"As peças já têm etiqueta com código de barras"**:
@@ -260,7 +281,8 @@ EAN-8 e os demais em Code 128.
 ## Cupom da venda (impressora térmica do caixa)
 
 Depois de confirmar a venda: **Imprimir cupom** (ou marque "imprimir automaticamente em toda
-venda"). Reimpressão em Venda rápida → **Vendas / troca** → "cupom". Na troca/devolução sai o
+venda"). Reimpressão em Venda rápida → **Vendas / troca** → "cupom". O cupom traz o código de
+barras da troca, e o **Cupom de troca** (sem preços) sai pelo botão 🎁. Na troca/devolução sai o
 comprovante de **vale-troca**. É cupom **não fiscal** (a NFC-e é outra etapa). Papel de 80 ou
 58 mm e o rodapé (ex.: política de troca) em Configurações. A página sai com a
 altura exata do conteúdo, sem gastar rolo.

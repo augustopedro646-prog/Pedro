@@ -764,3 +764,10 @@ ALTER TABLE lojas ADD COLUMN IF NOT EXISTS troca_dias_site INTEGER NOT NULL DEFA
 -- os condicionais abertos dela). Acima disso, precisa do PIN de um Administrador. 0 = sem limite.
 ALTER TABLE lojas ADD COLUMN IF NOT EXISTS condicional_limite_padrao NUMERIC(12,2) NOT NULL DEFAULT 700;
 ALTER TABLE clientes ADD COLUMN IF NOT EXISTS limite_condicional NUMERIC(12,2);
+
+-- Código de barras de troca: sai no cupom da venda e no cupom de troca (sem preços, pra presente).
+-- Na aba Trocas, bipar esse código abre a venda. Só números (o leitor manda número em qualquer
+-- teclado), começando com 98 pra não confundir com etiqueta de peça. Vendas antigas ganham um também.
+CREATE SEQUENCE IF NOT EXISTS vendas_codigo_troca_seq;
+ALTER TABLE vendas ADD COLUMN IF NOT EXISTS codigo_troca TEXT DEFAULT ('98' || lpad(nextval('vendas_codigo_troca_seq')::text, 10, '0'));
+CREATE UNIQUE INDEX IF NOT EXISTS vendas_codigo_troca_idx ON vendas(codigo_troca);

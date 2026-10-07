@@ -1480,9 +1480,9 @@ app.post('/api/lojas/:lojaId/vendas', qualquer, rota(async (req, res) => {
     const formasLabel = [...pagPorForma.keys()].join(' + ') || 'Sem pagamento';
     // Troco só existe com pagamento em dinheiro (o valor devolvido ao cliente, pro cupom).
     const troco = pagPorForma.has('Dinheiro') && body.troco != null && body.troco !== '' ? numero(body.troco, 'troco', { max: 100000 }) : 0;
-    await c.query(
+    const { rows: [{ codigo_troca: codigoTroca }] } = await c.query(
       `INSERT INTO vendas (id, loja_id, usuario_id, canal, subtotal, desconto, total, forma_pagamento, caixa_sessao_id, cliente_id, aprovado_por, troco)
-       VALUES ($1,$2,$3,'loja',$4,$5,$6,$7,$8,$9,$10,$11)`,
+       VALUES ($1,$2,$3,'loja',$4,$5,$6,$7,$8,$9,$10,$11) RETURNING codigo_troca`,
       [vendaId, req.lojaId, req.usuario.id, bruto, descontoTotal, total, formasLabel, sessao.id, clienteId, aprovadoPor, troco]
     );
     for (const it of gravar) {
@@ -1546,7 +1546,7 @@ app.post('/api/lojas/:lojaId/vendas', qualquer, rota(async (req, res) => {
     }
 
     return {
-      id: vendaId, subtotal: bruto, desconto: descontoTotal, total, troco, criadoEm: new Date().toISOString(),
+      id: vendaId, codigoTroca, subtotal: bruto, desconto: descontoTotal, total, troco, criadoEm: new Date().toISOString(),
       pagamentos: [...pagPorForma].map(([forma, valor]) => ({ forma, valor })),
       cashbackGerado, clienteId, crediario: parcelasCrediario,
       saldosCliente: clienteId ? await saldosCliente(c, clienteId) : null,
@@ -1572,6 +1572,37 @@ app.get('/api/lojas/:lojaId/vendas', qualquer, rota(async (req, res) => {
     hoje ? [req.lojaId, TZ] : [req.lojaId]
   );
   res.json(rows);
+}));
+
+// Aba Trocas: acha a venda pelo código de barras do cupom (98...) ou pelo número que aparece no
+// cupom ("Venda 1A2B3C" — os 6 últimos caracteres), pra cupons impressos antes do código de barras.
+app.get('/api/lojas/:lojaId/vendas/por-codigo/:codigo', qualquer, rota(async (req, res) => {
+  const bruto = String(req.params.codigo || '').trim();
+  let rows;
+  if (/^\d{6,20}$/.test(bruto)) {
+    ({ rows } = await pool.query('SELECT id FROM vendas WHERE loja_id = $1 AND codigo_troca = $2', [req.lojaId, bruto]));
+  }
+  if (!rows || !rows.length) {
+    const numero = bruto.replace(/^venda\s*/i, '').replace(/[^0-9a-z]/gi, '').toLowerCase();
+    if (numero.length !== 6) falha(404, 'Cupom não encontrado — confira o código ou procure a venda na lista');
+    ({ rows } = await pool.query('SELECT id FROM vendas WHERE loja_id = $1 AND right(id, 6) = $2 ORDER BY criado_em DESC LIMIT 2', [req.lojaId, numero]));
+    if (rows.length > 1) falha(409, 'Tem mais de uma venda com esse número — procure pela lista de vendas');
+  }
+  if (!rows.length) falha(404, 'Cupom não encontrado — confira o código ou procure a venda na lista');
+  res.json({ id: rows[0].id });
+}));
+
+// Trocas e devoluções feitas nos últimos dias (aba Trocas).
+app.get('/api/lojas/:lojaId/devolucoes', qualquer, rota(async (req, res) => {
+  const dias = Math.min(366, Math.max(1, parseInt(req.query.dias, 10) || 30));
+  const { rows } = await pool.query(
+    `SELECT d.id, d.venda_id, d.valor_total, d.observacao, d.criado_em, c.nome AS cliente_nome, c.telefone AS cliente_telefone, u.nome AS usuario_nome,
+            (SELECT string_agg(di.qtd::int || 'x ' || vi.produto_nome || ' ' || vi.tamanho, ', ' ORDER BY vi.produto_nome)
+               FROM devolucoes_itens di JOIN vendas_itens vi ON vi.id = di.venda_item_id WHERE di.devolucao_id = d.id) AS pecas
+     FROM devolucoes d JOIN clientes c ON c.id = d.cliente_id JOIN usuarios u ON u.id = d.criado_por
+     WHERE d.loja_id = $1 AND d.criado_em >= now() - ($2 || ' days')::interval
+     ORDER BY d.criado_em DESC LIMIT 300`, [req.lojaId, String(dias)]);
+  res.json(rows.map((r) => ({ ...r, valor_total: Number(r.valor_total) })));
 }));
 
 app.get('/api/lojas/:lojaId/vendas/:id', qualquer, rota(async (req, res) => {
@@ -2053,7 +2084,8 @@ app.post('/api/lojas/:lojaId/vendas/:id/devolucoes', qualquer, rota(async (req, 
       aprovadoPor = adm[0].nome;
     }
 
-    const clienteId = venda.cliente_id || body.clienteId;
+    // Presente: quem traz pra trocar pode não ser quem comprou — o crédito fica com quem a loja escolher.
+    const clienteId = (typeof body.clienteId === 'string' && body.clienteId) || venda.cliente_id;
     if (!clienteId) falha(400, 'Identifique o cliente — o vale-troca fica no nome dele', { codigo: 'cliente_obrigatorio' });
     const { rowCount } = await c.query('SELECT 1 FROM clientes WHERE id = $1 AND loja_id = $2 FOR UPDATE', [clienteId, req.lojaId]);
     if (!rowCount) falha(404, 'cliente não encontrado');

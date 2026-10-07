@@ -479,6 +479,16 @@
       </div>
     </div>
 
+    <div class="view page" id="view-trocas">
+      <div class="page-topo"><div><h1 class="titulo">Trocas e devoluções</h1><p class="sub">Bipe o cupom: as peças voltam pro estoque e o valor vira crédito. Na troca, o crédito abate da compra nova — passou, paga a diferença; sobrou, fica no cadastro do cliente.</p></div>
+        <button class="btn-secundario" id="btn-trocas-lista">Procurar venda sem cupom</button></div>
+      <div class="painel">
+        <input id="troca-bipar" data-leitor class="input-busca" type="text" autocomplete="off" placeholder="Bipe o código de barras do cupom (ou digite o número da venda, ex.: 1A2B3C) e Enter" style="font-size:16px;padding:14px">
+        <div id="troca-venda"></div>
+      </div>
+      <div class="painel" style="margin-top:16px"><div class="painel-titulo">Trocas e devoluções dos últimos 30 dias</div><div id="trocas-historico"></div></div>
+    </div>
+
     <div class="view page" id="view-online">
       <div class="page-topo">
         <div><h1 class="titulo">Pedidos online</h1><p class="sub">Vindos do site da loja — as peças já ficam reservadas no estoque</p></div>
@@ -638,6 +648,7 @@
 <script>
   /* ================= Constantes ================= */
   const ICONS = {
+    swap: '<path d="M4 8h13l-3.5-3.5M20 16H7l3.5 3.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>',
     home: '<path d="M4 11.5 12 4l8 7.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M6 10.5V20h5v-5.5h2V20h5v-9.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>',
     cart: '<circle cx="9" cy="20" r="1.3" fill="currentColor" stroke="none"/><circle cx="17" cy="20" r="1.3" fill="currentColor" stroke="none"/><path d="M3 4h2l2.2 11a2 2 0 0 0 2 1.6h7.6a2 2 0 0 0 2-1.6L20.5 8H6.2" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>',
     register: '<rect x="3" y="10" width="18" height="10" rx="2" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M7 10V5h10v5M7 14h2M11 14h2M15 14h2M7 17h10" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>',
@@ -662,6 +673,7 @@
   const NAV = [
     { id: 'inicio', label: 'Início', icon: 'home', papeis: ['administrador', 'caixa'] },
     { id: 'venda', label: 'Venda rápida', icon: 'cart', papeis: ['administrador', 'caixa'] },
+    { id: 'trocas', label: 'Trocas', icon: 'swap', papeis: ['administrador', 'caixa'] },
     { id: 'online', label: 'Pedidos online', icon: 'bag', papeis: ['administrador', 'caixa'] },
     { id: 'clientes', label: 'Clientes', icon: 'person', papeis: ['administrador', 'caixa'] },
     { id: 'estoque', label: 'Estoque', icon: 'box', papeis: ['administrador', 'caixa'] },
@@ -765,6 +777,7 @@
     loginStep: 'cargo', loginCargo: null, loginPessoaId: null, loginPin: '', loginErro: false,
     view: 'inicio',
     cart: [], cliente: null, pagamentos: [], modalProdutoId: null, vendaBusca: '',
+    trocaAtual: null, trocaEmCurso: null, trocasHistorico: null,
     estoqueSelecionadoId: null, busca: '', filtroCategoria: null,
     vendasHoje: null, pontos: null, clientes: null, clientesBusca: '', compras: null,
     fluxo: null, mesFluxo: hojeLocal().slice(0, 7), equipe: null, caixaSessoes: null,
@@ -866,6 +879,9 @@
         if (ehAdmin()) api('/mensagens-clientes/resumo').then(r => { state.msgs.resumo = r; if (state.view === 'inicio') renderAvisoMensagens(); }).catch(() => {});
         carregarResumoCondicionais();
         carregarResumoCrediario();
+      } else if (view === 'trocas') {
+        const [hist] = await Promise.all([api('/devolucoes?dias=30'), carregarProdutos(), carregarConfig()]);
+        state.trocasHistorico = hist;
       } else if (view === 'venda') {
         await Promise.all([carregarProdutos(), carregarCaixa(), carregarConfig()]);
         carregarResumoCondicionais();
@@ -913,6 +929,7 @@
     setState({ view });
     carregarDadosDaView(view);
     if (view === 'venda') setTimeout(() => document.getElementById('venda-busca').focus(), 50);
+    if (view === 'trocas') setTimeout(() => { const b = document.getElementById('troca-bipar'); if (b && !document.querySelector('#modal[style*="flex"]')) b.focus(); }, 50);
   }
 
   /* ================= Bootstrap / render geral ================= */
@@ -980,7 +997,7 @@
     if (state.view !== 'ponto') desligarCameraPonto();
     if (state.view !== 'whatsapp') { clearInterval(timerWhats); timerWhats = null; }
 
-    const renders = { inicio: renderInicio, venda: renderVenda, clientes: renderClientes, estoque: renderEstoque,
+    const renders = { inicio: renderInicio, venda: renderVenda, trocas: renderTrocas, clientes: renderClientes, estoque: renderEstoque,
       compras: renderCompras, fluxo: renderFluxo, equipe: renderEquipe, configuracoes: renderConfiguracoes, ponto: renderPonto, calendario: renderCalendario, online: renderOnline, whatsapp: renderWhatsApp, relatorios: renderRelatorios };
     (renders[state.view] || renderInicio)();
   }
@@ -1326,6 +1343,7 @@
     if (achado) { adicionarAoCarrinho(achado.variacao.id); return; }
     const inativa = acharPorCodigo(codigo, true);
     if (inativa) { toast(inativa.produto.nome + ' ' + inativa.variacao.tamanho + ' ' + inativa.variacao.cor + ' está desativada no estoque', 'erro'); return; }
+    if (ehCodigoCupom(codigo)) { carregarTrocaPorCodigo(codigo); return; } // bipou o cupom de uma venda: é troca
     codigoDesconhecido(codigo, () => processarCodigoVenda(codigo));
   }
 
@@ -1409,6 +1427,7 @@
       toast('Feche a janela aberta pra bipar a peça', 'erro'); return;
     }
     if (state.view === 'estoque') { buscarNoEstoque(codigo); return; }
+    if (state.view === 'trocas') { bipNaTroca(codigo); return; }
     if (state.view !== 'venda') irPara('venda');
     processarCodigoVenda(codigo);
   }
@@ -1483,6 +1502,11 @@
       <button class="link-btn" id="btn-sair-condicional">não fechar agora</button></div>`);
     const lp = state.listaPresente;
     if (lp && state.cart.length) el.insertAdjacentHTML('afterbegin', `<div class="aviso-caixa" style="display:block;font-weight:400">🎁 Presente pra lista <b>${esc(lp.titulo)}</b>${lp.deQuem ? ' — de ' + esc(lp.deQuem) : ''} <button class="link-btn" id="btn-sair-lista">não é presente</button></div>`);
+    const te = state.trocaEmCurso;
+    if (te) el.insertAdjacentHTML('afterbegin', `<div class="aviso-caixa" style="display:block;font-weight:400" id="aviso-troca">🔄 <b>Troca</b> da venda ${esc(te.vendaNumero)}: crédito de <b>${fmt(te.credito)}</b> pra ${esc(te.cliente)}. Bipe as peças novas — o crédito abate do total; se passar, paga a diferença; se sobrar, fica de crédito no cadastro.
+      <button class="link-btn" id="btn-sair-troca">encerrar troca</button></div>`);
+    const sairTroca = document.getElementById('btn-sair-troca');
+    if (sairTroca) sairTroca.onclick = () => setState({ trocaEmCurso: null });
     const sairLista = document.getElementById('btn-sair-lista');
     if (sairLista) sairLista.onclick = () => setState({ listaPresente: null });
     const sairCond = document.getElementById('btn-sair-condicional');
@@ -1494,7 +1518,7 @@
     const btnId = document.getElementById('btn-identificar-cliente');
     if (btnId) btnId.onclick = async () => { const c = await escolherCliente(); if (c) setState({ cliente: c, pagamentos: [] }); };
     const btnRem = document.getElementById('btn-remover-cliente');
-    if (btnRem) btnRem.onclick = () => setState({ cliente: null, pagamentos: state.pagamentos.filter(p => !TIPO_CREDITO[p.forma] && p.forma !== 'Crediário') });
+    if (btnRem) btnRem.onclick = () => setState({ cliente: null, trocaEmCurso: null, pagamentos: state.pagamentos.filter(p => !TIPO_CREDITO[p.forma] && p.forma !== 'Crediário') });
 
     const acimaLimite = calc.pctDesconto > limite + 1e-9 && !ehAdmin();
     document.getElementById('carrinho-totais').innerHTML = `
@@ -1504,7 +1528,13 @@
       <div class="linha-total grande"><span>Total</span><span>${fmt(calc.total)}</span></div>
       ${cli && state.config.cashbackPct > 0 ? `<div class="modal-dica">Cliente ganha ${state.config.cashbackPct}% de cashback no que pagar sem crédito.</div>` : ''}`;
 
+    // Troca: o vale-troca entra sozinho como pagamento (até o total). Tirou na mão, não volta.
+    if (te && cli && state.cart.length && !te.semVale && cli.saldo_vale_troca > 0 && !state.pagamentos.some(p => p.forma === 'Vale-troca')) {
+      state.pagamentos = [{ forma: 'Vale-troca', valor: round2(Math.min(cli.saldo_vale_troca, calc.total)) }].concat(state.pagamentos);
+    }
     const pag = calcPagamentos(calc.total);
+    const valeUsado = round2(state.pagamentos.filter(p => p.forma === 'Vale-troca').reduce((t, p) => t + p.valor, 0));
+    const sobraVale = te && cli ? round2(cli.saldo_vale_troca - valeUsado) : 0;
     const formasDisponiveis = FORMAS_DINHEIRO.slice();
     if (cli && cli.saldo_cashback > 0) formasDisponiveis.push('Cashback');
     if (cli && cli.saldo_vale_troca > 0) formasDisponiveis.push('Vale-troca');
@@ -1518,12 +1548,14 @@
           <button data-rem-pag="${i}" aria-label="Remover">×</button></div>`).join('')}
       <div class="formas">${formasDisponiveis.map(f => `<button class="forma ${TIPO_CREDITO[f] ? 'credito' : ''}" data-forma="${f}">+ ${f}${TIPO_CREDITO[f] ? ' (' + fmt(cli[TIPO_CREDITO[f]]) + ')' : ''}</button>`).join('')}</div>
       ${valorCrediario > 0 ? htmlCrediarioCarrinho(round2(valorCrediario)) : ''}
-      ${pag.restante > 0.005 ? `<div class="linha-total"><span>Falta</span><span style="color:var(--zero-text);font-weight:700">${fmt(pag.restante)}</span></div>` : ''}
+      ${pag.restante > 0.005 ? `<div class="linha-total"><span>${te && valeUsado > 0 ? 'Diferença a pagar' : 'Falta'}</span><span style="color:var(--zero-text);font-weight:700">${fmt(pag.restante)}</span></div>` : ''}
+      ${sobraVale > 0.005 ? `<div class="linha-total"><span>Fica de crédito pra ${esc(cli.nome.split(' ')[0])}</span><span style="color:var(--teal);font-weight:700">${fmt(sobraVale)}</span></div>` : ''}
       ${pag.troco > 0.005 ? `<div class="linha-total grande"><span>Troco</span><span style="color:var(--ok-text)">${fmt(pag.troco)}</span></div>` : ''}
       ${pag.excesso ? `<div class="modal-dica" style="color:var(--zero-text)">Os pagamentos passam do total — ajuste os valores.</div>` : ''}`;
     document.querySelectorAll('#carrinho-pagamentos [data-forma]').forEach(b => b.addEventListener('click', () => adicionarPagamento(b.dataset.forma, calc.total)));
     ligarCrediarioCarrinho();
     document.querySelectorAll('#carrinho-pagamentos [data-rem-pag]').forEach(b => b.addEventListener('click', () => {
+      if (te && state.pagamentos[Number(b.dataset.remPag)].forma === 'Vale-troca') te.semVale = true;
       setState({ pagamentos: state.pagamentos.filter((_, i) => i !== Number(b.dataset.remPag)) });
     }));
     document.querySelectorAll('#carrinho-pagamentos [data-pag]').forEach(inp => inp.addEventListener('change', () => {
@@ -1532,6 +1564,7 @@
       if (!Number.isFinite(valor) || valor < 0) valor = 0;
       const p = state.pagamentos[i];
       if (TIPO_CREDITO[p.forma]) valor = Math.min(valor, state.cliente[TIPO_CREDITO[p.forma]]);
+      if (te && p.forma === 'Vale-troca' && valor <= 0) te.semVale = true;
       const pagamentos = state.pagamentos.slice();
       pagamentos[i] = Object.assign({}, p, { valor: round2(valor) });
       setState({ pagamentos: pagamentos.filter(x => x.valor > 0) });
@@ -1600,7 +1633,7 @@
       const troco = pag.troco;
       r.clienteNome = state.cliente ? state.cliente.nome : null;
       r.clienteCpf = state.cliente ? (state.cliente.cpf || '') : '';
-      Object.assign(state, { cart: [], pagamentos: [], cliente: null, condicional: null, crediario: null, listaPresente: null });
+      Object.assign(state, { cart: [], pagamentos: [], cliente: null, condicional: null, crediario: null, listaPresente: null, trocaEmCurso: null });
       if (r.crediario) carregarResumoCrediario();
       await Promise.all([carregarProdutos(), carregarCaixa()]);
       render();
@@ -1637,13 +1670,16 @@
         ${venda.crediario ? `<div class="cliente-box" style="display:block;text-align:left"><b>Crediário ${venda.crediario.length}x</b>: ${venda.crediario.map(p => dataBR(p.vencimento).slice(0, 5) + ' ' + fmt(p.valor)).join(' · ')}
           <div style="margin-top:6px"><button class="btn-secundario" id="btn-carne">🖨 Imprimir carnê</button></div></div>` : ''}
         ${fiscalPronto() ? '<div id="nfce-area"></div>' : ''}
-        <div style="display:flex;gap:8px"><button class="btn-secundario" id="btn-cupom" style="flex:1">🖨 Imprimir cupom</button><button class="btn-primario btn-grande" id="btn-nova-venda" style="flex:2">Nova venda</button></div>
+        ${cupom.saldoVale > 0.005 ? `<div class="cliente-box" style="display:block">Ficou de crédito (vale-troca) pra <b>${esc(venda.clienteNome || '')}</b>: <b>${fmt(cupom.saldoVale)}</b></div>` : ''}
+        <div style="display:flex;gap:8px"><button class="btn-secundario" id="btn-cupom" style="flex:1">🖨 Imprimir cupom</button><button class="btn-secundario" id="btn-cupom-troca" style="flex:1" title="Sem preços — pra ir junto com presente">🎁 Cupom de troca</button></div>
+        <button class="btn-primario btn-grande" id="btn-nova-venda">Nova venda</button>
         <label style="font-size:12px;color:var(--text-2);display:flex;gap:6px;align-items:center;justify-content:center"><input type="checkbox" id="cupom-auto" ${cfg.auto ? 'checked' : ''}> Imprimir cupom automaticamente em toda venda (neste computador)</label>
       </div>`, () => document.getElementById('venda-busca').focus());
     const b = document.getElementById('btn-nova-venda');
     b.focus();
     b.onclick = () => { fecharModal(); document.getElementById('venda-busca').focus(); };
     document.getElementById('btn-cupom').onclick = () => imprimirCupom(cupom);
+    document.getElementById('btn-cupom-troca').onclick = () => imprimirCupomTroca(cupom);
     document.getElementById('cupom-auto').onchange = (e) => salvarConfigCupom(Object.assign(configCupom(), { auto: e.target.checked }));
     if (cfg.auto) imprimirCupom(cupom);
     if (venda.crediario) document.getElementById('btn-carne').onclick = () => imprimirCarne(venda, venda.crediario, venda.clienteNome);
@@ -1736,13 +1772,15 @@
   function numeroVenda(id) { return String(id || '').slice(-6).toUpperCase(); }
   // Formato único do cupom, venha da venda que acabou de acontecer ou da reimpressão.
   function cupomDaVendaNova(r) {
-    return { id: r.id, criadoEm: r.criadoEm || new Date().toISOString(), vendedor: state.logado.nome, cliente: r.clienteNome,
+    const usouVale = (r.pagamentos || []).some(p => p.forma === 'Vale-troca');
+    return { id: r.id, codigoTroca: r.codigoTroca, canal: 'loja', criadoEm: r.criadoEm || new Date().toISOString(), vendedor: state.logado.nome, cliente: r.clienteNome,
+      saldoVale: usouVale && r.saldosCliente ? r.saldosCliente.vale_troca : null,
       itens: r.itens.map(i => ({ nome: i.produtoNome, tamanho: i.tamanho, cor: i.cor, qtd: i.qtd, precoUnit: i.precoUnit, desconto: i.descontoItem })),
       subtotal: r.subtotal, desconto: r.desconto, taxaEntrega: 0, total: r.total, pagamentos: r.pagamentos, troco: r.troco || 0,
       cashbackGerado: r.cashbackGerado, saldoCashback: r.saldosCliente ? r.saldosCliente.cashback : null };
   }
   function cupomDaVendaSalva(v) {
-    return { id: v.id, criadoEm: v.criado_em, vendedor: v.usuario_nome, cliente: v.cliente_nome, cancelada: v.cancelada,
+    return { id: v.id, codigoTroca: v.codigo_troca, canal: v.canal, criadoEm: v.criado_em, vendedor: v.usuario_nome, cliente: v.cliente_nome, cancelada: v.cancelada,
       itens: v.itens.map(i => ({ nome: i.produto_nome, tamanho: i.tamanho, cor: i.cor, qtd: Number(i.qtd), precoUnit: Number(i.preco_unit), desconto: Number(i.desconto_item) })),
       subtotal: Number(v.subtotal), desconto: Number(v.desconto), taxaEntrega: Number(v.taxa_entrega || 0), total: Number(v.total),
       pagamentos: v.pagamentos.map(p => ({ forma: p.forma, valor: Number(p.valor) })), troco: Number(v.troco || 0), cashbackGerado: Number(v.cashback_gerado || 0), saldoCashback: null };
@@ -1777,12 +1815,44 @@
       <div class="l t"><span>TOTAL</span><span>${fmt(v.total)}</span></div>
       ${v.pagamentos.map(p => `<div class="l"><span>${esc(p.forma)}</span><span>${fmt(p.valor)}</span></div>`).join('')}
       ${v.troco > 0.005 ? `<div class="l"><span>Dinheiro recebido</span><span>${fmt((v.pagamentos.find(p => p.forma === 'Dinheiro') || { valor: 0 }).valor + v.troco)}</span></div><div class="l b"><span>Troco</span><span>${fmt(v.troco)}</span></div>` : ''}
+      ${v.saldoVale > 0.005 ? `<div class="l b"><span>Crédito que ficou (vale-troca)</span><span>${fmt(v.saldoVale)}</span></div>` : ''}
       ${v.cashbackGerado ? `<hr><div class="c">Você ganhou <b>${fmt(v.cashbackGerado)}</b> de cashback${v.saldoCashback != null ? `<br>Saldo: <b>${fmt(v.saldoCashback)}</b>` : ''}<br><span class="p">use como desconto na próxima compra</span></div>` : ''}
       ${state.config.cupomRodape ? `<hr><div class="c p">${esc(state.config.cupomRodape)}</div>` : ''}
+      ${v.codigoTroca && !v.cancelada ? `<hr><div class="c p">Para trocar, traga este cupom</div>${barrasCupom(v.codigoTroca, largura)}` : ''}
       <hr><div class="c p">Obrigado pela preferência!</div>
     </body></html>`;
   }
   function imprimirCupom(v) { imprimirDocumento(documentoCupom(v, configCupom().largura), configCupom().largura); }
+  // Código de barras da troca no cupom: sempre Code 128 (12 números, começando com 98). Cada barra
+  // fina com 3 pontos da térmica (0,375 mm) no rolo de 58 mm e 4 pontos (0,5 mm) no de 80 mm.
+  function ehCodigoCupom(c) { return /^98\d{10}$/.test(String(c || '').trim()); }
+  function barrasCupom(codigo, largura) {
+    const modulos = modulosCode128(codigo);
+    const larguraMm = (modulos.length + 20) * (largura >= 80 ? 0.5 : 0.375);
+    return `<div style="display:flex;flex-direction:column;align-items:center;margin-top:1mm">${svgModulos(modulos, codigo, larguraMm, 10)}</div>`;
+  }
+  function prazoTrocaAte(v) {
+    const tr = state.config.troca || { diasLoja: 15, diasSite: 30 };
+    const dias = v.canal === 'online' ? tr.diasSite : tr.diasLoja;
+    const dia = new Date(new Date(v.criadoEm).toLocaleDateString('en-CA', { timeZone: TZ }) + 'T12:00:00Z');
+    dia.setUTCDate(dia.getUTCDate() + Number(dias || 0));
+    return dia.toISOString().slice(0, 10);
+  }
+  // Cupom de troca: vai junto com presente — mostra as peças e o prazo, sem os preços.
+  function documentoCupomTroca(v, largura) {
+    return `<!doctype html><html><head><meta charset="utf-8"><title>Cupom de troca</title><style>${estiloCupom(largura)}</style></head><body>
+      ${cabecalhoCupom()}
+      <hr><div class="c t">CUPOM DE TROCA</div>
+      <div class="l p"><span>Venda ${numeroVenda(v.id)}</span><span>${dataHora(v.criadoEm)}</span></div>
+      <div class="c b" style="margin-top:1mm">Troca até ${dataBR(prazoTrocaAte(v))}</div>
+      <hr>
+      ${v.itens.map(i => `<div class="it">${i.qtd} x ${esc(i.nome)} · ${esc(i.tamanho)}${i.cor ? ' · ' + esc(i.cor) : ''}</div>`).join('')}
+      <hr><div class="c p">Para trocar, traga este cupom e as peças com a etiqueta.</div>
+      ${v.codigoTroca ? barrasCupom(v.codigoTroca, largura) : ''}
+      ${state.config.cupomRodape ? `<hr><div class="c p">${esc(state.config.cupomRodape)}</div>` : ''}
+    </body></html>`;
+  }
+  function imprimirCupomTroca(v) { imprimirDocumento(documentoCupomTroca(v, configCupom().largura), configCupom().largura); }
   function imprimirValeTroca(d) {
     const largura = configCupom().largura;
     imprimirDocumento(`<!doctype html><html><head><meta charset="utf-8"><title>Vale-troca</title><style>${estiloCupom(largura)}</style></head><body>
@@ -2313,11 +2383,14 @@
           <td style="text-align:right">${v.cancelada ? '<s>' + fmt(v.total) + '</s>' : fmt(v.total)}</td>
           <td style="white-space:nowrap">${v.cancelada ? `<span class="tag cinza" title="${esc(v.motivo_cancelamento || '')}">cancelada</span>`
             : `<button class="btn-secundario" data-venda="${v.id}">Troca</button>${ehAdmin() && !v.devolucoes ? ` <button class="link-btn" style="color:var(--zero-text)" data-cancelar="${v.id}">cancelar</button>` : ''}`}
-            <button class="link-btn" data-cupom="${v.id}" title="Reimprimir cupom">cupom</button>${!v.cancelada && (fiscalPronto() || v.nfce_status) ? ` <button class="link-btn" data-nfce="${v.id}">${v.nfce_status === 'autorizada' ? 'NFC-e ' + esc(v.nfce_numero) : v.nfce_status === 'rejeitada' || v.nfce_status === 'erro' ? '⚠ NFC-e' : 'emitir NFC-e'}</button>` : ''}</td></tr>`).join('')}</table></div>`
+            <button class="link-btn" data-cupom="${v.id}" title="Reimprimir cupom">cupom</button>${v.cancelada ? '' : ` <button class="link-btn" data-cupom-troca="${v.id}" title="Cupom de troca: sem preços, pra presente">cupom de troca</button>`}${!v.cancelada && (fiscalPronto() || v.nfce_status) ? ` <button class="link-btn" data-nfce="${v.id}">${v.nfce_status === 'autorizada' ? 'NFC-e ' + esc(v.nfce_numero) : v.nfce_status === 'rejeitada' || v.nfce_status === 'erro' ? '⚠ NFC-e' : 'emitir NFC-e'}</button>` : ''}</td></tr>`).join('')}</table></div>`
         : '<div class="vazio">Nenhuma venda ' + (todas ? 'registrada ainda.' : 'hoje.') + '</div>';
-      corpo.querySelectorAll('[data-venda]').forEach(b => b.addEventListener('click', () => abrirTrocaDaVenda(b.dataset.venda)));
+      corpo.querySelectorAll('[data-venda]').forEach(b => b.addEventListener('click', () => { fecharModal(); carregarTrocaVenda(b.dataset.venda); }));
       corpo.querySelectorAll('[data-cancelar]').forEach(b => b.addEventListener('click', () => abrirCancelarVenda(vendas.find(v => v.id === b.dataset.cancelar), todas)));
       corpo.querySelectorAll('[data-nfce]').forEach(b => b.addEventListener('click', () => abrirNfceDaVenda(b.dataset.nfce, todas)));
+      corpo.querySelectorAll('[data-cupom-troca]').forEach(b => b.addEventListener('click', async () => {
+        try { imprimirCupomTroca(cupomDaVendaSalva(await api('/vendas/' + b.dataset.cupomTroca))); } catch (e) { toast(e.message, 'erro'); }
+      }));
       corpo.querySelectorAll('[data-cupom]').forEach(b => b.addEventListener('click', async () => {
         try { imprimirCupom(cupomDaVendaSalva(await api('/vendas/' + b.dataset.cupom))); } catch (e) { toast(e.message, 'erro'); }
       }));
@@ -2352,76 +2425,136 @@
     }, camada.querySelector('#cv-erro'));
   }
 
-  async function abrirTrocaDaVenda(vendaId) {
+  /* ================= Trocas e devoluções ================= */
+  // Bipa o cupom → a venda aparece aqui com as peças. Marca o que voltou (digitando ou bipando a
+  // etiqueta de cada peça), escolhe quem fica com o crédito e:
+  //  - "Trocar por outras peças": registra a devolução e vai pra Venda rápida com o cliente e o
+  //    crédito já abatendo do total (passou, paga a diferença; sobrou, fica de vale-troca);
+  //  - "Só devolver": o valor fica todo de vale-troca no cadastro do cliente.
+  async function carregarTrocaPorCodigo(codigo) {
+    try {
+      const r = await api('/vendas/por-codigo/' + encodeURIComponent(String(codigo).trim()));
+      await carregarTrocaVenda(r.id);
+    } catch (e) { toast(e.message, 'erro'); }
+  }
+  async function carregarTrocaVenda(vendaId) {
     let venda;
     try { venda = await api('/vendas/' + vendaId); } catch (e) { toast(e.message, 'erro'); return; }
-    let cliente = venda.cliente_id ? { id: venda.cliente_id, nome: venda.cliente_nome } : null;
-    const itens = venda.itens.map(i => Object.assign({}, i, { disponivel: Number(i.qtd) - Number(i.qtd_devolvida) }));
+    if (venda.cancelada) { toast('Essa venda foi cancelada — não tem troca', 'erro'); return; }
     const tr = (state.config && state.config.troca) || { diasLoja: 15, diasSite: 30 };
     const prazo = venda.canal === 'online' ? tr.diasSite : tr.diasLoja;
     const dias = Math.round((Date.parse(hojeLocal() + 'T12:00:00Z') - Date.parse(new Date(venda.criado_em).toLocaleDateString('en-CA', { timeZone: TZ }) + 'T12:00:00Z')) / 864e5);
-    const foraPrazo = dias > prazo;
-    const desenhar = () => {
-      const camada = abrirModal(`<div class="modal-card largo">
-        ${cabecalhoModal('Troca / devolução', 'Venda de ' + dataHora(venda.criado_em) + ' · ' + fmt(venda.total))}
-        <div class="${foraPrazo ? 'aviso-caixa' : 'modal-dica'}" style="margin:0">${foraPrazo ? '⚠ ' : ''}Comprada há ${dias} dia${dias === 1 ? '' : 's'} — prazo de troca ${venda.canal === 'online' ? 'do site' : 'da loja'}: ${prazo} dias.${foraPrazo ? (ehAdmin() ? ' Fora do prazo (você é Administrador, pode autorizar).' : ' Fora do prazo: vai pedir o PIN de um Administrador.') : ''}</div>
+    const itens = venda.itens.map(i => Object.assign({}, i, {
+      disponivel: Number(i.qtd) - Number(i.qtd_devolvida),
+      unit: (Number(i.preco_unit) * Number(i.qtd) - Number(i.desconto_item)) / Number(i.qtd),
+    }));
+    state.trocaAtual = { venda, itens, qtd: {}, prazo, dias, foraPrazo: dias > prazo,
+      cliente: venda.cliente_id ? { id: venda.cliente_id, nome: venda.cliente_nome } : null };
+    if (state.view !== 'trocas') irPara('trocas'); else renderTrocas();
+    if (!itens.some(i => i.disponivel > 0)) toast('Todas as peças dessa venda já foram devolvidas', 'erro');
+  }
+  function bipNaTroca(codigo) {
+    codigo = String(codigo || '').trim();
+    if (!codigo) return;
+    const at = state.trocaAtual;
+    if (!ehCodigoCupom(codigo) && at) {
+      // Etiqueta de uma peça: marca +1 dela na venda aberta.
+      const achado = acharPorCodigo(codigo, true);
+      if (achado) {
+        const nome = achado.produto.nome + ' ' + achado.variacao.tamanho;
+        const item = at.itens.find(i => i.variacao_id === achado.variacao.id && (at.qtd[i.id] || 0) < i.disponivel);
+        if (item) { at.qtd[item.id] = (at.qtd[item.id] || 0) + 1; renderTrocas(); toast(nome + ' marcada pra devolver'); return; }
+        toast(at.itens.some(i => i.variacao_id === achado.variacao.id) ? 'Todas as ' + nome + ' dessa venda já estão marcadas' : nome + ' não é dessa venda', 'erro');
+        return;
+      }
+    }
+    carregarTrocaPorCodigo(codigo);
+  }
+  function totalTroca(at) { return round2(at.itens.reduce((t, i) => t + i.unit * (at.qtd[i.id] || 0), 0)); }
+
+  function renderTrocas() {
+    const at = state.trocaAtual;
+    const el = document.getElementById('troca-venda');
+    if (!at) {
+      el.innerHTML = `<div class="modal-dica" style="margin:10px 0 0">Bipe o código de barras do cupom da venda ou do cupom de troca. Sem cupom? Use "Procurar venda sem cupom".${state.trocaEmCurso ? `<br>Troca em andamento: crédito de <b>${fmt(state.trocaEmCurso.credito)}</b> para ${esc(state.trocaEmCurso.cliente)} — <button class="link-btn" onclick="irPara('venda')">voltar pra venda</button>` : ''}</div>`;
+    } else {
+      const v = at.venda;
+      el.innerHTML = `<div style="display:flex;flex-direction:column;gap:12px;margin-top:14px">
+        <div class="painel-titulo-linha"><div><div class="painel-titulo" style="margin:0">Venda ${numeroVenda(v.id)} · ${dataHora(v.criado_em)} · ${fmt(v.total)}</div>
+          <div style="font-size:12px;color:var(--text-2)">${esc(v.usuario_nome || '')}${v.cliente_nome ? ' · cliente ' + esc(v.cliente_nome) : ''}${v.canal === 'online' ? ' · compra pelo site' : ''}</div></div>
+          <button class="link-btn" id="troca-cancelar">fechar</button></div>
+        <div class="${at.foraPrazo ? 'aviso-caixa' : 'modal-dica'}" style="margin:0">${at.foraPrazo ? '⚠ ' : ''}Comprada há ${at.dias} dia${at.dias === 1 ? '' : 's'} — prazo de troca ${v.canal === 'online' ? 'do site' : 'da loja'}: ${at.prazo} dias.${at.foraPrazo ? (ehAdmin() ? ' Fora do prazo (você é Administrador, pode autorizar).' : ' Fora do prazo: vai pedir o PIN de um Administrador.') : ''}</div>
         <div class="tabela-scroll"><table class="tabela"><tr><th>Peça</th><th>Vendidas</th><th>Já devolvidas</th><th>Valor pago/un.</th><th style="width:110px">Devolver</th></tr>
-          ${itens.map((i, k) => {
-            const unit = (Number(i.preco_unit) * Number(i.qtd) - Number(i.desconto_item)) / Number(i.qtd);
-            return `<tr><td>${esc(i.produto_nome)} · ${esc(i.tamanho)}${i.cor ? ' · ' + esc(i.cor) : ''}</td><td>${Number(i.qtd)}</td><td>${Number(i.qtd_devolvida)}</td><td>${fmt(unit)}</td>
-              <td>${i.disponivel > 0 ? `<input type="number" min="0" max="${i.disponivel}" step="1" value="0" data-dev="${k}">` : '<span class="tag cinza">nada a devolver</span>'}</td></tr>`;
-          }).join('')}</table></div>
-        <div class="cliente-box" style="font-size:13px"><div>Vale-troca fica no nome de: <b>${cliente ? esc(cliente.nome) : 'ninguém ainda'}</b></div>
-          ${venda.cliente_id ? '' : `<button class="btn-secundario" id="troca-cliente">${cliente ? 'Trocar cliente' : 'Escolher cliente'}</button>`}</div>
-        <div class="linha-total grande"><span>Vale-troca</span><span id="troca-total">${fmt(0)}</span></div>
+          ${at.itens.map((i, k) => `<tr><td>${esc(i.produto_nome)} · ${esc(i.tamanho)}${i.cor ? ' · ' + esc(i.cor) : ''}</td><td>${Number(i.qtd)}</td><td>${Number(i.qtd_devolvida)}</td><td>${fmt(i.unit)}</td>
+            <td>${i.disponivel > 0 ? `<input type="number" min="0" max="${i.disponivel}" step="1" value="${at.qtd[i.id] || 0}" data-dev="${k}">` : '<span class="tag cinza">nada a devolver</span>'}</td></tr>`).join('')}</table></div>
+        <div class="modal-dica" style="margin:0">Dica: bipe a etiqueta de cada peça que voltou — ela é marcada sozinha.</div>
+        <div class="cliente-box" style="font-size:13px"><div>O crédito fica com: <b>${at.cliente ? esc(at.cliente.nome) : 'ninguém ainda — escolha o cliente'}</b>${at.cliente && v.cliente_id && at.cliente.id !== v.cliente_id ? ' <span class="tag cinza">presente</span>' : ''}</div>
+          <button class="btn-secundario" id="troca-cliente">${!at.cliente ? 'Escolher / cadastrar cliente' : v.cliente_id && at.cliente.id === v.cliente_id ? 'É outra pessoa (presente)' : 'Trocar cliente'}</button></div>
+        <div class="linha-total grande"><span>Crédito da troca</span><span id="troca-total">${fmt(totalTroca(at))}</span></div>
         <div class="erro-modal" id="troca-erro"></div>
-        <div class="modal-acoes"><button class="btn-secundario" data-fechar>Cancelar</button><button class="btn-primario btn-grande" id="troca-confirmar">Confirmar devolução</button></div>
-      </div>`);
-      const inputs = camada.querySelectorAll('[data-dev]');
-      const recalcular = () => {
-        let total = 0;
-        inputs.forEach(inp => {
-          const i = itens[Number(inp.dataset.dev)];
-          const qtd = Math.max(0, Math.min(i.disponivel, Math.floor(Number(inp.value) || 0)));
-          total += (Number(i.preco_unit) * Number(i.qtd) - Number(i.desconto_item)) / Number(i.qtd) * qtd;
-        });
-        camada.querySelector('#troca-total').textContent = fmt(round2(total));
+        <div class="modal-acoes" style="flex-wrap:wrap"><button class="btn-secundario" id="troca-confirmar">Só devolver (fica de crédito)</button>
+          <button class="btn-primario btn-grande" id="troca-trocar">Trocar por outras peças →</button></div>
+      </div>`;
+      el.querySelectorAll('[data-dev]').forEach(inp => inp.addEventListener('input', () => {
+        const i = at.itens[Number(inp.dataset.dev)];
+        at.qtd[i.id] = Math.max(0, Math.min(i.disponivel, Math.floor(Number(inp.value) || 0)));
+        document.getElementById('troca-total').textContent = fmt(totalTroca(at));
+      }));
+      document.getElementById('troca-cancelar').onclick = () => { state.trocaAtual = null; renderTrocas(); document.getElementById('troca-bipar').focus(); };
+      document.getElementById('troca-cliente').onclick = async () => {
+        const c = await escolherCliente('Quem fica com o crédito da troca');
+        if (c) { at.cliente = c; renderTrocas(); }
       };
-      inputs.forEach(inp => inp.addEventListener('input', recalcular));
-      const bCli = camada.querySelector('#troca-cliente');
-      if (bCli) bCli.onclick = async () => {
-        const valores = [...inputs].map(inp => inp.value);
-        const c = await escolherCliente('Cliente que fica com o vale-troca');
-        if (c) cliente = c;
-        desenhar();
-        document.querySelectorAll('#modal [data-dev]').forEach((inp, k) => { inp.value = valores[k]; });
-        recalcular();
-      };
-      camada.querySelector('#troca-confirmar').onclick = (ev) => comBotao(ev.target, 'Devolvendo...', async () => {
-        const pedidos = [...inputs].map(inp => ({ vendaItemId: itens[Number(inp.dataset.dev)].id, qtd: Math.floor(Number(inp.value) || 0) })).filter(p => p.qtd > 0);
-        if (!pedidos.length) throw new Error('Informe quantas peças vão voltar.');
-        if (!cliente) throw new Error('Escolha o cliente que fica com o vale-troca.');
-        let r;
-        try { r = await api('/vendas/' + venda.id + '/devolucoes', { method: 'POST', body: { itens: pedidos, clienteId: cliente.id } }); }
-        catch (e) {
-          const cod = e.data && e.data.codigo;
-          if (cod !== 'aprovacao_necessaria' && cod !== 'aprovacao_invalida') throw e;
-          const ap = await escolherAdministrador(e.message);
-          if (!ap) throw new Error('Troca fora do prazo não autorizada.');
-          r = await api('/vendas/' + venda.id + '/devolucoes', { method: 'POST', body: { itens: pedidos, clienteId: cliente.id, aprovacao: ap } });
-        }
-        fecharModal();
-        await carregarProdutos(); render();
-        abrirModal(`<div class="modal-card estreito" style="text-align:center">${cabecalhoModal('Devolução registrada', '')}
-          <div>Vale-troca gerado para <b>${esc(cliente.nome)}</b></div>
-          <div class="stat-valor" style="font-size:28px;color:var(--teal)">${fmt(r.valeTroca)}</div>
-          <div style="font-size:12px;color:var(--text-2)">Saldo de vale-troca agora: ${fmt(r.saldosCliente.vale_troca)}${r.cashbackEstornado ? ' · Cashback estornado: ' + fmt(r.cashbackEstornado) : ''}</div>
-          <div style="display:flex;gap:8px"><button class="btn-secundario" id="btn-vale-imprimir" style="flex:1">🖨 Imprimir vale-troca</button><button class="btn-primario" data-fechar style="flex:1">Ok</button></div></div>`);
-        document.getElementById('btn-vale-imprimir').onclick = () => imprimirValeTroca({ vendaId: venda.id, cliente: cliente.nome, valor: r.valeTroca, saldo: r.saldosCliente.vale_troca,
-          itens: pedidos.map(p => { const i = itens.find(x => x.id === p.vendaItemId); return { qtd: p.qtd, nome: i.produto_nome, tamanho: i.tamanho }; }) });
-      }, camada.querySelector('#troca-erro'));
-    };
-    desenhar();
+      document.getElementById('troca-confirmar').onclick = (ev) => comBotao(ev.target, 'Devolvendo...', () => concluirTroca(false), document.getElementById('troca-erro'));
+      document.getElementById('troca-trocar').onclick = (ev) => comBotao(ev.target, 'Devolvendo...', () => concluirTroca(true), document.getElementById('troca-erro'));
+    }
+
+    const h = state.trocasHistorico;
+    document.getElementById('trocas-historico').innerHTML = h == null ? '<div class="carregando">Carregando...</div>' : !h.length ? '<div class="vazio">Nenhuma troca ou devolução nos últimos 30 dias.</div>'
+      : `<div class="tabela-scroll"><table class="tabela"><tr><th>Quando</th><th>Cliente</th><th>Peças que voltaram</th><th>Venda</th><th style="text-align:right">Crédito</th><th>Feita por</th></tr>
+        ${h.map(d => `<tr><td>${dataHora(d.criado_em)}</td><td>${esc(d.cliente_nome)}</td><td>${esc(d.pecas || '')}${d.observacao ? `<div style="font-size:11px;color:var(--text-2)">${esc(d.observacao)}</div>` : ''}</td>
+          <td class="mono">${numeroVenda(d.venda_id)}</td><td style="text-align:right">${fmt(d.valor_total)}</td><td>${esc(d.usuario_nome)}</td></tr>`).join('')}</table></div>`;
+  }
+
+  async function concluirTroca(trocar) {
+    const at = state.trocaAtual;
+    const pedidos = at.itens.filter(i => (at.qtd[i.id] || 0) > 0).map(i => ({ vendaItemId: i.id, qtd: at.qtd[i.id] }));
+    if (!pedidos.length) throw new Error('Marque quais peças voltaram (digite a quantidade ou bipe a etiqueta).');
+    if (!at.cliente) throw new Error('Escolha o cliente que fica com o crédito (dá pra cadastrar na hora).');
+    if (trocar && (state.cart.length || state.condicional) && !confirm('O carrinho da Venda rápida tem outra venda começada. Limpar pra fazer a troca?')) return;
+    const corpo = { itens: pedidos, clienteId: at.cliente.id };
+    let r;
+    try { r = await api('/vendas/' + at.venda.id + '/devolucoes', { method: 'POST', body: corpo }); }
+    catch (e) {
+      const cod = e.data && e.data.codigo;
+      if (cod !== 'aprovacao_necessaria' && cod !== 'aprovacao_invalida') throw e;
+      const ap = await escolherAdministrador(e.message);
+      if (!ap) throw new Error('Troca fora do prazo não autorizada.');
+      r = await api('/vendas/' + at.venda.id + '/devolucoes', { method: 'POST', body: Object.assign(corpo, { aprovacao: ap }) });
+    }
+    const cliente = at.cliente, venda = at.venda;
+    const pecas = pedidos.map(p => { const i = at.itens.find(x => x.id === p.vendaItemId); return { qtd: p.qtd, nome: i.produto_nome, tamanho: i.tamanho }; });
+    state.trocaAtual = null;
+    api('/devolucoes?dias=30').then(h => { state.trocasHistorico = h; if (state.view === 'trocas') renderTrocas(); }).catch(() => {});
+    await carregarProdutos();
+    if (trocar) {
+      let cli;
+      try { cli = await api('/clientes/' + cliente.id); } catch (e) { cli = Object.assign({}, cliente); }
+      cli.saldo_cashback = r.saldosCliente.cashback; cli.saldo_vale_troca = r.saldosCliente.vale_troca;
+      Object.assign(state, { cart: [], pagamentos: [], condicional: null, listaPresente: null, crediario: null, cliente: cli,
+        trocaEmCurso: { credito: r.valeTroca, cliente: cliente.nome, vendaNumero: numeroVenda(venda.id), semVale: false } });
+      irPara('venda');
+      toast('Crédito de ' + fmt(r.valeTroca) + ' pra ' + cliente.nome + ' — bipe as peças novas');
+      return;
+    }
+    render();
+    abrirModal(`<div class="modal-card estreito" style="text-align:center">${cabecalhoModal('Devolução registrada', '')}
+      <div>Vale-troca gerado para <b>${esc(cliente.nome)}</b></div>
+      <div class="stat-valor" style="font-size:28px;color:var(--teal)">${fmt(r.valeTroca)}</div>
+      <div style="font-size:12px;color:var(--text-2)">Saldo de vale-troca agora: ${fmt(r.saldosCliente.vale_troca)}${r.cashbackEstornado ? ' · Cashback estornado: ' + fmt(r.cashbackEstornado) : ''}</div>
+      <div style="display:flex;gap:8px"><button class="btn-secundario" id="btn-vale-imprimir" style="flex:1">🖨 Imprimir vale-troca</button><button class="btn-primario" data-fechar style="flex:1">Ok</button></div></div>`,
+      () => { const b = document.getElementById('troca-bipar'); if (b && state.view === 'trocas') b.focus(); });
+    document.getElementById('btn-vale-imprimir').onclick = () => imprimirValeTroca({ vendaId: venda.id, cliente: cliente.nome, valor: r.valeTroca, saldo: r.saldosCliente.vale_troca, itens: pecas });
   }
 
   /* ================= Pedidos online ================= */
@@ -3304,6 +3437,9 @@
   // SVG com a zona de silêncio que os leitores precisam dos lados.
   function svgBarras(codigo, larguraMm, alturaMm) {
     const { modulos, texto } = codificarBarras(codigo);
+    return svgModulos(modulos, texto, larguraMm, alturaMm);
+  }
+  function svgModulos(modulos, texto, larguraMm, alturaMm) {
     const silencio = 10, total = modulos.length + silencio * 2;
     let barras = '', i = 0;
     while (i < modulos.length) {
@@ -5610,7 +5746,14 @@
   document.getElementById('btn-enviar-condicional').addEventListener('click', () => enviarComoCondicional());
   document.getElementById('btn-vender-envio').addEventListener('click', () => venderComEnvio());
   document.getElementById('btn-presente-lista').addEventListener('click', () => escolherListaNoCaixa());
-  document.getElementById('btn-limpar-carrinho').addEventListener('click', () => { if (!state.cart.length || confirm('Limpar o carrinho?')) setState({ cart: [], pagamentos: [], cliente: null, condicional: null, listaPresente: null }); });
+  document.getElementById('btn-limpar-carrinho').addEventListener('click', () => { if (!state.cart.length || confirm('Limpar o carrinho?')) setState({ cart: [], pagamentos: [], cliente: null, condicional: null, listaPresente: null, trocaEmCurso: null }); });
+  document.getElementById('btn-trocas-lista').addEventListener('click', () => abrirTroca(true));
+  document.getElementById('troca-bipar').addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter') return;
+    e.preventDefault();
+    const v = e.target.value.trim(); e.target.value = '';
+    bipNaTroca(v);
+  });
   document.getElementById('btn-novo-cliente').addEventListener('click', abrirNovoCliente);
   document.getElementById('btn-crediario').addEventListener('click', () => abrirCrediario(false));
   document.getElementById('btn-listas').addEventListener('click', () => abrirListas());
