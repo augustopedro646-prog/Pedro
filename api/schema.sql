@@ -759,3 +759,8 @@ ALTER TABLE lojas ADD COLUMN IF NOT EXISTS google_avaliacao_url TEXT;
 -- a troca precisa do PIN de um Administrador.
 ALTER TABLE lojas ADD COLUMN IF NOT EXISTS troca_dias_loja INTEGER NOT NULL DEFAULT 15;
 ALTER TABLE lojas ADD COLUMN IF NOT EXISTS troca_dias_site INTEGER NOT NULL DEFAULT 30;
+
+-- Limite do condicional: valor máximo em peças que a cliente pode ter em casa pra provar (somando
+-- os condicionais abertos dela). Acima disso, precisa do PIN de um Administrador. 0 = sem limite.
+ALTER TABLE lojas ADD COLUMN IF NOT EXISTS condicional_limite_padrao NUMERIC(12,2) NOT NULL DEFAULT 700;
+ALTER TABLE clientes ADD COLUMN IF NOT EXISTS limite_condicional NUMERIC(12,2);

@@ -2062,8 +2062,17 @@
       <div class="erro-modal" id="cd-erro"></div>
       <button class="btn-primario btn-grande" id="cd-ok">Enviar condicional</button></div>`);
     camada.querySelector('#cd-ok').onclick = (ev) => comBotao(ev.target, 'Registrando...', async () => {
-      const c = await api('/condicionais', { method: 'POST', body: { clienteId: cliente.id, prazo: camada.querySelector('#cd-prazo').value, observacao: camada.querySelector('#cd-obs').value,
-        itens: state.cart.map(l => ({ variacaoId: l.variacaoId, qtd: l.qtd })) } });
+      const corpo = { clienteId: cliente.id, prazo: camada.querySelector('#cd-prazo').value, observacao: camada.querySelector('#cd-obs').value,
+        itens: state.cart.map(l => ({ variacaoId: l.variacaoId, qtd: l.qtd })) };
+      let c;
+      try { c = await api('/condicionais', { method: 'POST', body: corpo }); }
+      catch (e) {
+        const cod = e.data && e.data.codigo;
+        if (cod !== 'aprovacao_necessaria' && cod !== 'aprovacao_invalida') throw e;
+        const ap = await escolherAdministrador(e.message);
+        if (!ap) throw new Error('Condicional acima do limite não autorizado.');
+        c = await api('/condicionais', { method: 'POST', body: Object.assign(corpo, { aprovacao: ap }) });
+      }
       Object.assign(state, { cart: [], pagamentos: [], cliente: null });
       await carregarProdutos(); render(); carregarResumoCondicionais();
       mostrarCondicionalCriado(c);
@@ -2710,13 +2719,15 @@
         <div class="stat-card"><div class="stat-label">Vale-troca</div><div class="stat-valor" style="color:var(--teal)">${fmt(c.saldo_vale_troca)}</div></div>
         <div class="stat-card"><div class="stat-label">Compras</div><div class="stat-valor">${c.compras.length}${c.compras.length === 20 ? '+' : ''}</div></div>
         <div class="stat-card"><div class="stat-label">Crediário: deve</div><div class="stat-valor ${c.crediario.devendo > 0 ? 'valor-neg' : ''}">${fmt(c.crediario.devendo)}</div><div class="stat-label">limite ${fmt(c.crediario.limite)}${c.crediario.limiteProprio ? '' : ' (padrão)'} · disponível ${fmt(c.crediario.disponivel)}</div></div>
+        <div class="stat-card"><div class="stat-label">Condicional: em casa</div><div class="stat-valor">${fmt(c.condicional.emCasa)}</div><div class="stat-label">${c.condicional.limite > 0 ? 'limite ' + fmt(c.condicional.limite) + (c.condicional.limiteProprio ? '' : ' (padrão)') : 'sem limite'}</div></div>
       </div>
       ${c.crediario.parcelas.length ? `<div class="painel" style="padding:12px 14px"><div class="painel-titulo">Parcelas do crediário</div>
         ${c.crediario.parcelas.map(p => `<div class="linha-simples" style="font-size:13px"><span style="flex:1">${p.parcela}/${p.parcelas} · vence ${dataBR(p.vencimento)} ${p.pago_em ? '<span class="tag ok">paga</span>' : rotuloVencimento(p.vencimento, hojeLocal())}</span>
           <b>${fmt(p.pago_em ? p.valor_pago : p.valor)}</b>${p.pago_em ? '' : ` <button class="btn-secundario" data-cl-receber="${p.id}">Receber</button>`}</div>`).join('')}</div>` : ''}
       <details><summary style="cursor:pointer;font-weight:600;font-size:13px">Editar dados</summary>
         <div style="display:flex;flex-direction:column;gap:10px;margin-top:10px">${formClienteHtml(c)}
-        ${ehAdmin() ? `<label class="campo">Limite do crediário (R$) — vazio = padrão da loja (${fmt((state.config.crediario || {}).limitePadrao || 0)})<input id="fc-limite" inputmode="decimal" value="${c.crediario.limiteProprio ? fmtNum(c.crediario.limite) : ''}"></label>` : ''}
+        ${ehAdmin() ? `<label class="campo">Limite do crediário (R$) — vazio = padrão da loja (${fmt((state.config.crediario || {}).limitePadrao || 0)})<input id="fc-limite" inputmode="decimal" value="${c.crediario.limiteProprio ? fmtNum(c.crediario.limite) : ''}"></label>
+        <label class="campo">Limite do condicional (R$ em peças em casa) — vazio = padrão da loja (${fmt((state.config.condicional || {}).limitePadrao || 0)})<input id="fc-limite-cond" inputmode="decimal" value="${c.condicional.limiteProprio ? fmtNum(c.condicional.limite) : ''}"></label>` : ''}
         <div class="erro-modal" id="cl-erro"></div><button class="btn-primario" id="cl-salvar">Salvar</button></div></details>
       <div class="paineis-duas-colunas" style="margin-top:0">
         <div class="painel"><div class="painel-titulo">Extrato de crédito</div>
@@ -2735,6 +2746,12 @@
         const v = lim.value.trim() ? parseNumBR(lim.value) : null;
         if (v !== null && !(v >= 0)) throw new Error('Limite inválido');
         corpo.limiteCrediario = v;
+      }
+      const limC = camada.querySelector('#fc-limite-cond');
+      if (limC) {
+        const v = limC.value.trim() ? parseNumBR(limC.value) : null;
+        if (v !== null && !(v >= 0)) throw new Error('Limite do condicional inválido');
+        corpo.limiteCondicional = v;
       }
       await api('/clientes/' + id, { method: 'PUT', body: corpo });
       fecharModal(); toast('Dados salvos'); carregarDadosDaView('clientes');
@@ -4378,6 +4395,9 @@
       </div>
       <div class="modal-dica" style="margin:4px 0 0">Acima do limite da cliente, o crediário pede PIN de Administrador. Dá pra dar um limite diferente pra cada cliente no cadastro dela.</div>
       <div class="linha-campos" style="max-width:520px;align-items:flex-end;margin-top:10px">
+        <label class="campo">Condicional: limite por cliente (R$ em peças em casa, 0 = sem limite)<input id="cfg-cond-limite" inputmode="decimal" value="${fmtNum((cfg.condicional || {}).limitePadrao != null ? cfg.condicional.limitePadrao : 700)}"></label>
+      </div>
+      <div class="linha-campos" style="max-width:520px;align-items:flex-end;margin-top:10px">
         <label class="campo">Prazo de troca na loja (dias)<input id="cfg-troca-loja" inputmode="numeric" value="${(cfg.troca || {}).diasLoja != null ? cfg.troca.diasLoja : 15}"></label>
         <label class="campo">Prazo de troca do site (dias)<input id="cfg-troca-site" inputmode="numeric" value="${(cfg.troca || {}).diasSite != null ? cfg.troca.diasSite : 30}"></label>
       </div>
@@ -4424,9 +4444,11 @@
       const fiscalCorpo = document.getElementById('cfg-cfop') ? { cfop: document.getElementById('cfg-cfop').value, csosn: document.getElementById('cfg-csosn').value,
         origem: document.getElementById('cfg-origem').value, automatica: document.getElementById('cfg-nfce-auto').checked } : undefined;
       const { pagamento, envio } = lerConfigPagamentoEnvio();
+      const condicional = { limitePadrao: parseNumBR(document.getElementById('cfg-cond-limite').value || '0') };
+      if (!(condicional.limitePadrao >= 0)) throw new Error('Limite do condicional inválido');
       const troca = { diasLoja: parseInt(document.getElementById('cfg-troca-loja').value, 10), diasSite: parseInt(document.getElementById('cfg-troca-site').value, 10) };
       if (!(troca.diasLoja >= 0 && troca.diasLoja <= 365) || !(troca.diasSite >= 0 && troca.diasSite <= 365)) throw new Error('Prazo de troca: de 0 a 365 dias');
-      await api('/config', { method: 'PUT', body: { cashbackPct, descontoLivrePct, comissaoPct, crediario, troca, fiscal: fiscalCorpo, pagamento, envio, cupomRodape: document.getElementById('cfg-cupom-rodape').value, site: {
+      await api('/config', { method: 'PUT', body: { cashbackPct, descontoLivrePct, comissaoPct, crediario, troca, condicional, fiscal: fiscalCorpo, pagamento, envio, cupomRodape: document.getElementById('cfg-cupom-rodape').value, site: {
         ativo: document.getElementById('cfg-site-ativo').checked, aceitaRetirada: document.getElementById('cfg-site-retirada').checked,
         aceitaEntrega: document.getElementById('cfg-site-entrega').checked, taxaEntrega: taxa, whatsapp: document.getElementById('cfg-site-whats').value,
         endereco: document.getElementById('cfg-site-endereco').value, mensagem: document.getElementById('cfg-site-msg').value, avaliacaoGoogle: document.getElementById('cfg-site-avaliacao').value } } });

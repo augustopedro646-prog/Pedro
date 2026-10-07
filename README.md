@@ -39,6 +39,9 @@ Ele aplica o que foi combinado e pode rodar de novo sem duplicar nada:
 - **Cashback:** 5%.
 - **Desconto que a vendedora dá sem PIN:** até 20%.
 - **Limite do crediário:** R$ 700 por cliente.
+- **Limite do condicional:** R$ 700 em peças que a cliente pode ter em casa pra provar (somando os
+  condicionais abertos dela). Acima disso, pede o PIN de um Administrador. Dá pra mudar o limite de
+  uma cliente específica no cadastro dela.
 - **Troca:** 15 dias na loja e 30 dias pelo site. O rodapé do cupom fica "Trocas em até 15 dias com
   a etiqueta e este cupom".
 

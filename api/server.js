@@ -258,6 +258,7 @@ app.get('/api/lojas/:lojaId/config', qualquer, rota(async (req, res) => {
   res.json({ nome: l.nome, cashbackPct: Number(l.cashback_pct), descontoLivrePct: Number(l.desconto_livre_pct), comissaoPct: Number(l.comissao_pct), leituraIA: !!anthropic,
     crediario: { limitePadrao: Number(l.crediario_limite_padrao), maxParcelas: l.crediario_max_parcelas },
     troca: { diasLoja: l.troca_dias_loja, diasSite: l.troca_dias_site },
+    condicional: { limitePadrao: Number(l.condicional_limite_padrao) },
     cupomRodape: l.cupom_rodape || '', siteUrl: (process.env.SITE_URL || '').replace(/\/+$/, '') || null,
     fiscal: { cfop: l.fiscal_cfop || '', csosn: l.fiscal_csosn || '', origem: l.fiscal_origem || '0', automatica: !!l.nfce_automatica,
       ambiente: fiscal.ambiente(), faltandoNoServidor: fiscal.faltandoNoServidor(),
@@ -281,6 +282,9 @@ app.put('/api/lojas/:lojaId/config', admin, rota(async (req, res) => {
     await pool.query('UPDATE lojas SET crediario_limite_padrao = COALESCE($1, crediario_limite_padrao), crediario_max_parcelas = COALESCE($2, crediario_max_parcelas) WHERE id = $3',
       [cr.limitePadrao != null ? numero(cr.limitePadrao, 'limite padrão do crediário', { max: 1e6 }) : null,
         cr.maxParcelas != null ? numero(cr.maxParcelas, 'máximo de parcelas', { min: 1, max: 24, inteiro: true }) : null, req.lojaId]);
+  }
+  if (body.condicional && typeof body.condicional === 'object' && body.condicional.limitePadrao != null) {
+    await pool.query('UPDATE lojas SET condicional_limite_padrao = $1 WHERE id = $2', [numero(body.condicional.limitePadrao, 'limite do condicional', { max: 1e6 }), req.lojaId]);
   }
   if (body.troca && typeof body.troca === 'object') {
     const t = body.troca;
@@ -891,6 +895,22 @@ app.post('/api/lojas/:lojaId/condicionais', qualquer, rota(async (req, res) => {
          VALUES ($1,$2,$3,'ajuste',$4,$5,$6,'condicional',$7,$8,$9)`,
         [uid(), req.lojaId, v.id, -qtd, custo, round2(-qtd * custo), id, 'Saiu no condicional nº ' + numeroCond + ' (' + cli[0].nome + ')', req.usuario.id]);
     }
+    // Limite: tudo que ela tem em casa em condicional aberto (incluindo este) não passa do limite
+    // dela (ou o padrão da loja). Passou: só com o PIN de um Administrador. 0 = sem limite.
+    const { rows: lim } = await c.query(
+      `SELECT COALESCE(cl.limite_condicional, l.condicional_limite_padrao)::float AS limite,
+              (SELECT COALESCE(SUM(ci.qtd * ci.preco_unit), 0) FROM condicional_itens ci JOIN condicionais cd ON cd.id = ci.condicional_id
+               WHERE cd.cliente_id = cl.id AND cd.status = 'aberto')::float AS em_casa
+       FROM clientes cl JOIN lojas l ON l.id = cl.loja_id WHERE cl.id = $1`, [cli[0].id]);
+    const { limite, em_casa: emCasa } = lim[0];
+    if (limite > 0 && emCasa > limite + 0.005 && req.usuario.papel !== 'administrador') {
+      const ap = body.aprovacao || {};
+      const motivo = 'Com esse condicional, ' + cli[0].nome.split(' ')[0] + ' fica com R$ ' + emCasa.toFixed(2).replace('.', ',') + ' em peças em casa — o limite é R$ ' + limite.toFixed(2).replace('.', ',') + '. Precisa do PIN de um Administrador';
+      if (typeof ap.usuarioId !== 'string' || typeof ap.pin !== 'string') falha(403, motivo, { codigo: 'aprovacao_necessaria' });
+      const { rows: adm } = await c.query("SELECT id, nome, pin_hash FROM usuarios WHERE id = $1 AND loja_id = $2 AND ativo AND papel = 'administrador'", [ap.usuarioId, req.lojaId]);
+      if (!adm.length || !conferirPin(req, adm[0], ap.pin)) falha(403, 'PIN de Administrador incorreto', { codigo: 'aprovacao_invalida' });
+      await c.query("UPDATE condicionais SET observacao = trim(COALESCE(observacao, '') || ' · Acima do limite, autorizado por ' || $1) WHERE id = $2", [adm[0].nome, id]);
+    }
     const { rows } = await c.query(SQL_COND + ' WHERE c.id = $1', [id]);
     return (await comItens(c, rows))[0];
   });
@@ -1273,6 +1293,11 @@ app.put('/api/lojas/:lojaId/clientes/:id', qualquer, rota(async (req, res) => {
     if (e.code === '23505') falha(409, 'Já existe cliente com esse telefone ou CPF');
     throw e;
   }
+  // Limite do condicional: só o Administrador muda. Vazio = padrão da loja.
+  if (body.limiteCondicional !== undefined && req.usuario.papel === 'administrador') {
+    const lim = body.limiteCondicional === null || body.limiteCondicional === '' ? null : numero(body.limiteCondicional, 'limite do condicional', { max: 1e6 });
+    await pool.query('UPDATE clientes SET limite_condicional = $1 WHERE id = $2 AND loja_id = $3', [lim, req.params.id, req.lojaId]);
+  }
   // Limite do crediário: só o Administrador muda. Vazio = usa o limite padrão da loja.
   if (body.limiteCrediario !== undefined && req.usuario.papel === 'administrador') {
     const lim = body.limiteCrediario === null || body.limiteCrediario === '' ? null : numero(body.limiteCrediario, 'limite do crediário', { max: 1e6 });
@@ -1296,10 +1321,15 @@ app.get('/api/lojas/:lojaId/clientes/:id', qualquer, rota(async (req, res) => {
   );
   const c = rows[0];
   const { rows: parcelas } = await pool.query(SQL_CRED + ' WHERE cp.cliente_id = $1 ORDER BY (cp.pago_em IS NULL) DESC, cp.vencimento LIMIT 60', [req.params.id]);
-  const { rows: cfg } = await pool.query('SELECT crediario_limite_padrao FROM lojas WHERE id = $1', [req.lojaId]);
+  const { rows: cfg } = await pool.query('SELECT crediario_limite_padrao, condicional_limite_padrao FROM lojas WHERE id = $1', [req.lojaId]);
+  const { rows: emCasa } = await pool.query(
+    `SELECT COALESCE(SUM(ci.qtd * ci.preco_unit), 0)::float AS v FROM condicional_itens ci JOIN condicionais cd ON cd.id = ci.condicional_id
+     WHERE cd.cliente_id = $1 AND cd.status = 'aberto'`, [req.params.id]);
   const limite = c.limite_crediario != null ? Number(c.limite_crediario) : Number(cfg[0].crediario_limite_padrao);
   const { rows: filhos } = await pool.query(
     "SELECT id, nome, to_char(nascimento, 'YYYY-MM-DD') AS nascimento, tamanho FROM cliente_filhos WHERE cliente_id = $1 ORDER BY nascimento NULLS LAST, nome", [req.params.id]);
+  const limCond = c.limite_condicional != null ? Number(c.limite_condicional) : Number(cfg[0].condicional_limite_padrao);
+  c.condicional = { limite: limCond, limiteProprio: c.limite_condicional != null, emCasa: emCasa[0].v };
   res.json({ ...c, filhos, saldo_cashback: Number(c.saldo_cashback), saldo_vale_troca: Number(c.saldo_vale_troca), extrato, compras,
     crediario: { limite, limiteProprio: c.limite_crediario != null, devendo: c.crediario_devendo, disponivel: round2(Math.max(0, limite - c.crediario_devendo)), parcelas } });
 }));

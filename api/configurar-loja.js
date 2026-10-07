@@ -16,6 +16,7 @@ const CONFIG = {
   cashbackPct: 5, // % que volta pra cliente em cashback
   descontoLivrePct: 20, // desconto que a vendedora dá sem PIN de Administrador
   crediarioLimite: 700, // limite padrão do crediário por cliente (dá pra mudar cliente a cliente)
+  condicionalLimite: 700, // valor máximo em peças que a cliente leva pra provar em casa
   trocaDiasLoja: 15,
   trocaDiasSite: 30, // compras pelo site (inclusive outros estados)
 };
@@ -34,11 +35,12 @@ async function main() {
   const rodape = `Trocas em até ${CONFIG.trocaDiasLoja} dias com a etiqueta e este cupom.`;
   await pool.query(
     `UPDATE lojas SET cashback_pct = $1, desconto_livre_pct = $2, crediario_limite_padrao = $3, troca_dias_loja = $4, troca_dias_site = $5,
-       cupom_rodape = CASE WHEN COALESCE(cupom_rodape, '') = '' THEN $6 ELSE cupom_rodape END WHERE id = $7`,
-    [CONFIG.cashbackPct, CONFIG.descontoLivrePct, CONFIG.crediarioLimite, CONFIG.trocaDiasLoja, CONFIG.trocaDiasSite, rodape, LOJA_ID]);
+       cupom_rodape = CASE WHEN COALESCE(cupom_rodape, '') = '' THEN $6 ELSE cupom_rodape END, condicional_limite_padrao = $8 WHERE id = $7`,
+    [CONFIG.cashbackPct, CONFIG.descontoLivrePct, CONFIG.crediarioLimite, CONFIG.trocaDiasLoja, CONFIG.trocaDiasSite, rodape, LOJA_ID, CONFIG.condicionalLimite]);
   console.log(`Cashback: ${CONFIG.cashbackPct}%`);
   console.log(`Desconto da vendedora sem PIN: até ${CONFIG.descontoLivrePct}%`);
   console.log(`Limite do crediário: R$ ${CONFIG.crediarioLimite},00 por cliente`);
+  console.log(`Limite do condicional (peças em casa pra provar): R$ ${CONFIG.condicionalLimite},00 por cliente`);
   console.log(`Troca: ${CONFIG.trocaDiasLoja} dias na loja, ${CONFIG.trocaDiasSite} dias pelo site`);
   console.log(loja[0].cupom_rodape ? 'Rodapé do cupom: mantive o que já estava.' : 'Rodapé do cupom: "' + rodape + '"');
   console.log('\nPronto! Reinicie o sistema (ou o computador) e confira na aba Configurações.');
