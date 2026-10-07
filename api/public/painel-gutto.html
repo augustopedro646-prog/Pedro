@@ -474,6 +474,7 @@
         <div class="bloco-carrinho" id="carrinho-pagamentos"></div>
         <button id="confirmar" style="margin-top:12px">Confirmar venda</button>
         <button class="btn-secundario" id="btn-enviar-condicional" style="margin-top:8px;width:100%">Enviar como condicional (levar pra provar)</button>
+        <button class="btn-secundario" id="btn-vender-envio" style="margin-top:8px;width:100%">📦 Vender com envio (WhatsApp / Instagram)</button>
         <button class="link-btn" id="btn-presente-lista" style="margin-top:8px;align-self:center">🎁 É presente de uma lista?</button>
       </div>
     </div>
@@ -1544,6 +1545,9 @@
     const btnCond = document.getElementById('btn-enviar-condicional');
     btnCond.style.display = cond ? 'none' : '';
     btnCond.disabled = !state.cart.length;
+    const btnEnvio = document.getElementById('btn-vender-envio');
+    btnEnvio.style.display = cond ? 'none' : '';
+    btnEnvio.disabled = !state.cart.length;
     document.getElementById('btn-presente-lista').style.display = state.cart.length && !state.listaPresente ? '' : 'none';
   }
 
@@ -2049,6 +2053,121 @@
     return `Oi, ${nome}! Aqui é da Loja Gutto 😊 Seu condicional nº ${c.numero}:\n` + c.itens.map(i => `• ${i.qtd}x ${i.produto_nome} ${i.tamanho}${i.cor ? ' ' + i.cor : ''} — ${fmt(i.preco_unit)}`).join('\n') + `\nDevolução até ${dataBR(c.prazo)}. Qualquer dúvida, é só chamar!`;
   }
 
+  // Venda pra quem não está na loja (WhatsApp, Instagram, outras cidades): vira um pedido online
+  // com as peças reservadas, frete calculado pelo CEP e link de pagamento (ou "já recebi o Pix"),
+  // e segue o fluxo da aba Pedidos online (separar → postar com rastreio → concluir).
+  function venderComEnvio() {
+    if (!state.cart.length) return;
+    const cli = state.cliente || {};
+    const linhas = state.cart.map(l => { const a = acharVariacao(l.variacaoId); return { ...l, nome: a ? a.produto.nome + ' ' + a.variacao.tamanho + (a.variacao.cor ? ' ' + a.variacao.cor : '') : 'peça' }; });
+    const subtotal = round2(linhas.reduce((t, l) => t + l.precoUnit * l.qtd, 0));
+    const temDesconto = state.cart.some(l => l.descPct);
+    const pgCfg = (state.config && state.config.pagamento) || {};
+    const online = { pix: !!(pgCfg.pix && pgCfg.configurado), cartao: !!(pgCfg.cartao && pgCfg.configurado) };
+    let tipo = 'envio', fr = null, opcao = null, pag = online.pix ? 'link-pix' : online.cartao ? 'link-cartao' : 'ja-pago';
+    const valores = { nome: cli.nome || '', telefone: cli.telefone ? telefoneBR(cli.telefone) : '' };
+    const camada = abrirModal(`<div class="modal-card largo" id="ve-card"></div>`);
+    const $ = (sel) => camada.querySelector(sel);
+    const ler = () => camada.querySelectorAll('[data-ve]').forEach(i => { valores[i.dataset.ve] = i.value; });
+    const v = (k) => esc(valores[k] || '');
+    const taxa = () => {
+      if (tipo === 'retirada') return 0;
+      if (!fr) return 0;
+      if (opcao === 'local') return fr.entregaLocal ? fr.entregaLocal.taxa : 0;
+      const o = fr.opcoes.find(x => x.id === opcao); return o ? o.preco : 0;
+    };
+    async function buscarFrete() {
+      ler();
+      const cep = String(valores.cep || '').replace(/\D/g, '');
+      if (cep.length !== 8) return;
+      $('#ve-frete').innerHTML = '<div class="carregando">Calculando o frete...</div>';
+      try {
+        fr = await api('/pedidos-online/frete', { method: 'POST', body: { cep, itens: state.cart.map(l => ({ variacaoId: l.variacaoId, qtd: l.qtd })) } });
+        if (fr.endereco.rua && !valores.rua) valores.rua = fr.endereco.rua;
+        if (fr.endereco.bairro && !valores.bairro) valores.bairro = fr.endereco.bairro;
+        opcao = fr.opcoes.length ? fr.opcoes[0].id : fr.entregaLocal ? 'local' : null;
+      } catch (e) { fr = null; opcao = null; toast(e.message, 'erro'); }
+      desenhar();
+    }
+    function desenhar() {
+      if ($('#ve-card').children.length) ler();
+      const t = taxa(), total = round2(subtotal + t);
+      const ehEnvio = tipo === 'envio' && opcao && opcao !== 'local';
+      if (ehEnvio && pag === 'na-entrega') pag = 'ja-pago';
+      $('#ve-card').innerHTML = `${cabecalhoModal('Vender com envio', linhas.reduce((n, l) => n + l.qtd, 0) + ' peça(s) · ' + fmt(subtotal))}
+        ${temDesconto ? '<div class="aviso-caixa" style="margin:0">Os descontos do carrinho não entram no pedido com envio (vai pelo preço de etiqueta/promoção).</div>' : ''}
+        <div class="linha-campos">
+          <label class="campo">Nome do cliente<input data-ve="nome" value="${v('nome')}"></label>
+          <label class="campo">WhatsApp<input data-ve="telefone" inputmode="numeric" value="${v('telefone')}" placeholder="(11) 98888-7777"></label>
+          <label class="campo">Veio por<select data-ve="origem"><option value="whatsapp">WhatsApp</option><option value="instagram" ${valores.origem === 'instagram' ? 'selected' : ''}>Instagram</option><option value="loja" ${valores.origem === 'loja' ? 'selected' : ''}>Na loja</option></select></label>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">${[['envio', '📦 Mandar pro endereço (CEP)'], ['retirada', '🏬 Retirar na loja']].map(([k, r]) => `<button class="${tipo === k ? 'btn-primario' : 'btn-secundario'}" data-ve-tipo="${k}">${r}</button>`).join('')}</div>
+        ${tipo === 'envio' ? `<div class="linha-campos"><label class="campo">CEP<input data-ve="cep" inputmode="numeric" maxlength="9" value="${v('cep')}" placeholder="00000-000"></label>
+          <div class="modal-dica" style="align-self:end">${fr ? esc(fr.endereco.cidade + ' - ' + fr.endereco.uf) : 'Digite o CEP pra calcular o frete'}</div></div>
+          <div id="ve-frete">${fr ? `<div style="display:flex;gap:6px;flex-wrap:wrap">
+            ${fr.entregaLocal ? `<button class="${opcao === 'local' ? 'btn-primario' : 'btn-secundario'}" data-ve-op="local">🛵 Entrega da loja · ${fr.entregaLocal.taxa ? fmt(fr.entregaLocal.taxa) : 'grátis'}</button>` : ''}
+            ${fr.opcoes.map(o => `<button class="${opcao === o.id ? 'btn-primario' : 'btn-secundario'}" data-ve-op="${esc(o.id)}">📦 ${esc(o.nome)} · ${o.preco ? fmt(o.preco) : 'grátis'} · ${o.prazo} dias</button>`).join('')}</div>
+            ${fr.erroEnvio && !fr.opcoes.length ? `<div class="modal-dica">${esc(fr.erroEnvio)}</div>` : ''}` : ''}</div>
+          ${fr && opcao ? `<div class="linha-campos"><label class="campo" style="flex:3">Rua<input data-ve="rua" value="${v('rua')}"></label><label class="campo">Número<input data-ve="numero" value="${v('numero')}"></label></div>
+            <div class="linha-campos"><label class="campo">Bairro<input data-ve="bairro" value="${v('bairro')}"></label><label class="campo" style="flex:2">Complemento<input data-ve="complemento" value="${v('complemento')}"></label></div>` : ''}` : ''}
+        <div class="painel-titulo" style="margin:4px 0 0;font-size:14px">Pagamento</div>
+        <div style="display:flex;flex-direction:column;gap:6px;font-size:13px">
+          ${online.pix || online.cartao ? `<label style="display:flex;gap:6px;align-items:center"><input type="radio" name="ve-pag" value="link-pix" ${pag === 'link-pix' ? 'checked' : ''} style="width:auto;min-width:0" ${online.pix ? '' : 'disabled'}> Mandar link de pagamento: <b>Pix</b> (confirma sozinho)</label>
+            <label style="display:flex;gap:6px;align-items:center"><input type="radio" name="ve-pag" value="link-cartao" ${pag === 'link-cartao' ? 'checked' : ''} style="width:auto;min-width:0" ${online.cartao ? '' : 'disabled'}> Mandar link de pagamento: <b>cartão</b> (Mercado Pago)</label>` : ''}
+          <label style="display:flex;gap:6px;align-items:center"><input type="radio" name="ve-pag" value="ja-pago" ${pag === 'ja-pago' ? 'checked' : ''} style="width:auto;min-width:0"> <b>Já recebi</b> (Pix ou transferência direto na conta da loja)</label>
+          ${!ehEnvio ? `<label style="display:flex;gap:6px;align-items:center"><input type="radio" name="ve-pag" value="na-entrega" ${pag === 'na-entrega' ? 'checked' : ''} style="width:auto;min-width:0"> Paga na ${tipo === 'retirada' ? 'retirada' : 'entrega'}</label>` : ''}
+        </div>
+        ${pag.startsWith('link') ? `<label class="campo">E-mail do cliente (o Mercado Pago pede)<input data-ve="email" type="email" value="${v('email')}"></label>` : ''}
+        ${pag === 'ja-pago' || pag === 'na-entrega' ? `<label class="campo">Forma<select data-ve="forma">${['Pix', 'Crédito', 'Débito', 'Dinheiro'].map(f => `<option ${valores.forma === f ? 'selected' : ''}>${f}</option>`).join('')}</select></label>` : ''}
+        <label class="campo">Observação (opcional)<input data-ve="obs" value="${v('obs')}" maxlength="300" placeholder="Ex.: embalar pra presente"></label>
+        <div class="linha-simples"><span style="flex:1">Peças</span><b>${fmt(subtotal)}</b></div>
+        ${tipo === 'envio' && opcao ? `<div class="linha-simples"><span style="flex:1">${opcao === 'local' ? 'Entrega' : 'Frete'}</span><b>${t ? fmt(t) : 'grátis'}</b></div>` : ''}
+        <div class="linha-simples" style="font-size:16px"><span style="flex:1"><b>Total</b></span><b>${fmt(total)}</b></div>
+        <div class="erro-modal" id="ve-erro"></div>
+        <button class="btn-primario btn-grande" id="ve-ok">Criar pedido</button>`;
+      camada.querySelectorAll('[data-ve-tipo]').forEach(b => b.onclick = () => { tipo = b.dataset.veTipo; desenhar(); });
+      camada.querySelectorAll('[data-ve-op]').forEach(b => b.onclick = () => { opcao = b.dataset.veOp; desenhar(); });
+      camada.querySelectorAll('[name="ve-pag"]').forEach(r => r.onchange = () => { pag = r.value; desenhar(); });
+      const cepEl = camada.querySelector('[data-ve="cep"]');
+      if (cepEl) cepEl.oninput = () => { const d = cepEl.value.replace(/\D/g, ''); if (d.length === 8 && (!fr || fr.endereco.cep !== d)) buscarFrete(); };
+      $('#ve-ok').onclick = (ev) => comBotao(ev.target, 'Criando...', criar, $('#ve-erro'));
+    }
+    async function criar() {
+      ler();
+      const telefone = String(valores.telefone || '').replace(/\D/g, '');
+      if (!valores.nome.trim()) throw new Error('Nome do cliente');
+      if (telefone.length < 10) throw new Error('WhatsApp do cliente com DDD');
+      let tipoPedido = 'retirada', endereco = null, cep = null;
+      if (tipo === 'envio') {
+        if (!fr || !opcao) throw new Error('Digite o CEP e escolha o frete');
+        if (!String(valores.rua || '').trim() || !String(valores.numero || '').trim() || !String(valores.bairro || '').trim()) throw new Error('Preencha rua, número e bairro');
+        cep = String(valores.cep).replace(/\D/g, '');
+        tipoPedido = opcao === 'local' ? 'entrega' : 'envio';
+        endereco = valores.rua.trim() + ', ' + valores.numero.trim() + ' - ' + valores.bairro.trim() + (valores.complemento ? ' (' + valores.complemento.trim() + ')' : '')
+          + ' - ' + fr.endereco.cidade + '/' + fr.endereco.uf + ' - CEP ' + cep.slice(0, 5) + '-' + cep.slice(5);
+      }
+      const corpo = { nome: valores.nome.trim(), telefone, origem: valores.origem || 'whatsapp', tipo: tipoPedido, endereco, cep, observacao: valores.obs || null,
+        itens: state.cart.map(l => ({ variacaoId: l.variacaoId, qtd: l.qtd })), ...(tipoPedido === 'envio' ? { envio: { servicoId: opcao } } : {}) };
+      if (pag.startsWith('link')) Object.assign(corpo, { pagamentoOnline: pag === 'link-pix' ? 'pix' : 'cartao', email: valores.email });
+      else Object.assign(corpo, { pagamento: valores.forma || 'Pix', pagoManual: pag === 'ja-pago' });
+      const r = await api('/pedidos-online', { method: 'POST', body: corpo });
+      Object.assign(state, { cart: [], pagamentos: [], cliente: null });
+      await carregarProdutos(); render();
+      const msg = 'Oi, ' + corpo.nome.split(' ')[0] + '! Seu pedido #' + r.numero + ' na Loja Gutto:\n' + linhas.map(l => '• ' + l.qtd + 'x ' + l.nome).join('\n')
+        + '\nTotal: ' + fmt(r.total) + (r.pagamento ? '\n\nPra pagar (' + (r.pagamento.metodo === 'pix' ? 'Pix' : 'cartão') + ') e acompanhar: ' + r.linkPedido : '\n\nAcompanhe por aqui: ' + r.linkPedido);
+      const link = waLink(telefone, msg);
+      abrirModal(`<div class="modal-card estreito" style="text-align:center">${cabecalhoModal('Pedido #' + r.numero + ' criado', '')}
+        <div class="stat-valor" style="font-size:26px">${fmt(r.total)}</div>
+        <div class="modal-dica" style="margin:0">${r.pagamento ? 'As peças ficam reservadas esperando o pagamento — quando o cliente pagar pelo link, o pedido vai sozinho pra fila.' : corpo.pagoManual ? 'Marcado como pago. O pedido já está na fila pra separar.' : 'O pedido já está na fila pra separar.'}</div>
+        ${link ? `<a class="btn-primario btn-grande" style="text-decoration:none" href="${esc(link)}" target="_blank" rel="noopener">Mandar ${r.pagamento ? 'o link de pagamento' : 'o pedido'} no WhatsApp</a>` : ''}
+        <button class="btn-secundario" id="ve-copiar">Copiar link do pedido</button>
+        <button class="btn-secundario" id="ve-ver">Ver em Pedidos online</button></div>`);
+      document.getElementById('ve-copiar').onclick = async () => { try { await navigator.clipboard.writeText(r.linkPedido); toast('Link copiado'); } catch (e) { prompt('Copie o link:', r.linkPedido); } };
+      document.getElementById('ve-ver').onclick = () => { fecharModal(); irPara('online'); };
+    }
+    desenhar();
+  }
+
   // Do carrinho: as peças saem no nome da cliente, com prazo.
   async function enviarComoCondicional() {
     if (!state.cart.length) return;
@@ -2380,8 +2499,8 @@
       <div style="font-size:13px">${p.tipo === 'entrega' ? `🛵 <b>Entrega:</b> ${esc(p.endereco)} · <a class="link-btn" href="${linkMaps(p.endereco)}" target="_blank" rel="noopener">abrir no mapa</a>${p.entregador ? ' · com ' + esc(p.entregador) : ''}`
           : p.tipo === 'envio' ? `📦 <b>Envio ${esc(p.envio_servico || '')}</b>${p.envio_prazo_dias ? ' (até ' + p.envio_prazo_dias + ' dias úteis)' : ''}: ${esc(p.endereco)} · <button class="link-btn" data-ped-copiar="${p.id}">copiar endereço pra etiqueta</button>${p.rastreio ? ` · rastreio <b>${esc(p.rastreio)}</b>` : ''}`
           : '🏬 <b>Retirada na loja</b>'}
-        <div>${p.pago_online ? pagoSite : `<b>Pagamento:</b> ${esc(p.pagamento)} na ${p.tipo === 'entrega' ? 'entrega' : 'retirada'}${troco}`}</div>
-        ${p.pag_nota ? `<div>⚠ ${esc(p.pag_nota)}</div>` : ''}
+        <div>${p.pago_online ? pagoSite : p.pag_status === 'pago' ? `✅ <b>Já pago</b> — ${esc(p.pagamento)}` : `<b>Pagamento:</b> ${esc(p.pagamento)} na ${p.tipo === 'entrega' ? 'entrega' : 'retirada'}${troco}`}</div>
+        ${p.pag_nota ? `<div>${p.pago_online ? '⚠ ' : ''}${esc(p.pag_nota)}</div>` : ''}${p.origem && p.origem !== 'site' ? `<div style="font-size:12px;color:var(--text-2)">Pedido feito ${p.origem === 'whatsapp' ? 'pelo WhatsApp' : p.origem === 'instagram' ? 'pelo Instagram' : 'na loja'}</div>` : ''}
         ${p.lista_titulo ? `<div>🎁 <b>Presente pra lista:</b> ${esc(p.lista_titulo)}${p.presente_de ? ' — de ' + esc(p.presente_de) : ''}</div>` : ''}
         ${p.observacao ? `<div><b>Obs.:</b> ${esc(p.observacao)}</div>` : ''}${p.status === 'cancelado' && p.motivo_cancelamento ? `<div><b>Cancelado:</b> ${esc(p.motivo_cancelamento)}</div>` : ''}</div>
       <div class="pedido-itens">${p.itens.map(i => `<div class="linha-simples" style="padding:4px 0"><b style="width:32px">${i.qtd}×</b><div style="flex-grow:1">${esc(i.produto_nome)} · Tam ${esc(i.tamanho)}${i.cor ? ' · ' + esc(i.cor) : ''}</div><span>${fmt(i.preco_unit * i.qtd)}</span></div>`).join('')}
@@ -2461,8 +2580,8 @@
   // junto com a entrega — diz claramente se já está pago ou quanto o entregador recebe.
   function imprimirPedidoOnline(p) {
     const largura = configCupom().largura;
-    const pago = p.pago_online && p.pag_status === 'pago';
-    const receber = pago ? '<div class="c t">PAGO PELO SITE</div>'
+    const pago = p.pag_status === 'pago';
+    const receber = pago ? `<div class="c t">${p.pago_online ? 'PAGO PELO SITE' : 'JÁ PAGO'}</div>`
       : `<div class="l t"><span>RECEBER</span><span>${fmt(p.total)}</span></div><div class="l"><span>Forma</span><span>${esc(p.pagamento)}</span></div>
         ${p.pagamento === 'Dinheiro' && p.troco_para ? `<div class="l"><span>Cliente paga com</span><span>${fmt(p.troco_para)}</span></div><div class="l b"><span>Levar de troco</span><span>${fmt(p.troco_para - p.total)}</span></div>` : ''}`;
     imprimirDocumento(`<!doctype html><html><head><meta charset="utf-8"><title>Pedido</title><style>${estiloCupom(largura)} .x { display:inline-block; width:3mm; height:3mm; border:1px solid #000; margin-right:1.5mm; vertical-align:-0.5mm; }</style></head><body>
@@ -5489,6 +5608,7 @@
   document.getElementById('btn-troca').addEventListener('click', () => abrirTroca(false));
   document.getElementById('btn-condicionais').addEventListener('click', () => abrirCondicionais(false));
   document.getElementById('btn-enviar-condicional').addEventListener('click', () => enviarComoCondicional());
+  document.getElementById('btn-vender-envio').addEventListener('click', () => venderComEnvio());
   document.getElementById('btn-presente-lista').addEventListener('click', () => escolherListaNoCaixa());
   document.getElementById('btn-limpar-carrinho').addEventListener('click', () => { if (!state.cart.length || confirm('Limpar o carrinho?')) setState({ cart: [], pagamentos: [], cliente: null, condicional: null, listaPresente: null }); });
   document.getElementById('btn-novo-cliente').addEventListener('click', abrirNovoCliente);

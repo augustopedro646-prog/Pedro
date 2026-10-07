@@ -2956,6 +2956,21 @@ app.post('/api/lojas/:lojaId/loja/pedidos/previa', limiteFrete, rota(async (req,
   res.json({ itens: linhas, subtotal, taxaEntrega, total, ...(pagaCom != null ? { pagaCom, troco, trocoSuficiente: pagaCom >= total } : {}), problemas });
 }));
 
+// Frete pra venda feita pela equipe (não depende do site estar com pagamento online ligado).
+app.post('/api/lojas/:lojaId/pedidos-online/frete', qualquer, rota(async (req, res) => {
+  const body = req.body || {};
+  const config = await configSite(pool, req.lojaId);
+  const end = await frete.endereco(body.cep).catch((e) => { throw new ErroApi(e.status || 502, e.message); });
+  const ev = config._envio;
+  let opcoes = [], erroEnvio = null;
+  if (ev.ativo && ev.cepOrigem && frete.configurado()) {
+    const { subtotal, pecas } = await subtotalSacola(req.lojaId, lerItensSacola(body.itens));
+    try { opcoes = await frete.cotar(ev, end.cep, pecas, subtotal); } catch (e) { erroEnvio = e.message; }
+  } else erroEnvio = 'Envio pelos Correios não está configurado (Configurações → Envio)';
+  res.json({ endereco: end, entregaLocal: frete.entregaLocalAtende(ev, end.cidade) ? { taxa: config.taxaEntrega } : null, opcoes, erroEnvio,
+    pagamentoOnline: { pix: config.pagamento.pix, cartao: config.pagamento.cartao } });
+}));
+
 function urlSite(req) { return (process.env.SITE_URL || (req.protocol + '://' + req.get('host'))).replace(/\/+$/, ''); }
 function urlNotificacao(lojaId) {
   const site = (process.env.SITE_URL || '').replace(/\/+$/, '');
@@ -2966,20 +2981,28 @@ function urlNotificacao(lojaId) {
 // ficam reservadas na hora. Telefone vira (ou encontra) o cadastro do cliente — ganha cashback.
 // Pago pelo site (pagamentoOnline 'pix' | 'cartao'): nasce "aguardando_pagamento" e só vira pedido
 // de verdade quando o Mercado Pago confirma. Envio pelos Correios (tipo 'envio') exige pagar online.
-app.post('/api/lojas/:lojaId/loja/pedidos', limitePedidoSite, rota(async (req, res) => {
+app.post('/api/lojas/:lojaId/loja/pedidos', limitePedidoSite, rota((req, res) => criarPedidoOnline(req, res, {})));
+
+// Pedido feito pela equipe (venda pelo WhatsApp/Instagram pra mandar pra fora): mesmo caminho do
+// site, mas pode marcar "pagamento já recebido direto" (Pix na conta da loja) e não depende do site
+// estar aberto.
+app.post('/api/lojas/:lojaId/pedidos-online', qualquer, rota((req, res) => criarPedidoOnline(req, res, { equipe: true })));
+
+async function criarPedidoOnline(req, res, { equipe }) {
   const body = req.body || {};
-  const nome = texto(body.nome, 'Seu nome', { max: 100 });
+  const nome = texto(body.nome, equipe ? 'Nome do cliente' : 'Seu nome', { max: 100 });
   const telefone = soDigitos(body.telefone) || '';
   if (telefone.length < 10 || telefone.length > 11) falha(400, 'Telefone com DDD, só números (ex.: 84 99999-8888)');
   if (!['entrega', 'retirada', 'envio'].includes(body.tipo)) falha(400, 'Escolha como quer receber');
   const online = ['pix', 'cartao'].includes(body.pagamentoOnline) ? body.pagamentoOnline : null;
+  const pagoManual = !!(equipe && body.pagoManual && !online);
   if (!online && !['Pix', 'Dinheiro', 'Débito', 'Crédito'].includes(body.pagamento)) falha(400, 'Escolha a forma de pagamento');
-  const origem = body.origem === 'whatsapp' ? 'whatsapp' : 'site';
+  const origem = equipe ? (['whatsapp', 'instagram', 'loja'].includes(body.origem) ? body.origem : 'whatsapp') : body.origem === 'whatsapp' ? 'whatsapp' : 'site';
   const observacao = texto(body.observacao, 'Observação', { obrigatorio: false, max: 300 });
   const itens = lerItensSacola(body.itens);
   const config = await configSite(pool, req.lojaId);
-  if (body.tipo === 'envio' && !online) falha(400, 'Pra enviar pelos Correios, o pagamento é feito pelo site (Pix ou cartão)');
-  if (online && !config.pagamento[online]) falha(400, 'Essa forma de pagamento pelo site não está disponível agora');
+  if (body.tipo === 'envio' && !online && !pagoManual) falha(400, 'Pra enviar pelos Correios, o pagamento é feito pelo site (Pix ou cartão)' + (equipe ? ' ou marcado como já recebido' : ''));
+  if (online && !config.pagamento[online]) falha(400, 'Essa forma de pagamento pelo site não está disponível agora' + (equipe ? ' (ligue em Configurações → Pagamento pelo site)' : ''));
   if (!online && !config.pagamento.naEntrega && origem === 'site') falha(400, 'O pagamento é feito pelo site (Pix ou cartão)');
   let email = null;
   if (online) {
@@ -3002,7 +3025,7 @@ app.post('/api/lojas/:lojaId/loja/pedidos', limitePedidoSite, rota(async (req, r
       falha(400, 'A entrega da loja não atende ' + cidade + (config.envio.ativo ? ' — escolha o envio pelos Correios' : ''));
     }
     if (body.tipo === 'envio') {
-      if (!config.envio.ativo) falha(400, 'Envio pelos Correios indisponível agora');
+      if (!config.envio.ativo && !(equipe && config._envio.ativo && config._envio.cepOrigem && frete.configurado())) falha(400, 'Envio pelos Correios indisponível agora' + (equipe ? ' (ligue em Configurações → Envio)' : ''));
       const servicoId = String((body.envio && body.envio.servicoId) || '');
       const { subtotal: previa, pecas } = await subtotalSacola(req.lojaId, itens);
       const opcoes = await frete.cotar(config._envio, cep, pecas, previa).catch((e) => { throw new ErroApi(e.status || 502, e.message); });
@@ -3013,9 +3036,11 @@ app.post('/api/lojas/:lojaId/loja/pedidos', limitePedidoSite, rota(async (req, r
 
   const r = await transacao(async (c) => {
     const config = await configSite(c, req.lojaId);
-    if (!config.ativo) falha(403, 'A loja não está recebendo pedidos pelo site agora');
-    if (body.tipo === 'entrega' && !config.aceitaEntrega) falha(400, 'A loja não está fazendo entregas agora');
-    if (body.tipo === 'retirada' && !config.aceitaRetirada) falha(400, 'Retirada na loja indisponível agora');
+    if (!equipe) {
+      if (!config.ativo) falha(403, 'A loja não está recebendo pedidos pelo site agora');
+      if (body.tipo === 'entrega' && !config.aceitaEntrega) falha(400, 'A loja não está fazendo entregas agora');
+      if (body.tipo === 'retirada' && !config.aceitaRetirada) falha(400, 'Retirada na loja indisponível agora');
+    }
     let subtotal = 0;
     const gravar = [];
     const promos = await promocoes.ativas(c, req.lojaId, TZ);
@@ -3060,11 +3085,12 @@ app.post('/api/lojas/:lojaId/loja/pedidos', limitePedidoSite, rota(async (req, r
     const expira = online ? new Date(Date.now() + config.pagamento.minutosPagar * 60000) : null;
     await c.query(
       `INSERT INTO pedidos_online (id, loja_id, numero, token, cliente_id, cliente_nome, telefone, tipo, endereco, pagamento, troco_para, observacao, subtotal, taxa_entrega, total, origem,
-         status, pago_online, pag_metodo, pag_status, pag_expira_em, email, cep, cidade, uf, envio_servico_id, envio_servico, envio_prazo_dias)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28)`,
+         status, pago_online, pag_metodo, pag_status, pag_expira_em, email, cep, cidade, uf, envio_servico_id, envio_servico, envio_prazo_dias, pago_em, pag_nota)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30)`,
       [id, req.lojaId, numeroPedido, token, clienteId, nome, telefone, body.tipo, endereco, pagamento, trocoPara, observacao, subtotal, taxa, total, origem,
-        online ? 'aguardando_pagamento' : 'recebido', !!online, online, online ? 'aguardando' : null, expira, email, cep, cidade, uf,
-        envio ? envio.id : null, envio ? envio.nome : null, envio ? envio.prazo : null]);
+        online ? 'aguardando_pagamento' : 'recebido', !!online, online, online ? 'aguardando' : pagoManual ? 'pago' : null, expira, email, cep, cidade, uf,
+        envio ? envio.id : null, envio ? envio.nome : null, envio ? envio.prazo : null,
+        pagoManual ? new Date() : null, pagoManual ? 'Pagamento (' + pagamento + ') recebido direto pela loja — confirmado por ' + req.usuario.nome : null]);
     for (const it of gravar) {
       await c.query('INSERT INTO pedidos_online_itens (id, pedido_id, variacao_id, produto_nome, tamanho, cor, qtd, preco_unit, preco_cheio, promocao_id) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)',
         [uid(), id, it.variacaoId, it.produtoNome, it.tamanho, it.cor, it.qtd, it.preco, it.precoCheio, it.promocaoId]);
@@ -3089,7 +3115,7 @@ app.post('/api/lojas/:lojaId/loja/pedidos', limitePedidoSite, rota(async (req, r
 
   if (!online) {
     notificarBot(req.lojaId, r.id, 'recebido');
-    return res.status(201).json({ numero: r.numero, token: r.token, total: r.total });
+    return res.status(201).json({ numero: r.numero, token: r.token, total: r.total, ...(equipe ? { linkPedido: urlSite(req) + '/loja-gutto.html#pedido=' + r.token } : {}) });
   }
   // Gera a cobrança no Mercado Pago. Se não der, desfaz o pedido (as peças voltam) e avisa.
   let pagamento;
@@ -3111,8 +3137,8 @@ app.post('/api/lojas/:lojaId/loja/pedidos', limitePedidoSite, rota(async (req, r
     await transacao((c) => cancelarPedidoTx(c, req.lojaId, r.id, 'Não foi possível gerar o pagamento', null, 'expirado')).catch((e2) => console.error(e2));
     falha(502, 'Não consegui gerar o pagamento agora. Tente de novo em instantes' + (config.pagamento.naEntrega && body.tipo !== 'envio' ? ' ou escolha pagar na ' + (body.tipo === 'retirada' ? 'retirada' : 'entrega') : '') + '.');
   }
-  res.status(201).json({ numero: r.numero, token: r.token, total: r.total, pagamento });
-}));
+  res.status(201).json({ numero: r.numero, token: r.token, total: r.total, pagamento, ...(equipe ? { linkPedido: urlSite(req) + '/loja-gutto.html#pedido=' + r.token } : {}) });
+}
 
 async function detalhePedido(db, where, params) {
   const { rows } = await db.query(`SELECT po.*, lp.titulo AS lista_titulo FROM pedidos_online po LEFT JOIN listas_presentes lp ON lp.id = po.lista_id WHERE ${where.replace(/\b(id|token|loja_id)\b/g, 'po.$1')}`, params);
@@ -3201,7 +3227,7 @@ app.delete('/api/lojas/:lojaId/entregadores/:id', admin, rota(async (req, res) =
 
 // Mensagem pro entregador: cliente, telefone, endereço com mapa e quanto receber.
 function textoEntregador(p, entregador) {
-  const receber = p.pago_online && p.pag_status === 'pago' ? 'Já está PAGO pelo site — não cobrar nada.'
+  const receber = p.pag_status === 'pago' ? 'Já está PAGO — não cobrar nada.'
     : p.pagamento === 'Dinheiro' ? `Receber ${brlTexto(p.total)} em DINHEIRO${p.troco_para ? ` (cliente paga com ${brlTexto(p.troco_para)} — levar ${brlTexto(round2(p.troco_para - p.total))} de troco)` : ''}.`
     : `Receber ${brlTexto(p.total)} no ${p.pagamento === 'Pix' ? 'Pix' : 'cartão (' + p.pagamento.toLowerCase() + ') — levar a maquininha'}.`;
   const pecas = p.itens.reduce((t, i) => t + i.qtd, 0);

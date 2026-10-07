@@ -127,6 +127,27 @@ reservadas na hora; ao concluir na aba **Pedidos online**, o pedido vira venda d
 - No WhatsApp, o robô mostra o resumo do pedido (peças com o preço certo, taxa, total e troco)
   **antes** de fechar, e só fecha depois do "sim" do cliente.
 
+### Vender pra fora com envio (WhatsApp / Instagram)
+
+Na **Venda rápida**, monte o carrinho e clique em **📦 Vender com envio**:
+1. Nome e WhatsApp do cliente, e por onde veio (WhatsApp, Instagram ou na loja).
+2. **Mandar pro endereço**: digite o CEP. O endereço preenche sozinho e aparecem a entrega da
+   loja (se a cidade estiver na lista) e as opções dos Correios com preço e prazo. Ou **Retirar
+   na loja**.
+3. Pagamento, uma das opções:
+   - **Link de pagamento** (Pix ou cartão pelo Mercado Pago): as peças ficam reservadas e o
+     pedido entra na fila sozinho quando o cliente paga.
+   - **Já recebi**: Pix ou transferência que caiu direto na conta da loja. Fica anotado quem
+     confirmou.
+   - **Paga na entrega/retirada**: só pra entrega local ou retirada.
+4. **Criar pedido** → **Mandar no WhatsApp**: abre a conversa com o cliente já com as peças, o
+   total e o link (pra pagar e acompanhar o pedido).
+
+O pedido segue pela aba **Pedidos online**: separar → **📦 Postado** com o código de rastreio (o
+cliente recebe no WhatsApp) → concluir. Funciona mesmo com o site fechado. Pra Correios, precisa do
+envio configurado (Configurações → Envio). ⚠ Venda pra outro estado: confirme com a contadora a
+nota (NF-e).
+
 ## Pagamento pelo site (Mercado Pago)
 
 Configure em **Configurações → Pagamento pelo site**: Pix, cartão de crédito
