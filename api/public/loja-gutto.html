@@ -159,6 +159,7 @@
     <p id="hero-sub">Escolha o tamanho e a cor, faça o pedido aqui e retire na loja ou receba em casa.</p>
   </section>
   <div class="busca-linha"><input id="busca" class="busca" type="search" placeholder="Buscar peça: vestido, conjunto, body..." autocomplete="off"></div>
+  <div class="chips" id="generos" style="margin-bottom:8px"></div>
   <div class="chips" id="categorias"></div>
   <div class="grade-produtos" id="produtos"><div class="vazio">Carregando a vitrine...</div></div>
 </main>
@@ -174,7 +175,7 @@
   const CORES = ['#3E6FA8', '#E8B23D', '#D9748C', '#8B8680', '#4E8C6E', '#E8664A', '#9B7FC7', '#B79C6B', '#57A0C9', '#C97A3E'];
   const ETAPAS = [['recebido', 'Pedido recebido'], ['separando', 'Separando as peças'], ['pronto', 'Pronto'], ['saiu_entrega', 'Saiu para entrega'], ['entregue', 'Concluído']];
 
-  const state = { config: null, produtos: [], categoria: null, busca: '', sacola: carregar('gutto-sacola', []), meusPedidos: carregar('gutto-pedidos', []), cliente: carregar('gutto-cliente', {}), lista: carregar('gutto-lista', null) };
+  const state = { config: null, produtos: [], categoria: null, genero: null, busca: '', sacola: carregar('gutto-sacola', []), meusPedidos: carregar('gutto-pedidos', []), cliente: carregar('gutto-cliente', {}), lista: carregar('gutto-lista', null) };
 
   function carregar(chave, padrao) { try { return JSON.parse(localStorage.getItem(chave)) || padrao; } catch (e) { return padrao; } }
   function salvar(chave, valor) { try { localStorage.setItem(chave, JSON.stringify(valor)); } catch (e) {} }
@@ -221,8 +222,13 @@
     const chips = document.getElementById('categorias');
     chips.innerHTML = cats.length > 1 ? [`<button class="chip ${!state.categoria ? 'ativo' : ''}" data-cat="">Tudo</button>`].concat(cats.map(c => `<button class="chip ${state.categoria === c ? 'ativo' : ''}" data-cat="${esc(c)}">${esc(c)}</button>`)).join('') : '';
     chips.querySelectorAll('[data-cat]').forEach(b => b.onclick = () => { state.categoria = b.dataset.cat || null; renderVitrine(); });
+    // Menina / Menino: peça unissex aparece nos dois.
+    const temGenero = state.produtos.some(p => p.genero === 'feminino' || p.genero === 'masculino');
+    const gen = document.getElementById('generos');
+    gen.innerHTML = temGenero ? [['', 'Todos'], ['feminino', 'Menina'], ['masculino', 'Menino']].map(([g, r]) => `<button class="chip ${(state.genero || '') === g ? 'ativo' : ''}" data-gen="${g}">${r}</button>`).join('') : '';
+    gen.querySelectorAll('[data-gen]').forEach(b => b.onclick = () => { state.genero = b.dataset.gen || null; renderVitrine(); });
     const termo = state.busca.trim().toLowerCase();
-    const lista = state.produtos.filter(p => (!state.categoria || p.categoria === state.categoria) && (!termo || (p.nome + ' ' + p.categoria + ' ' + p.descricao).toLowerCase().includes(termo)));
+    const lista = state.produtos.filter(p => (!state.genero || p.genero === state.genero || p.genero === 'unissex') && (!state.categoria || p.categoria === state.categoria) && (!termo || (p.nome + ' ' + p.categoria + ' ' + p.descricao).toLowerCase().includes(termo)));
     const el = document.getElementById('produtos');
     if (!state.produtos.length) { el.innerHTML = `<div class="vazio">${state.config && !state.config.ativo ? 'Vitrine fechada no momento.' : 'Nossa vitrine está sendo montada — volte daqui a pouco!'}</div>`; return; }
     if (!lista.length) { el.innerHTML = `<div class="vazio">Nada encontrado com "${esc(state.busca)}".</div>`; return; }

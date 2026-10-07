@@ -72,6 +72,13 @@ As peças voltam pro estoque na hora, o cashback daquela compra é estornado na 
 fica no histórico da aba (últimos 30 dias). Prazo e PIN de Administrador fora do prazo continuam
 valendo.
 
+## Gênero do produto
+
+No **+ Novo produto** escolha **Feminino, Masculino ou Unissex** (obrigatório; o "cadastrar parecido"
+já vem com o mesmo). Dá pra mudar no Editar produto. No Estoque vira filtro; no site aparece como
+**Menina / Menino** (peça unissex entra nos dois); na planilha de importação é a coluna "Gênero"
+(aceita também F/M/U e menina/menino); e o robô do WhatsApp usa pra responder "tem pra menino?".
+
 ## Peças que já têm etiqueta (sistema antigo ou do fabricante)
 
 No **+ Novo produto**, marque **"As peças já têm etiqueta com código de barras"**:

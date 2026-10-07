@@ -771,3 +771,9 @@ ALTER TABLE clientes ADD COLUMN IF NOT EXISTS limite_condicional NUMERIC(12,2);
 CREATE SEQUENCE IF NOT EXISTS vendas_codigo_troca_seq;
 ALTER TABLE vendas ADD COLUMN IF NOT EXISTS codigo_troca TEXT DEFAULT ('98' || lpad(nextval('vendas_codigo_troca_seq')::text, 10, '0'));
 CREATE UNIQUE INDEX IF NOT EXISTS vendas_codigo_troca_idx ON vendas(codigo_troca);
+
+-- Gênero da peça (filtro no estoque e no site; o robô usa pra "tem pra menino?"). Vazio = não informado.
+ALTER TABLE produtos ADD COLUMN IF NOT EXISTS genero TEXT;
+DO $$ BEGIN
+  ALTER TABLE produtos ADD CONSTRAINT produtos_genero_check CHECK (genero IN ('feminino', 'masculino', 'unissex'));
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;

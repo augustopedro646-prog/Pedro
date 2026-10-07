@@ -692,6 +692,18 @@
   const FORMAS_DINHEIRO = ['Dinheiro', 'Pix', 'Débito', 'Crédito'];
   const TIPO_CREDITO = { 'Cashback': 'saldo_cashback', 'Vale-troca': 'saldo_vale_troca' };
   const ORIGEM_LABEL = { venda: 'Cashback da compra', uso_em_venda: 'Usado em compra', devolucao: 'Troca/devolução', ajuste: 'Ajuste' };
+  const GENERO_LABEL = { feminino: 'Feminino', masculino: 'Masculino', unissex: 'Unissex' };
+  // Botões Feminino / Masculino / Unissex (um só marcado). `atual` = valor inicial.
+  function htmlGenero(prefixo, atual) {
+    return `<div class="chips" id="${prefixo}-genero" role="radiogroup">${Object.keys(GENERO_LABEL).map(g => `<button type="button" class="chip ${atual === g ? 'ativo' : ''}" data-genero="${g}" role="radio" aria-checked="${atual === g}" style="font-size:13px;padding:8px 16px">${GENERO_LABEL[g]}</button>`).join('')}</div>`;
+  }
+  function ligarGenero(raiz, prefixo) {
+    const el = raiz.querySelector('#' + prefixo + '-genero');
+    el.querySelectorAll('[data-genero]').forEach(b => b.addEventListener('click', () => {
+      el.querySelectorAll('[data-genero]').forEach(x => { const sel = x === b; x.classList.toggle('ativo', sel); x.setAttribute('aria-checked', sel); });
+    }));
+    return () => { const b = el.querySelector('[data-genero].ativo'); return b ? b.dataset.genero : ''; };
+  }
   const MESES_NOME = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
   const TZ = 'America/Fortaleza';
 
@@ -778,7 +790,7 @@
     view: 'inicio',
     cart: [], cliente: null, pagamentos: [], modalProdutoId: null, vendaBusca: '',
     trocaAtual: null, trocaEmCurso: null, trocasHistorico: null,
-    estoqueSelecionadoId: null, busca: '', filtroCategoria: null,
+    estoqueSelecionadoId: null, busca: '', filtroCategoria: null, filtroGenero: null,
     vendasHoje: null, pontos: null, clientes: null, clientesBusca: '', compras: null,
     fluxo: null, mesFluxo: hojeLocal().slice(0, 7), equipe: null, caixaSessoes: null,
     calMes: hojeLocal().slice(0, 7), calAgenda: null, calPontos: [], calAniversarios: [],
@@ -844,7 +856,7 @@
     const precosVenda = ativas.map(v => v.precoVenda);
     const custos = ativas.map(v => v.custoUnitario);
     return {
-      id: p.id, nome: p.nome, categoria: p.categoria || 'Sem categoria', ncm: p.ncm || '', ativo: p.ativo,
+      id: p.id, nome: p.nome, categoria: p.categoria || 'Sem categoria', genero: p.genero || '', ncm: p.ncm || '', ativo: p.ativo,
       publicado: p.publicado !== false, descricao: p.descricao || '', fotos: p.fotos || [],
       swatch: hashColor(p.nome), grade, tamanhos, cores, variacoes,
       precoBase: precos.length ? Math.min.apply(null, precos) : 0,
@@ -978,7 +990,17 @@
     iniciarAvisoPedidos();
   }
 
+  // Redesenhar troca o HTML; se isso dispara um evento (ex.: "change" do campo de desconto que
+  // sumiu da tela) que chama setState, o desenho de dentro termina antes do de fora, e o de fora
+  // escreveria valores velhos por cima. Então um render no meio de outro só marca pra repetir.
+  let renderizando = false, renderPendente = false;
   function render() {
+    if (renderizando) { renderPendente = true; return; }
+    renderizando = true;
+    try { renderTela(); } finally { renderizando = false; }
+    if (renderPendente) { renderPendente = false; render(); }
+  }
+  function renderTela() {
     document.getElementById('login-screen').style.display = state.logado ? 'none' : 'flex';
     document.getElementById('app-shell').style.display = state.logado ? 'flex' : 'none';
     document.getElementById('btn-menu-mobile').style.display = state.logado ? '' : 'none';
@@ -1419,7 +1441,12 @@
     // Campos feitos pra receber código (busca da venda, busca do estoque, código na edição) tratam sozinhos.
     if (e.target && e.target.hasAttribute && e.target.hasAttribute('data-leitor')) return;
     e.preventDefault(); e.stopPropagation();
+    // Tira do campo os números que o leitor digitou nele (ex.: foco no desconto na hora do bip).
     if (leitor.valorAntes !== null && e.target === leitor.alvo) e.target.value = leitor.valorAntes;
+    else if (ehCampoTexto(e.target)) {
+      const v = e.target.value;
+      for (let n = codigo.length; n >= 6; n--) if (v.endsWith(codigo.slice(-n))) { e.target.value = v.slice(0, -n); break; }
+    }
     codigoLido(codigo);
   }
   function codigoLido(codigo) {
@@ -1468,7 +1495,15 @@
     return { aplicados, troco, restante, excesso: naoDinheiro > total + 0.005 };
   }
 
+  // Mesmo cuidado do render(): chamada direta no meio de um desenho do carrinho só marca pra repetir.
+  let carrinhoDesenhando = false, carrinhoPendente = false;
   function renderCarrinho() {
+    if (carrinhoDesenhando) { carrinhoPendente = true; return; }
+    carrinhoDesenhando = true;
+    try { desenharCarrinho(); } finally { carrinhoDesenhando = false; }
+    if (carrinhoPendente) { carrinhoPendente = false; renderCarrinho(); }
+  }
+  function desenharCarrinho() {
     const calc = calcCarrinho();
     const el = document.getElementById('carrinho-lista');
     const limite = state.config.descontoLivrePct;
@@ -3017,13 +3052,17 @@
     const termo = state.busca.trim().toLowerCase();
     return state.produtos.filter(p => {
       const bateBusca = !termo || p.nome.toLowerCase().includes(termo) || (/^\d{6,}$/.test(termo) && p.variacoes.some(v => normalizarCodigo(v.codigoBarras) === normalizarCodigo(termo)));
-      return bateBusca && (!state.filtroCategoria || p.categoria === state.filtroCategoria);
+      return bateBusca && (!state.filtroCategoria || p.categoria === state.filtroCategoria) && (!state.filtroGenero || p.genero === state.filtroGenero);
     });
   }
 
   function renderEstoque() {
     const chipsEl = document.getElementById('categorias-chips');
-    chipsEl.innerHTML = categoriasUnicas().map(c => `<button class="chip ${state.filtroCategoria === c ? 'ativo' : ''}" data-cat="${esc(c)}">${esc(c)}</button>`).join('');
+    const generos = Object.keys(GENERO_LABEL).filter(g => state.produtos.some(p => p.genero === g));
+    chipsEl.innerHTML = generos.map(g => `<button class="chip ${state.filtroGenero === g ? 'ativo' : ''}" data-gen="${g}">${GENERO_LABEL[g]}</button>`).join('')
+      + (generos.length ? '<span style="width:1px;background:var(--border);margin:0 4px"></span>' : '')
+      + categoriasUnicas().map(c => `<button class="chip ${state.filtroCategoria === c ? 'ativo' : ''}" data-cat="${esc(c)}">${esc(c)}</button>`).join('');
+    chipsEl.querySelectorAll('[data-gen]').forEach(b => b.addEventListener('click', () => setState({ filtroGenero: state.filtroGenero === b.dataset.gen ? null : b.dataset.gen })));
     chipsEl.querySelectorAll('[data-cat]').forEach(b => b.addEventListener('click', () => setState({ filtroCategoria: state.filtroCategoria === b.dataset.cat ? null : b.dataset.cat })));
 
     const lista = produtosFiltrados();
@@ -3036,7 +3075,7 @@
       const cor = p.estoqueTotal <= 0 ? 'var(--zero-text)' : temBaixo || temZero ? 'var(--baixo-text)' : 'var(--ok-text)';
       return `<button class="produto-row ${p.id === state.estoqueSelecionadoId ? 'ativo' : ''}" data-id="${p.id}">
         <div class="produto-row-avatar" style="background:${p.fotos.length ? `#fff url('${API_BASE}/fotos/${p.fotos[0]}') center/cover` : p.swatch}">${p.fotos.length ? '' : esc(p.nome.charAt(0))}</div>
-        <div class="produto-row-info"><div class="produto-row-nome">${esc(p.nome)}${p.ativo ? '' : ' <span class="tag cinza">inativo</span>'}${p.ativo && !p.publicado ? ' <span class="tag cinza">fora do site</span>' : ''}</div><div class="produto-row-meta">${esc(p.categoria)} · ${fmt(p.precoBase)}${p.promocao ? ' <span class="tag aviso">' + rotuloPromo(p.promocao) + '</span>' : ''}</div></div>
+        <div class="produto-row-info"><div class="produto-row-nome">${esc(p.nome)}${p.ativo ? '' : ' <span class="tag cinza">inativo</span>'}${p.ativo && !p.publicado ? ' <span class="tag cinza">fora do site</span>' : ''}</div><div class="produto-row-meta">${esc(p.categoria)}${p.genero ? ' · ' + GENERO_LABEL[p.genero] : ''} · ${fmt(p.precoBase)}${p.promocao ? ' <span class="tag aviso">' + rotuloPromo(p.promocao) + '</span>' : ''}</div></div>
         <div class="produto-row-estoque"><div style="color:${cor};font-weight:700">${p.estoqueTotal} un.</div>${temZero && p.estoqueTotal > 0 ? '<div class="baixo-tag">tem tamanho esgotado</div>' : temBaixo ? '<div class="baixo-tag">estoque baixo</div>' : ''}</div>
       </button>`;
     }).join('') : '<div class="vazio">Nenhum produto encontrado.</div>';
@@ -3048,7 +3087,7 @@
     const margem = produto.precoBase > 0 ? Math.round(((produto.precoBase - produto.custoUnitario) / produto.precoBase) * 100) : 0;
     detalheEl.innerHTML = `
       <div class="detalhe-head">
-        <div><div class="detalhe-categoria">${esc(produto.categoria)}${produto.ncm ? ' · NCM ' + esc(produto.ncm) : ''}</div><div class="detalhe-nome titulo">${esc(produto.nome)}</div></div>
+        <div><div class="detalhe-categoria">${esc(produto.categoria)}${produto.genero ? ' · ' + GENERO_LABEL[produto.genero] : ''}${produto.ncm ? ' · NCM ' + esc(produto.ncm) : ''}</div><div class="detalhe-nome titulo">${esc(produto.nome)}</div></div>
         <div class="detalhe-acoes"><button class="btn-secundario" id="btn-etiquetas">Imprimir etiquetas</button>${ehAdmin() ? `<button class="btn-secundario" id="btn-editar-produto">Editar produto e estoque</button><button class="btn-secundario" id="btn-nova-cor">+ Nova cor</button><button class="btn-secundario" id="btn-parecido">Cadastrar parecido</button>` : ''}</div>
       </div>
       <div class="stats-row">
@@ -3081,6 +3120,7 @@
       <div class="modal-card largo">
         ${cabecalhoModal(modelo.parecido ? 'Novo produto (parecido com ' + modelo.parecido + ')' : 'Novo produto', 'Digite quantas peças tem de cada tamanho/cor. Cada uma ganha código de barras próprio.')}
         <label class="campo">Nome do produto (sem tamanho/cor)<input id="np-nome" type="text" placeholder="Ex.: Vestido Pérola Linho"></label>
+        <div class="campo"><span>Gênero</span>${htmlGenero('np', modelo.genero)}</div>
         <div class="linha-campos">
           <label class="campo">Categoria<input id="np-categoria" type="text" placeholder="Ex.: Vestidos" list="np-categorias" value="${esc(modelo.categoria || '')}"></label>
           <label class="campo">NCM (pra nota fiscal)<input id="np-ncm" type="text" inputmode="numeric" placeholder="Ex.: 61044200" value="${esc(modelo.ncm || '')}"><span id="np-ncm-dica" style="font-size:11px;color:var(--text-2)"></span></label>
@@ -3189,6 +3229,7 @@
     };
     desenharGrade();
     $('#np-nome').focus();
+    const generoEscolhido = ligarGenero(camada, 'np');
 
     $('#np-salvar').onclick = (ev) => comBotao(ev.target, 'Criando...', async () => {
       const nome = $('#np-nome').value.trim();
@@ -3196,6 +3237,8 @@
       const custo = parseNumBR($('#np-custo').value || '0');
       const minimo = parseNumBR($('#np-estoque-minimo').value || '0');
       if (!nome) throw new Error('Digite o nome do produto.');
+      const genero = generoEscolhido();
+      if (!genero) throw new Error('Escolha o gênero: Feminino, Masculino ou Unissex.');
       if (!Number.isFinite(preco) || preco <= 0) throw new Error('Preço de venda inválido.');
       if (!Number.isFinite(custo) || custo < 0) throw new Error('Custo inválido.');
       if (!Number.isInteger(minimo) || minimo < 0) throw new Error('Estoque mínimo deve ser número inteiro.');
@@ -3229,12 +3272,12 @@
         const g = await api('/grades-tamanho', { method: 'POST', body: { nome: gradeNome, tamanhos } });
         gradeId = g.id; state.grades.push(g);
       }
-      const r = await api('/produtos', { method: 'POST', body: { nome, categoria: $('#np-categoria').value, ncm, gradeTamanhoId: gradeId, variacoes } });
+      const r = await api('/produtos', { method: 'POST', body: { nome, genero, categoria: $('#np-categoria').value, ncm, gradeTamanhoId: gradeId, variacoes } });
       await carregarProdutos();
       setState({ estoqueSelecionadoId: r.id, busca: '', filtroCategoria: null });
       document.getElementById('busca').value = '';
       const pecas = variacoes.reduce((t, v) => t + v.estoqueInicial, 0);
-      const parecido = { categoria: $('#np-categoria').value, ncm, gradeId, cores: cores.filter(Boolean), preco, custo, minimo, soComEstoque, parecido: nome, jaEtiqueta: $('#np-ja-etiqueta').checked };
+      const parecido = { categoria: $('#np-categoria').value, genero, ncm, gradeId, cores: cores.filter(Boolean), preco, custo, minimo, soComEstoque, parecido: nome, jaEtiqueta: $('#np-ja-etiqueta').checked };
       const comCodigo = variacoes.filter(v => v.codigoBarras).length;
       const semEtiqueta = variacoes.filter(v => !v.codigoBarras).reduce((t, v) => t + v.estoqueInicial, 0);
       const fim = abrirModal(`<div class="modal-card estreito" style="text-align:center">${cabecalhoModal('Produto criado', '')}
@@ -3257,7 +3300,7 @@
   function modeloDoProduto(p) {
     const ativas = p.variacoes.filter(v => v.ativo);
     const base = ativas[0] || p.variacoes[0] || {};
-    return { categoria: p.categoria === 'Sem categoria' ? '' : p.categoria, ncm: p.ncm, gradeId: p.grade ? p.grade.id : undefined,
+    return { categoria: p.categoria === 'Sem categoria' ? '' : p.categoria, genero: p.genero, ncm: p.ncm, gradeId: p.grade ? p.grade.id : undefined,
       cores: p.cores.map(c => c.nome).filter(Boolean), preco: base.preco, custo: base.custoUnitario, minimo: base.estoqueMinimo, parecido: p.nome };
   }
 
@@ -3271,6 +3314,7 @@
         <label class="campo">Categoria<input id="ep-categoria" type="text" value="${esc(p.categoria === 'Sem categoria' ? '' : p.categoria)}"></label>
         <label class="campo">NCM<input id="ep-ncm" type="text" inputmode="numeric" value="${esc(p.ncm)}"></label>
       </div>
+      <div class="campo"><span>Gênero</span>${htmlGenero('ep', p.genero)}</div>
       <div class="painel" style="padding:14px;display:flex;flex-direction:column;gap:10px">
         <div class="painel-titulo-linha" style="margin:0"><div class="painel-titulo" style="font-size:14px">Site da loja</div>
           <label style="display:flex;gap:6px;align-items:center;font-size:13px;font-weight:600"><input type="checkbox" id="ep-publicado" ${p.publicado ? 'checked' : ''} style="width:auto;min-width:0"> Mostrar no site</label></div>
@@ -3326,6 +3370,7 @@
       const valor = camada.querySelector('#ep-preco-todas').value;
       camada.querySelectorAll('[data-campo="preco"]').forEach(inp => { inp.value = valor; });
     };
+    const generoEp = ligarGenero(camada, 'ep');
     camada.querySelector('#ep-salvar').onclick = (ev) => comBotao(ev.target, 'Salvando...', async () => {
       const nome = camada.querySelector('#ep-nome').value.trim();
       if (!nome) throw new Error('Nome não pode ficar vazio');
@@ -3339,7 +3384,7 @@
         if (!Number.isInteger(minimo) || minimo < 0 || !Number.isInteger(estoque) || estoque < 0) throw new Error('Estoque/mínimo inválido no tamanho ' + v.tamanho + ' ' + v.cor);
         mudancas.push({ v, preco, minimo, estoque, codigo, ativo });
       });
-      await api('/produtos/' + p.id, { method: 'PUT', body: { nome, categoria: camada.querySelector('#ep-categoria').value, ncm: camada.querySelector('#ep-ncm').value,
+      await api('/produtos/' + p.id, { method: 'PUT', body: { nome, genero: generoEp(), categoria: camada.querySelector('#ep-categoria').value, ncm: camada.querySelector('#ep-ncm').value,
         publicado: camada.querySelector('#ep-publicado').checked, descricao: camada.querySelector('#ep-descricao').value } });
       for (const m of mudancas) {
         const corpo = {};
@@ -3587,8 +3632,8 @@
       elPrev.innerHTML = `
         ${r.problemas.length ? `<div class="nfce-box erro" style="align-items:flex-start;flex-direction:column"><b>Corrija na planilha e escolha de novo (${r.problemas.length}):</b>${r.problemas.map(lin).join('')}</div>` : ''}
         ${r.avisos.length ? `<div class="aviso-caixa" style="flex-direction:column;align-items:flex-start"><b>Atenção:</b>${r.avisos.map(lin).join('')}</div>` : ''}
-        <div class="tabela-scroll" style="max-height:320px"><table class="tabela"><tr><th>Produto</th><th>Categoria</th><th>Grade</th><th>Tamanhos/cores</th><th>Peças</th><th>Preço</th></tr>
-          ${r.produtos.map(p => `<tr style="${p.jaExiste ? 'opacity:.5' : ''}"><td>${esc(p.nome)}${p.jaExiste ? ' <span class="tag cinza">já existe</span>' : ''}</td><td>${esc(p.categoria || '—')}</td><td>${esc(p.grade || '—')}</td>
+        <div class="tabela-scroll" style="max-height:320px"><table class="tabela"><tr><th>Produto</th><th>Categoria</th><th>Gênero</th><th>Grade</th><th>Tamanhos/cores</th><th>Peças</th><th>Preço</th></tr>
+          ${r.produtos.map(p => `<tr style="${p.jaExiste ? 'opacity:.5' : ''}"><td>${esc(p.nome)}${p.jaExiste ? ' <span class="tag cinza">já existe</span>' : ''}</td><td>${esc(p.categoria || '—')}</td><td>${p.genero ? GENERO_LABEL[p.genero] : '—'}</td><td>${esc(p.grade || '—')}</td>
             <td>${p.variacoes}</td><td>${p.pecas}</td><td>${p.precos.map(fmt).join(' / ')}</td></tr>`).join('')}</table></div>
         <div class="modal-dica" style="margin:0">Vão entrar <b>${r.totais.produtos} produto${r.totais.produtos === 1 ? '' : 's'}</b>, ${r.totais.variacoes} tamanhos/cores e <b>${r.totais.pecas} peças</b>.</div>`;
       btnImp.style.display = !r.problemas.length && r.totais.produtos ? '' : 'none';

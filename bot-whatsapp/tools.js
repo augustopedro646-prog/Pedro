@@ -21,12 +21,13 @@ const brl = (v) => 'R$ ' + Number(v || 0).toFixed(2).replace('.', ',');
 const definicoes = [
   {
     name: 'buscar_produtos',
-    description: 'Busca peças na vitrine da loja (só o que está à venda e com estoque). Devolve cada produto com id, categoria, descrição, se tem foto, e as variações (id, tamanho, cor, preço e quantas peças há — até 10). Use SEMPRE antes de falar de preço, tamanho, cor ou disponibilidade. Sem termo, lista a vitrine inteira.',
+    description: 'Busca peças na vitrine da loja (só o que está à venda e com estoque). Devolve cada produto com id, categoria, gênero (feminino/masculino/unissex), descrição, se tem foto, e as variações (id, tamanho, cor, preço e quantas peças há — até 10). Use SEMPRE antes de falar de preço, tamanho, cor ou disponibilidade. Sem termo, lista a vitrine inteira.',
     input_schema: {
       type: 'object',
       properties: {
         termo: { type: 'string', description: 'palavras da busca (ex.: "vestido", "conjunto menino", "body rosa"). Opcional.' },
         tamanho: { type: 'string', description: 'filtrar por tamanho (ex.: "4", "M", "RN"). Opcional.' },
+        genero: { type: 'string', enum: ['feminino', 'masculino'], description: 'menina = feminino, menino = masculino. Peças unissex entram nos dois. Opcional.' },
       },
     },
   },
@@ -101,20 +102,24 @@ async function catalogo() {
   return r.dados;
 }
 
+// Pra busca por palavra ("conjunto menino") achar pelo gênero cadastrado.
+const PALAVRAS_GENERO = { feminino: 'feminino menina', masculino: 'masculino menino', unissex: 'unissex menina menino feminino masculino' };
+
 const execucoes = {
-  async buscar_produtos({ termo, tamanho }) {
+  async buscar_produtos({ termo, tamanho, genero }) {
     const { produtos } = await catalogo();
     const palavras = normalizar(termo).split(' ').filter((p) => p.length > 1);
     let lista = produtos.filter((p) => {
-      const texto = normalizar([p.nome, p.categoria, p.descricao, ...p.variacoes.map((v) => v.cor)].join(' '));
+      const texto = normalizar([p.nome, p.categoria, p.descricao, PALAVRAS_GENERO[p.genero] || '', ...p.variacoes.map((v) => v.cor)].join(' '));
       return palavras.every((w) => texto.includes(w) || texto.includes(w.replace(/s$/, '')));
     });
+    if (genero === 'feminino' || genero === 'masculino') lista = lista.filter((p) => !p.genero || p.genero === genero || p.genero === 'unissex');
     if (tamanho) lista = lista.filter((p) => p.variacoes.some((v) => normalizar(v.tamanho) === normalizar(tamanho) && v.disponivel > 0));
     if (!lista.length) return { encontrados: 0, dica: 'Nada com esse filtro. Ofereça o que existe (busque sem termo) ou chame um atendente se o cliente procura algo específico.' };
     return {
       encontrados: lista.length,
       produtos: lista.slice(0, 25).map((p) => ({
-        id: p.id, nome: p.nome, categoria: p.categoria, descricao: p.descricao || undefined, temFoto: p.fotos.length > 0,
+        id: p.id, nome: p.nome, categoria: p.categoria, genero: p.genero || undefined, descricao: p.descricao || undefined, temFoto: p.fotos.length > 0,
         variacoes: p.variacoes.filter((v) => v.disponivel > 0).map((v) => ({ variacaoId: v.id, tamanho: v.tamanho, cor: v.cor, preco: v.preco, disponivel: v.disponivel,
           ...(v.precoCheio ? { emPromocao: v.promocao, precoSemPromocao: v.precoCheio, promocaoAte: v.promocaoAte } : {}) })),
       })),

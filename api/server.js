@@ -393,7 +393,7 @@ app.put('/api/lojas/:lojaId/grades-tamanho/:id', admin, rota(async (req, res) =>
 
 app.get('/api/lojas/:lojaId/produtos', qualquer, rota(async (req, res) => {
   const { rows: produtos } = await pool.query(
-    `SELECT p.id, p.nome, p.categoria, p.descricao, p.ncm, p.foto_url, p.ativo, p.publicado,
+    `SELECT p.id, p.nome, p.categoria, p.genero, p.descricao, p.ncm, p.foto_url, p.ativo, p.publicado,
             g.id AS grade_id, g.nome AS grade_nome, g.tamanhos AS grade_tamanhos
      FROM produtos p LEFT JOIN grades_tamanho g ON g.id = p.grade_tamanho_id
      WHERE p.loja_id = $1 ORDER BY p.nome`,
@@ -426,6 +426,17 @@ app.get('/api/lojas/:lojaId/produtos', qualquer, rota(async (req, res) => {
     fotos: fotosPorProduto[p.id] || [],
   })));
 }));
+
+// Gênero da peça: feminino / masculino / unissex. Aceita também menina/menino, F/M/U (planilha).
+// undefined = não mexer; '' ou null = sem gênero.
+const GENEROS = { feminino: 'feminino', f: 'feminino', menina: 'feminino', fem: 'feminino', masculino: 'masculino', m: 'masculino', menino: 'masculino', masc: 'masculino', unissex: 'unissex', u: 'unissex', unisex: 'unissex' };
+function generoDe(v) {
+  if (v === undefined) return undefined;
+  if (v === null || String(v).trim() === '') return null;
+  const g = GENEROS[String(v).normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase()];
+  if (!g) falha(400, 'Gênero inválido (use Feminino, Masculino ou Unissex)');
+  return g;
+}
 
 // Valida os dados de uma variação (tamanho × cor) vindos do painel.
 function dadosVariacao(body) {
@@ -466,6 +477,7 @@ async function inserirVariacao(c, lojaId, produtoId, d, usuarioId) {
 app.post('/api/lojas/:lojaId/produtos', admin, rota(async (req, res) => {
   const body = req.body || {};
   const nome = texto(body.nome, 'nome do produto');
+  const genero = generoDe(body.genero) || null;
   const variacoes = Array.isArray(body.variacoes) ? body.variacoes : [];
   if (variacoes.length > 300) falha(400, 'Grade grande demais (máximo 300 tamanhos/cores)');
   const dados = variacoes.map(dadosVariacao);
@@ -475,10 +487,10 @@ app.post('/api/lojas/:lojaId/produtos', admin, rota(async (req, res) => {
     const r = await transacao(async (c) => {
       const id = uid();
       await c.query(
-        `INSERT INTO produtos (id, loja_id, nome, categoria, descricao, grade_tamanho_id, ncm) VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+        `INSERT INTO produtos (id, loja_id, nome, categoria, descricao, grade_tamanho_id, ncm, genero) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
         [id, req.lojaId, nome, texto(body.categoria, 'categoria', { obrigatorio: false, max: 60 }),
           texto(body.descricao, 'descricao', { obrigatorio: false, max: 500 }), body.gradeTamanhoId || null,
-          soDigitos(body.ncm)]
+          soDigitos(body.ncm), genero]
       );
       const criadas = [];
       for (const d of dados) criadas.push(await inserirVariacao(c, req.lojaId, id, d, req.usuario.id));
@@ -495,13 +507,14 @@ app.put('/api/lojas/:lojaId/produtos/:id', admin, rota(async (req, res) => {
   const body = req.body || {};
   const { rowCount } = await pool.query(
     `UPDATE produtos SET nome = COALESCE($1, nome), categoria = COALESCE($2, categoria),
-       descricao = COALESCE($3, descricao), ncm = COALESCE($4, ncm), ativo = COALESCE($5, ativo), publicado = COALESCE($8, publicado)
+       descricao = COALESCE($3, descricao), ncm = COALESCE($4, ncm), ativo = COALESCE($5, ativo), publicado = COALESCE($8, publicado),
+       genero = CASE WHEN $9 THEN $10 ELSE genero END
      WHERE id = $6 AND loja_id = $7`,
     [body.nome != null ? texto(body.nome, 'nome do produto') : null,
       texto(body.categoria, 'categoria', { obrigatorio: false, max: 60 }),
       body.descricao != null ? (texto(body.descricao, 'descricao', { obrigatorio: false, max: 1000 }) || '') : null,
       soDigitos(body.ncm), typeof body.ativo === 'boolean' ? body.ativo : null, req.params.id, req.lojaId,
-      typeof body.publicado === 'boolean' ? body.publicado : null]
+      typeof body.publicado === 'boolean' ? body.publicado : null, body.genero !== undefined, generoDe(body.genero) || null]
   );
   if (!rowCount) falha(404, 'produto não encontrado');
   res.json({ ok: true });
@@ -1729,7 +1742,7 @@ app.post('/api/lojas/:lojaId/vendas/:id/nfce', qualquer, rota(async (req, res) =
 // em branco repetem os de cima). Produto que já existe no sistema (mesmo nome) é pulado, então
 // importar o mesmo arquivo duas vezes não duplica nada.
 const COLS_IMPORT = [
-  ['produto', 'Produto', 34], ['categoria', 'Categoria', 16], ['grade', 'Grade', 12], ['tamanho', 'Tamanho', 10], ['cor', 'Cor', 14],
+  ['produto', 'Produto', 34], ['categoria', 'Categoria', 16], ['genero', 'Gênero', 12], ['grade', 'Grade', 12], ['tamanho', 'Tamanho', 10], ['cor', 'Cor', 14],
   ['quantidade', 'Quantidade', 11], ['preco', 'Preço de venda', 14], ['custo', 'Custo', 11], ['codigo', 'Código de barras (opcional)', 22],
   ['ncm', 'NCM (opcional)', 14], ['descricao', 'Descrição (opcional)', 30],
 ];
@@ -1760,17 +1773,18 @@ app.get('/api/lojas/:lojaId/produtos/planilha-modelo', admin, rota(async (req, r
   aba.getRow(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFE3D6' } };
   ['codigo', 'ncm', 'tamanho'].forEach((k) => { aba.getColumn(k).numFmt = '@'; });
   if (grades.length) {
-    for (let r = 2; r <= 1000; r++) aba.getCell('C' + r).dataValidation = { type: 'list', allowBlank: true, formulae: ['"' + grades.map((g) => g.nome).join(',') + '"'] };
+    for (let r = 2; r <= 1000; r++) aba.getCell('D' + r).dataValidation = { type: 'list', allowBlank: true, formulae: ['"' + grades.map((g) => g.nome).join(',') + '"'] };
   }
+  for (let r = 2; r <= 1000; r++) aba.getCell('C' + r).dataValidation = { type: 'list', allowBlank: true, formulae: ['"Feminino,Masculino,Unissex"'] };
   const ex = livro.addWorksheet('Exemplo');
   ex.columns = COLS_IMPORT.map(([key, header, width]) => ({ key, header, width }));
   ex.getRow(1).font = { bold: true };
   [
-    { produto: 'Body Ursinho Manga Longa', categoria: 'Bodies', grade: 'Bebê', tamanho: '0-3M', cor: 'Branco', quantidade: 3, preco: 39.9, custo: 18 },
+    { produto: 'Body Ursinho Manga Longa', categoria: 'Bodies', genero: 'Unissex', grade: 'Bebê', tamanho: '0-3M', cor: 'Branco', quantidade: 3, preco: 39.9, custo: 18 },
     { tamanho: '3-6M', cor: 'Branco', quantidade: 2 },
     { tamanho: '0-3M', cor: 'Azul', quantidade: 2 },
     { tamanho: '3-6M', cor: 'Azul', quantidade: 1 },
-    { produto: 'Vestido Floral Alcinha', categoria: 'Vestidos', grade: 'Infantil', tamanho: '2', cor: '', quantidade: 2, preco: 89.9, custo: 40, descricao: 'Viscose, forrado' },
+    { produto: 'Vestido Floral Alcinha', categoria: 'Vestidos', genero: 'Feminino', grade: 'Infantil', tamanho: '2', cor: '', quantidade: 2, preco: 89.9, custo: 40, descricao: 'Viscose, forrado' },
     { tamanho: '4', quantidade: 3 },
     { tamanho: '6', quantidade: 1, preco: 94.9 },
   ].forEach((r) => ex.addRow(r));
@@ -1779,6 +1793,7 @@ app.get('/api/lojas/:lojaId/produtos/planilha-modelo', admin, rota(async (req, r
   ['Cadastro de produtos da Loja Gutto por planilha', '',
     'Preencha a aba "Produtos": UMA LINHA PARA CADA TAMANHO/COR (veja a aba "Exemplo").',
     '• Produto: nome sem tamanho e sem cor. Deixe EM BRANCO nas linhas de baixo do mesmo produto.',
+    '• Gênero: Feminino, Masculino ou Unissex (opcional; só na 1ª linha do produto).',
     '• Tamanho: obrigatório (ex.: 0-3M, 2, 4, P, M). Cor: deixe em branco se a peça só tem uma cor.',
     '• Quantidade: quantas peças tem agora na loja (pode ser 0).',
     '• Preço de venda: obrigatório na 1ª linha do produto; em branco nas de baixo = mesmo preço.',
@@ -1844,6 +1859,7 @@ app.post('/api/lojas/:lojaId/produtos/importar-planilha', admin, express.json({ 
           atual.grade = gradePorNome.get(semAcentoMin(atual.gradeNome)) || null;
           if (!atual.grade) problemas.push({ linha: n, produto: atual.nome, motivo: 'grade "' + atual.gradeNome + '" não existe (deixe em branco ou crie a grade antes)' });
         }
+        try { atual.genero = generoDe(txt('genero')) || null; } catch (e) { atual.genero = null; problemas.push({ linha: n, produto: atual.nome, motivo: 'gênero "' + txt('genero') + '" não existe (use Feminino, Masculino ou Unissex)' }); }
         if (atual.ncm && atual.ncm.length === 7) atual.ncm = '0' + atual.ncm;
         if (atual.ncm && atual.ncm.length !== 8) problemas.push({ linha: n, produto: atual.nome, motivo: 'NCM precisa ter 8 números' });
         produtos.set(chave, atual);
@@ -1880,7 +1896,7 @@ app.post('/api/lojas/:lojaId/produtos/importar-planilha', admin, express.json({ 
   lista.filter((p) => !p.jaExiste && !p.variacoes.length).forEach((p) => problemas.push({ linha: p.linha, produto: p.nome, motivo: 'produto sem nenhum tamanho válido' }));
   const novos = lista.filter((p) => !p.jaExiste && p.variacoes.length);
   const resumo = {
-    produtos: lista.map((p) => ({ nome: p.nome, categoria: p.categoria, grade: p.grade ? p.grade.nome : null, variacoes: p.variacoes.length,
+    produtos: lista.map((p) => ({ nome: p.nome, categoria: p.categoria, genero: p.genero, grade: p.grade ? p.grade.nome : null, variacoes: p.variacoes.length,
       pecas: p.variacoes.reduce((t, v) => t + v.qtd, 0), jaExiste: p.jaExiste,
       precos: [...new Set(p.variacoes.map((v) => v.preco))] })),
     totais: { produtos: novos.length, variacoes: novos.reduce((t, p) => t + p.variacoes.length, 0), pecas: novos.reduce((t, p) => t + p.variacoes.reduce((s, v) => s + v.qtd, 0), 0) },
@@ -1893,8 +1909,8 @@ app.post('/api/lojas/:lojaId/produtos/importar-planilha', admin, express.json({ 
     const ids = [];
     for (const p of novos) {
       const id = uid();
-      await c.query('INSERT INTO produtos (id, loja_id, nome, categoria, descricao, grade_tamanho_id, ncm) VALUES ($1,$2,$3,$4,$5,$6,$7)',
-        [id, req.lojaId, p.nome, p.categoria, p.descricao, p.grade ? p.grade.id : null, p.ncm]);
+      await c.query('INSERT INTO produtos (id, loja_id, nome, categoria, descricao, grade_tamanho_id, ncm, genero) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)',
+        [id, req.lojaId, p.nome, p.categoria, p.descricao, p.grade ? p.grade.id : null, p.ncm, p.genero]);
       for (const v of p.variacoes) {
         await inserirVariacao(c, req.lojaId, id, { tamanho: v.tamanho, cor: v.cor, preco: v.preco, custo: v.custo, minimo: 0, inicial: v.qtd, codigo: v.codigo, sku: null }, req.usuario.id);
       }
@@ -2881,7 +2897,7 @@ app.get('/api/lojas/:lojaId/loja/catalogo', rota(async (req, res) => {
   const { _envio, ...config } = await configSite(pool, req.lojaId);
   if (!config.ativo) return res.json({ config, produtos: [] });
   const { rows: produtos } = await pool.query(
-    `SELECT p.id, p.nome, p.categoria, p.descricao, g.tamanhos AS grade_tamanhos
+    `SELECT p.id, p.nome, p.categoria, p.genero, p.descricao, g.tamanhos AS grade_tamanhos
      FROM produtos p LEFT JOIN grades_tamanho g ON g.id = p.grade_tamanho_id
      WHERE p.loja_id = $1 AND p.ativo AND p.publicado ORDER BY p.criado_em DESC`, [req.lojaId]);
   const { rows: variacoes } = await pool.query(
@@ -2904,7 +2920,7 @@ app.get('/api/lojas/:lojaId/loja/catalogo', rota(async (req, res) => {
       const vs = porProduto[p.id] || [];
       const ordem = p.grade_tamanhos || [];
       vs.sort((a, b) => ((ordem.indexOf(a.tamanho) + 1 || 999) - (ordem.indexOf(b.tamanho) + 1 || 999)) || a.cor.localeCompare(b.cor));
-      return { id: p.id, nome: p.nome, categoria: p.categoria || '', descricao: p.descricao || '', fotos: fotos[p.id] || [], variacoes: vs };
+      return { id: p.id, nome: p.nome, categoria: p.categoria || '', genero: p.genero || '', descricao: p.descricao || '', fotos: fotos[p.id] || [], variacoes: vs };
     }).filter((p) => p.variacoes.some((v) => v.disponivel > 0)),
   });
 }));
