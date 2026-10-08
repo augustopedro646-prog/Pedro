@@ -479,6 +479,14 @@
       </div>
     </div>
 
+    <div class="view page" id="view-vendas">
+      <div class="page-topo"><div><h1 class="titulo">Vendas</h1><p class="sub">Toque numa venda pra ver as peças, reimprimir o cupom, fazer troca ou cancelar</p></div>
+        <input id="vendas-busca" class="input-busca" type="search" autocomplete="off" placeholder="Buscar: cliente, nº da venda, vendedora" style="max-width:300px"></div>
+      <div class="chips" id="vendas-periodos" style="margin-bottom:14px"></div>
+      <div id="vendas-resumo"></div>
+      <div class="painel" style="margin-top:16px"><div id="vendas-lista"></div></div>
+    </div>
+
     <div class="view page" id="view-trocas">
       <div class="page-topo"><div><h1 class="titulo">Trocas e devoluções</h1><p class="sub">Bipe o cupom: as peças voltam pro estoque e o valor vira crédito. Na troca, o crédito abate da compra nova — passou, paga a diferença; sobrou, fica no cadastro do cliente.</p></div>
         <button class="btn-secundario" id="btn-trocas-lista">Procurar venda sem cupom</button></div>
@@ -673,6 +681,7 @@
   const NAV = [
     { id: 'inicio', label: 'Início', icon: 'home', papeis: ['administrador', 'caixa'] },
     { id: 'venda', label: 'Venda rápida', icon: 'cart', papeis: ['administrador', 'caixa'] },
+    { id: 'vendas', label: 'Vendas', icon: 'register', papeis: ['administrador', 'caixa'] },
     { id: 'trocas', label: 'Trocas', icon: 'swap', papeis: ['administrador', 'caixa'] },
     { id: 'online', label: 'Pedidos online', icon: 'bag', papeis: ['administrador', 'caixa'] },
     { id: 'clientes', label: 'Clientes', icon: 'person', papeis: ['administrador', 'caixa'] },
@@ -789,7 +798,7 @@
     loginStep: 'cargo', loginCargo: null, loginPessoaId: null, loginPin: '', loginErro: false,
     view: 'inicio',
     cart: [], cliente: null, pagamentos: [], modalProdutoId: null, vendaBusca: '',
-    trocaAtual: null, trocaEmCurso: null, trocasHistorico: null,
+    trocaAtual: null, trocaEmCurso: null, trocasHistorico: null, vendasLista: null, vendasPeriodo: 'hoje', vendasBusca: '',
     estoqueSelecionadoId: null, busca: '', filtroCategoria: null, filtroGenero: null,
     vendasHoje: null, pontos: null, clientes: null, clientesBusca: '', compras: null,
     fluxo: null, mesFluxo: hojeLocal().slice(0, 7), equipe: null, caixaSessoes: null,
@@ -891,6 +900,8 @@
         if (ehAdmin()) api('/mensagens-clientes/resumo').then(r => { state.msgs.resumo = r; if (state.view === 'inicio') renderAvisoMensagens(); }).catch(() => {});
         carregarResumoCondicionais();
         carregarResumoCrediario();
+      } else if (view === 'vendas') {
+        await carregarVendasLista();
       } else if (view === 'trocas') {
         const [hist] = await Promise.all([api('/devolucoes?dias=30'), carregarProdutos(), carregarConfig()]);
         state.trocasHistorico = hist;
@@ -1019,7 +1030,7 @@
     if (state.view !== 'ponto') desligarCameraPonto();
     if (state.view !== 'whatsapp') { clearInterval(timerWhats); timerWhats = null; }
 
-    const renders = { inicio: renderInicio, venda: renderVenda, trocas: renderTrocas, clientes: renderClientes, estoque: renderEstoque,
+    const renders = { inicio: renderInicio, venda: renderVenda, vendas: renderVendas, trocas: renderTrocas, clientes: renderClientes, estoque: renderEstoque,
       compras: renderCompras, fluxo: renderFluxo, equipe: renderEquipe, configuracoes: renderConfiguracoes, ponto: renderPonto, calendario: renderCalendario, online: renderOnline, whatsapp: renderWhatsApp, relatorios: renderRelatorios };
     (renders[state.view] || renderInicio)();
   }
@@ -1045,7 +1056,7 @@
     // Dados da pessoa que saiu não ficam pra quem entrar depois (ex.: Caixa veria o ponto de todos).
     Object.assign(state, { logado: null, token: null, loginStep: 'cargo', loginCargo: null, loginPessoaId: null, loginPin: '',
       cart: [], cliente: null, pagamentos: [], view: 'inicio',
-      trocaAtual: null, trocaEmCurso: null, trocasHistorico: null, vendasHoje: null, pontos: null, clientes: null, compras: null,
+      trocaAtual: null, trocaEmCurso: null, trocasHistorico: null, vendasLista: null, vendasHoje: null, pontos: null, clientes: null, compras: null,
       fluxo: null, equipe: null, caixaSessoes: null, calAgenda: null, calPontos: [], calAniversarios: [], pedidosOnline: null,
       wa: { status: null, conversas: null, sel: null, detalhe: null, erro: null }, msgs: { ver: 'revisar', dados: null, resumo: null },
       backup: null, condicional: null, condicionaisResumo: null, crediario: null, crediarioResumo: null, listaPresente: null,
@@ -1715,6 +1726,7 @@
         <div style="display:flex;gap:8px"><button class="btn-secundario" id="btn-cupom" style="flex:1">🖨 Imprimir cupom</button><button class="btn-secundario" id="btn-cupom-troca" style="flex:1" title="Sem preços — pra ir junto com presente">🎁 Cupom de troca</button></div>
         <button class="btn-primario btn-grande" id="btn-nova-venda">Nova venda</button>
         <label style="font-size:12px;color:var(--text-2);display:flex;gap:6px;align-items:center;justify-content:center"><input type="checkbox" id="cupom-auto" ${cfg.auto ? 'checked' : ''}> Imprimir cupom automaticamente em toda venda (neste computador)</label>
+        <label style="font-size:12px;color:var(--text-2);display:flex;gap:6px;align-items:center;justify-content:center"><input type="checkbox" id="cupom-com-troca" ${cfg.troca ? 'checked' : ''}> Cupom de troca (sem preços) sai junto, embaixo do cupom</label>
       </div>`, () => document.getElementById('venda-busca').focus());
     const b = document.getElementById('btn-nova-venda');
     b.focus();
@@ -1722,6 +1734,7 @@
     document.getElementById('btn-cupom').onclick = () => imprimirCupom(cupom);
     document.getElementById('btn-cupom-troca').onclick = () => imprimirCupomTroca(cupom);
     document.getElementById('cupom-auto').onchange = (e) => salvarConfigCupom(Object.assign(configCupom(), { auto: e.target.checked }));
+    document.getElementById('cupom-com-troca').onchange = (e) => salvarConfigCupom(Object.assign(configCupom(), { troca: e.target.checked }));
     if (cfg.auto) imprimirCupom(cupom);
     if (venda.crediario) document.getElementById('btn-carne').onclick = () => imprimirCarne(venda, venda.crediario, venda.clienteNome);
     if (fiscalPronto()) areaNfce(document.getElementById('nfce-area'), venda.id, venda.clienteCpf, null, state.config.fiscal.automatica);
@@ -1799,16 +1812,17 @@
     if (auto) emitir(null); else desenhar(nota);
   }
   async function abrirNfceDaVenda(vendaId, todas) {
+    const voltar = typeof todas === 'function' ? todas : () => abrirTroca(todas);
     let v;
     try { v = await api('/vendas/' + vendaId); } catch (e) { toast(e.message, 'erro'); return; }
     const camada = abrirModal(`<div class="modal-card estreito" style="text-align:center">${cabecalhoModal('Nota fiscal (NFC-e)', dataHora(v.criado_em) + ' · ' + fmt(v.total) + (v.cliente_nome ? ' · ' + v.cliente_nome : ''))}
       <div id="nfce-venda"></div><button class="btn-secundario" id="nfce-voltar">Voltar pra lista</button></div>`);
     areaNfce(camada.querySelector('#nfce-venda'), v.id, '', v.nfce, false);
-    camada.querySelector('#nfce-voltar').onclick = () => abrirTroca(todas);
+    camada.querySelector('#nfce-voltar').onclick = () => voltar();
   }
 
   /* ---------- Cupom (não fiscal) na impressora térmica ---------- */
-  function configCupom() { try { return Object.assign({ largura: 80, auto: false }, JSON.parse(localStorage.getItem('gutto-cupom') || '{}')); } catch (e) { return { largura: 80, auto: false }; } }
+  function configCupom() { try { return Object.assign({ largura: 80, auto: false, troca: true }, JSON.parse(localStorage.getItem('gutto-cupom') || '{}')); } catch (e) { return { largura: 80, auto: false, troca: true }; } }
   function salvarConfigCupom(c) { try { localStorage.setItem('gutto-cupom', JSON.stringify(c)); } catch (e) {} }
   function numeroVenda(id) { return String(id || '').slice(-6).toUpperCase(); }
   // Formato único do cupom, venha da venda que acabou de acontecer ou da reimpressão.
@@ -1863,7 +1877,19 @@
       <hr><div class="c p">Obrigado pela preferência!</div>
     </body></html>`;
   }
-  function imprimirCupom(v) { imprimirDocumento(documentoCupom(v, configCupom().largura), configCupom().largura); }
+  // Com `comTroca` (padrão: o que está marcado neste computador), o cupom de troca sai logo abaixo,
+  // na mesma impressão, separado por uma linha de corte — um papel só pra a vendedora destacar.
+  function imprimirCupom(v, opcoes) {
+    const cfg = configCupom();
+    const comTroca = (opcoes && opcoes.comTroca != null ? opcoes.comTroca : cfg.troca) && v.codigoTroca && !v.cancelada;
+    let html = documentoCupom(v, cfg.largura);
+    if (comTroca) {
+      const corpo = (doc) => doc.slice(doc.indexOf('<body>') + 6, doc.lastIndexOf('</body>'));
+      html = html.slice(0, html.lastIndexOf('</body>')) + '<div class="c p" style="margin:5mm 0 4mm;letter-spacing:1px">✂ - - - - - - - - - - - - - - - - - - - -</div>'
+        + corpo(documentoCupomTroca(v, cfg.largura)) + '</body></html>';
+    }
+    imprimirDocumento(html, cfg.largura);
+  }
   // Código de barras da troca no cupom: sempre Code 128 (12 números, começando com 98). Cada barra
   // fina com 3 pontos da térmica (0,375 mm) no rolo de 58 mm e 4 pontos (0,5 mm) no de 80 mm.
   function ehCodigoCupom(c) { return /^98\d{10}$/.test(String(c || '').trim()); }
@@ -2433,12 +2459,14 @@
         try { imprimirCupomTroca(cupomDaVendaSalva(await api('/vendas/' + b.dataset.cupomTroca))); } catch (e) { toast(e.message, 'erro'); }
       }));
       corpo.querySelectorAll('[data-cupom]').forEach(b => b.addEventListener('click', async () => {
-        try { imprimirCupom(cupomDaVendaSalva(await api('/vendas/' + b.dataset.cupom))); } catch (e) { toast(e.message, 'erro'); }
+        try { imprimirCupom(cupomDaVendaSalva(await api('/vendas/' + b.dataset.cupom)), { comTroca: false }); } catch (e) { toast(e.message, 'erro'); }
       }));
     } catch (e) { toast(e.message, 'erro'); }
   }
 
+  // `todas`: volta pra lista de Vendas/troca (hoje/todas) ou, se for função, chama ela pra voltar.
   function abrirCancelarVenda(v, todas) {
+    const voltar = typeof todas === 'function' ? todas : () => abrirTroca(todas);
     const camada = abrirModal(`<div class="modal-card estreito">${cabecalhoModal('Cancelar venda de ' + fmt(v.total), dataHora(v.criado_em) + (v.cliente_nome ? ' · ' + v.cliente_nome : '') + ' · ' + v.forma_pagamento)}
       <div class="modal-dica" style="margin:0">As peças voltam pro estoque. Cashback/vale-troca que o cliente usou volta pra ele, e o cashback que ganhou nessa compra sai.
         Dinheiro: devolva da gaveta (se a venda for de um caixa já fechado, vira uma saída no caixa de hoje). Cartão/Pix: faça o estorno na maquininha/banco.</div>
@@ -2446,7 +2474,7 @@
       <div class="erro-modal" id="cv-erro"></div>
       <div class="modal-acoes"><button class="btn-secundario" id="cv-voltar">Voltar</button><button class="btn-perigo btn-grande" id="cv-ok">Cancelar venda</button></div></div>`);
     camada.querySelector('#cv-motivo').focus();
-    camada.querySelector('#cv-voltar').onclick = () => abrirTroca(todas);
+    camada.querySelector('#cv-voltar').onclick = () => voltar();
     camada.querySelector('#cv-ok').onclick = (ev) => comBotao(ev.target, 'Cancelando...', async () => {
       const motivo = camada.querySelector('#cv-motivo').value.trim();
       if (!motivo) throw new Error('Escreva o motivo do cancelamento.');
@@ -2462,8 +2490,95 @@
         ${r.nfce ? (r.nfce.cancelada ? `<div class="nfce-box ok">NFC-e nº ${esc(r.nfce.numero)} cancelada na SEFAZ.</div>`
           : `<div class="nfce-box erro"><div><b>A NFC-e não foi cancelada:</b> ${esc(r.nfce.erro || '')}</div><div style="font-size:12px">A venda foi cancelada no sistema. Passe essa nota pra contadora resolver (depois do prazo, a correção é feita por nota de devolução).</div></div>`) : ''}
         <button class="btn-primario" id="cv-fim">Ok</button></div>`);
-      document.getElementById('cv-fim').onclick = () => abrirTroca(todas);
+      document.getElementById('cv-fim').onclick = () => voltar();
     }, camada.querySelector('#cv-erro'));
+  }
+
+  /* ================= Vendas ================= */
+  // Lista das vendas por período, com resumo no topo. Tocar numa venda abre o detalhe: peças,
+  // pagamento, reimprimir cupom / cupom de troca, troca e (Administrador) cancelar.
+  const PERIODOS_VENDAS = [['hoje', 'Hoje'], ['ontem', 'Ontem'], ['7dias', '7 dias'], ['mes', 'Este mês'], ['30dias', '30 dias']];
+  function somarDias(iso, n) { const d = new Date(iso + 'T12:00:00Z'); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); }
+  function intervaloVendas(p) {
+    const h = hojeLocal();
+    if (p === 'ontem') return [somarDias(h, -1), somarDias(h, -1)];
+    if (p === '7dias') return [somarDias(h, -6), h];
+    if (p === '30dias') return [somarDias(h, -29), h];
+    if (p === 'mes') return [h.slice(0, 8) + '01', h];
+    return [h, h];
+  }
+  async function carregarVendasLista() {
+    const [de, ate] = intervaloVendas(state.vendasPeriodo);
+    const periodo = state.vendasPeriodo;
+    const lista = await api('/vendas?de=' + de + '&ate=' + ate);
+    if (state.vendasPeriodo === periodo) { state.vendasLista = lista; if (state.view === 'vendas') renderVendas(); }
+  }
+  function renderVendas() {
+    document.getElementById('vendas-periodos').innerHTML = PERIODOS_VENDAS.map(([id, r]) => `<button class="chip ${state.vendasPeriodo === id ? 'ativo' : ''}" data-vper="${id}">${r}</button>`).join('');
+    document.querySelectorAll('[data-vper]').forEach(b => b.onclick = () => { setState({ vendasPeriodo: b.dataset.vper, vendasLista: null }); carregarVendasLista().catch(e => toast(e.message, 'erro')); });
+    const lista = state.vendasLista;
+    const resumoEl = document.getElementById('vendas-resumo'), el = document.getElementById('vendas-lista');
+    if (!lista) { resumoEl.innerHTML = ''; el.innerHTML = '<div class="carregando">Carregando vendas...</div>'; return; }
+    const termo = state.vendasBusca.trim().toLowerCase();
+    const vis = lista.filter(v => !termo || (v.cliente_nome || '').toLowerCase().includes(termo) || numeroVenda(v.id).toLowerCase().includes(termo)
+      || (v.usuario_nome || '').toLowerCase().includes(termo) || String(v.codigo_troca || '') === termo);
+    const validas = lista.filter(v => !v.cancelada);
+    const total = round2(validas.reduce((t, v) => t + Number(v.total), 0));
+    const pecas = validas.reduce((t, v) => t + Number(v.qtd_itens), 0);
+    const devolvido = round2(validas.reduce((t, v) => t + Number(v.valor_devolvido || 0), 0));
+    const porForma = {};
+    validas.forEach(v => (v.pagamentos || []).forEach(p => { porForma[p.forma] = round2((porForma[p.forma] || 0) + Number(p.valor)); }));
+    const canceladas = lista.length - validas.length;
+    resumoEl.innerHTML = `<div class="stats-row">
+        <div class="stat-card"><div class="stat-label">Vendas</div><div class="stat-valor">${validas.length}</div>${canceladas ? `<div class="stat-label">+ ${canceladas} cancelada${canceladas === 1 ? '' : 's'}</div>` : ''}</div>
+        <div class="stat-card"><div class="stat-label">Total vendido</div><div class="stat-valor" style="color:var(--accent)">${fmt(total)}</div>${devolvido ? `<div class="stat-label">${fmt(devolvido)} voltou em troca</div>` : ''}</div>
+        <div class="stat-card"><div class="stat-label">Peças</div><div class="stat-valor">${pecas}</div></div>
+        <div class="stat-card"><div class="stat-label">Ticket médio</div><div class="stat-valor">${fmt(validas.length ? total / validas.length : 0)}</div></div>
+      </div>
+      ${Object.keys(porForma).length ? `<div class="chips" style="margin-top:10px">${Object.keys(porForma).sort((a, b) => porForma[b] - porForma[a]).map(f => `<span class="tag cinza" style="font-size:12px">${esc(f)} ${fmt(porForma[f])}</span>`).join('')}</div>` : ''}`;
+    const varios = state.vendasPeriodo !== 'hoje' && state.vendasPeriodo !== 'ontem';
+    el.innerHTML = vis.length ? `<div class="tabela-scroll"><table class="tabela"><tr><th>${varios ? 'Quando' : 'Hora'}</th><th>Nº</th><th>Cliente</th><th>Vendedor(a)</th><th>Peças</th><th>Pagamento</th><th style="text-align:right">Total</th></tr>
+      ${vis.map(v => `<tr class="linha-venda" data-venda-id="${v.id}" style="cursor:pointer;${v.cancelada ? 'opacity:.55' : ''}">
+        <td>${varios ? dataHora(v.criado_em) : new Date(v.criado_em).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: TZ })}</td>
+        <td class="mono">${numeroVenda(v.id)}</td>
+        <td>${esc(v.cliente_nome || '—')}${v.canal === 'online' ? ' <span class="tag cinza">site</span>' : ''}</td><td>${esc(v.usuario_nome || '')}</td><td>${Number(v.qtd_itens)}</td>
+        <td>${esc(v.forma_pagamento)}</td>
+        <td style="text-align:right;white-space:nowrap">${v.cancelada ? '<span class="tag cinza">cancelada</span> <s>' + fmt(v.total) + '</s>' : fmt(v.total)}${v.devolucoes ? ' <span class="tag aviso">troca</span>' : ''}</td></tr>`).join('')}</table></div>`
+      : '<div class="vazio">' + (termo ? 'Nenhuma venda com "' + esc(state.vendasBusca) + '".' : 'Nenhuma venda nesse período.') + '</div>';
+    el.querySelectorAll('[data-venda-id]').forEach(tr => tr.onclick = () => abrirDetalheVenda(tr.dataset.vendaId));
+  }
+
+  async function abrirDetalheVenda(id) {
+    let v;
+    try { v = await api('/vendas/' + id); } catch (e) { toast(e.message, 'erro'); return; }
+    const voltar = () => { abrirDetalheVenda(id); carregarVendasLista().catch(() => {}); };
+    const unit = (i) => (Number(i.preco_unit) * Number(i.qtd) - Number(i.desconto_item)) / Number(i.qtd);
+    const camada = abrirModal(`<div class="modal-card largo">
+      ${cabecalhoModal('Venda ' + numeroVenda(v.id), dataHora(v.criado_em) + ' · ' + (v.usuario_nome || '') + (v.cliente_nome ? ' · cliente ' + v.cliente_nome : '') + (v.canal === 'online' ? ' · site' : ''))}
+      ${v.cancelada ? `<div class="aviso-caixa" style="display:block">Venda cancelada${v.motivo_cancelamento ? ': ' + esc(v.motivo_cancelamento) : ''}</div>` : ''}
+      <div class="tabela-scroll"><table class="tabela"><tr><th>Peça</th><th>Qtd</th><th>Valor un.</th><th style="text-align:right">Total</th></tr>
+        ${v.itens.map(i => `<tr><td>${esc(i.produto_nome)} · ${esc(i.tamanho)}${i.cor ? ' · ' + esc(i.cor) : ''}${Number(i.qtd_devolvida) ? ` <span class="tag aviso">${Number(i.qtd_devolvida)} voltou na troca</span>` : ''}</td>
+          <td>${Number(i.qtd)}</td><td>${fmt(unit(i))}${Number(i.desconto_item) ? ' <span style="font-size:11px;color:var(--text-2)">(com desconto)</span>' : ''}</td><td style="text-align:right">${fmt(unit(i) * Number(i.qtd))}</td></tr>`).join('')}</table></div>
+      ${Number(v.desconto) ? `<div class="linha-total"><span>Descontos</span><span>− ${fmt(v.desconto)}</span></div>` : ''}
+      ${Number(v.taxa_entrega) ? `<div class="linha-total"><span>Entrega</span><span>${fmt(v.taxa_entrega)}</span></div>` : ''}
+      <div class="linha-total grande"><span>Total</span><span>${fmt(v.total)}</span></div>
+      <div style="font-size:13px;color:var(--text-2)">${v.pagamentos.map(p => esc(p.forma) + ' ' + fmt(p.valor)).join(' + ')}${Number(v.troco) ? ' · troco ' + fmt(v.troco) : ''}${Number(v.cashback_gerado) ? ' · cashback gerado ' + fmt(v.cashback_gerado) : ''}</div>
+      ${v.devolucoes.length ? `<div class="modal-dica" style="margin:0">Trocas/devoluções: ${v.devolucoes.map(d => dataHora(d.criado_em) + ' (' + fmt(d.valor_total) + ')').join(', ')}</div>` : ''}
+      <div class="modal-acoes" style="flex-wrap:wrap;justify-content:flex-start">
+        <button class="btn-secundario" id="dv-cupom">🖨 Cupom</button>
+        ${v.cancelada ? '' : `<button class="btn-secundario" id="dv-cupom-troca">🎁 Cupom de troca</button><button class="btn-secundario" id="dv-troca">↩ Fazer troca</button>`}
+        ${!v.cancelada && (fiscalPronto() || v.nfce) ? `<button class="btn-secundario" id="dv-nfce">${v.nfce && v.nfce.status === 'autorizada' ? 'NFC-e ' + esc(v.nfce.numero) : 'NFC-e'}</button>` : ''}
+        ${ehAdmin() && !v.cancelada && !v.devolucoes.length ? `<button class="btn-secundario" id="dv-cancelar" style="color:var(--zero-text);border-color:var(--zero-text)">Cancelar venda</button>` : ''}
+      </div>
+      ${ehAdmin() && !v.cancelada && v.devolucoes.length ? '<div class="modal-dica" style="margin:0">Venda que já teve troca não cancela (a cliente ficou com o vale-troca). Faça a troca/devolução do restante.</div>' : ''}
+    </div>`);
+    const cupom = cupomDaVendaSalva(v);
+    camada.querySelector('#dv-cupom').onclick = () => imprimirCupom(cupom, { comTroca: false });
+    const b = (sel) => camada.querySelector(sel);
+    if (b('#dv-cupom-troca')) b('#dv-cupom-troca').onclick = () => imprimirCupomTroca(cupom);
+    if (b('#dv-troca')) b('#dv-troca').onclick = () => { fecharModal(); carregarTrocaVenda(v.id); };
+    if (b('#dv-nfce')) b('#dv-nfce').onclick = () => abrirNfceDaVenda(v.id, voltar);
+    if (b('#dv-cancelar')) b('#dv-cancelar').onclick = () => abrirCancelarVenda(v, voltar);
   }
 
   /* ================= Trocas e devoluções ================= */
@@ -4713,6 +4828,10 @@
         <label class="campo" style="flex:3">Rodapé do cupom (ex.: política de troca)<input id="cfg-cupom-rodape" maxlength="300" value="${esc(cfg.cupomRodape || '')}" placeholder="Trocas em até 30 dias com a etiqueta e o cupom."></label>
         <label class="campo">Papel (neste computador)<select id="cfg-cupom-largura"><option value="80" ${configCupom().largura == 80 ? 'selected' : ''}>80 mm</option><option value="58" ${configCupom().largura == 58 ? 'selected' : ''}>58 mm</option></select></label>
       </div>
+      <div style="display:flex;flex-direction:column;gap:4px;margin-top:8px;font-size:13px">
+        <label style="display:flex;gap:6px;align-items:center"><input type="checkbox" id="cfg-cupom-auto" ${configCupom().auto ? 'checked' : ''} style="width:auto;min-width:0"> Imprimir o cupom sozinho em toda venda (neste computador)</label>
+        <label style="display:flex;gap:6px;align-items:center"><input type="checkbox" id="cfg-cupom-troca" ${configCupom().troca ? 'checked' : ''} style="width:auto;min-width:0"> Cupom de troca (sem preços, com o código pra troca) sai junto, embaixo do cupom</label>
+      </div>
       <div class="painel-titulo" id="cfg-sec-fiscal" style="margin:18px 0 8px;font-size:14px">Nota fiscal (NFC-e)</div>
       ${htmlConfigFiscal(cfg.fiscal)}
       <div class="painel-titulo" id="cfg-sec-site" style="margin:18px 0 8px;font-size:14px">Site da loja (pedidos online)</div>
@@ -4746,7 +4865,8 @@
       if (!Number.isFinite(cashbackPct) || !Number.isFinite(descontoLivrePct) || !Number.isFinite(comissaoPct)) throw new Error('Valores inválidos');
       const taxa = parseNumBR(document.getElementById('cfg-site-taxa').value || '0');
       if (!Number.isFinite(taxa) || taxa < 0) throw new Error('Taxa de entrega inválida');
-      salvarConfigCupom(Object.assign(configCupom(), { largura: Number(document.getElementById('cfg-cupom-largura').value) }));
+      salvarConfigCupom(Object.assign(configCupom(), { largura: Number(document.getElementById('cfg-cupom-largura').value),
+        auto: document.getElementById('cfg-cupom-auto').checked, troca: document.getElementById('cfg-cupom-troca').checked }));
       const fiscalCorpo = document.getElementById('cfg-cfop') ? { cfop: document.getElementById('cfg-cfop').value, csosn: document.getElementById('cfg-csosn').value,
         origem: document.getElementById('cfg-origem').value, automatica: document.getElementById('cfg-nfce-auto').checked } : undefined;
       const { pagamento, envio } = lerConfigPagamentoEnvio();
@@ -5799,6 +5919,7 @@
   document.getElementById('btn-presente-lista').addEventListener('click', () => escolherListaNoCaixa());
   document.getElementById('btn-limpar-carrinho').addEventListener('click', () => { if (!state.cart.length || confirm('Limpar o carrinho?')) setState({ cart: [], pagamentos: [], cliente: null, condicional: null, listaPresente: null, trocaEmCurso: null }); });
   document.getElementById('btn-trocas-lista').addEventListener('click', () => abrirTroca(true));
+  document.getElementById('vendas-busca').addEventListener('input', (e) => { state.vendasBusca = e.target.value; renderVendas(); });
   document.getElementById('troca-bipar').addEventListener('keydown', (e) => {
     if (e.key !== 'Enter') return;
     e.preventDefault();

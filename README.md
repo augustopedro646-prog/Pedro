@@ -51,9 +51,19 @@ Tudo isso continua editável na aba Configurações.
 site). Fora do prazo, a troca pede o PIN de um Administrador e fica anotada como "fora do prazo,
 autorizada por ...". O prazo do site aparece pro cliente no site, e o robô sabe responder.
 
+## Vendas (aba Vendas)
+
+Lista das vendas de **hoje, ontem, 7 dias, este mês ou 30 dias**, com o resumo no topo (quantas
+vendas, total, peças, ticket médio e quanto entrou em cada forma de pagamento) e busca por
+cliente, nº da venda ou vendedora. Tocar numa venda mostra as peças e o pagamento, e dá pra
+reimprimir o cupom ou o cupom de troca, fazer a troca e (só Administrador) **cancelar** — a venda
+cancelada continua na lista, riscada, com o motivo.
+
 ## Trocas e devoluções (aba Trocas)
 
-Todo cupom de venda sai com um **código de barras de troca** (12 números começando com 98). Na
+Por padrão o **cupom de troca sai junto, no mesmo papel**, embaixo do cupom da venda (com uma
+linha de corte ✂). Dá pra desligar em Configurações → Cupom ou na tela da venda concluída (vale
+por computador). Todo cupom de venda sai com um **código de barras de troca** (12 números começando com 98). Na
 tela de "Venda concluída" tem também o **🎁 Cupom de troca**: mostra as peças e o "Troca até
 dd/mm", **sem os preços**, pra ir junto com presente (reimpressão em Vendas / troca → "cupom de troca").
 

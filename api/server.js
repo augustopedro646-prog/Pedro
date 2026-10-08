@@ -1569,9 +1569,28 @@ app.post('/api/lojas/:lojaId/vendas', qualquer, rota(async (req, res) => {
   res.status(201).json(venda);
 }));
 
-// Lista de vendas. ?periodo=hoje filtra pelo dia na hora local da loja.
+// Lista de vendas. ?periodo=hoje filtra pelo dia na hora local da loja; ?de=AAAA-MM-DD&ate=AAAA-MM-DD
+// pega um intervalo de dias (aba Vendas). Sem nada: as 200 últimas.
 app.get('/api/lojas/:lojaId/vendas', qualquer, rota(async (req, res) => {
   const hoje = req.query.periodo === 'hoje';
+  if (!hoje && (req.query.de || req.query.ate)) {
+    const de = dataISO(req.query.de, 'data inicial'), ate = dataISO(req.query.ate || req.query.de, 'data final');
+    if (ate < de) falha(400, 'A data final é antes da inicial');
+    const { rows } = await pool.query(
+      `SELECT v.id, v.usuario_id, u.nome AS usuario_nome, v.canal, v.subtotal, v.desconto, v.total, v.forma_pagamento, v.codigo_troca,
+              v.cancelada, v.motivo_cancelamento, v.cashback_gerado, v.criado_em, v.cliente_id, c.nome AS cliente_nome, v.pedido_online_id,
+              (SELECT COALESCE(SUM(qtd),0) FROM vendas_itens vi WHERE vi.venda_id = v.id) AS qtd_itens,
+              (SELECT count(*) FROM devolucoes d WHERE d.venda_id = v.id)::int AS devolucoes,
+              (SELECT COALESCE(SUM(d.valor_total),0) FROM devolucoes d WHERE d.venda_id = v.id) AS valor_devolvido,
+              (SELECT json_agg(json_build_object('forma', vp.forma, 'valor', vp.valor)) FROM venda_pagamentos vp WHERE vp.venda_id = v.id) AS pagamentos,
+              nf.status AS nfce_status, nf.url_danfe AS nfce_danfe, nf.numero AS nfce_numero
+       FROM vendas v JOIN usuarios u ON u.id = v.usuario_id LEFT JOIN clientes c ON c.id = v.cliente_id
+       LEFT JOIN notas_fiscais nf ON nf.venda_id = v.id
+       WHERE v.loja_id = $1 AND (v.criado_em AT TIME ZONE $2)::date BETWEEN $3 AND $4
+       ORDER BY v.criado_em DESC LIMIT 2000`,
+      [req.lojaId, TZ, de, ate]);
+    return res.json(rows);
+  }
   const { rows } = await pool.query(
     `SELECT v.id, v.usuario_id, u.nome AS usuario_nome, v.canal, v.subtotal, v.desconto, v.total, v.forma_pagamento,
             v.cancelada, v.motivo_cancelamento, v.cashback_gerado, v.criado_em, v.cliente_id, c.nome AS cliente_nome, v.pedido_online_id,
