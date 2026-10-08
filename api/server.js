@@ -537,6 +537,8 @@ app.post('/api/lojas/:lojaId/produtos/:id/variacoes', admin, rota(async (req, re
 
 app.put('/api/lojas/:lojaId/variacoes/:id', admin, rota(async (req, res) => {
   const body = req.body || {};
+  // Código apagado ("") = gerar um novo do sistema (ex.: código antigo comprido demais pra etiqueta).
+  const codigo = body.codigoBarras === '' ? await gerarCodigoBarras(pool) : soDigitos(body.codigoBarras);
   try {
     const { rowCount } = await pool.query(
       `UPDATE produto_variacoes SET preco_venda = COALESCE($1, preco_venda), estoque_minimo = COALESCE($2, estoque_minimo),
@@ -545,7 +547,7 @@ app.put('/api/lojas/:lojaId/variacoes/:id', admin, rota(async (req, res) => {
       [body.precoVenda != null ? numero(body.precoVenda, 'precoVenda') : null,
         body.estoqueMinimo != null ? numero(body.estoqueMinimo, 'estoqueMinimo') : null,
         typeof body.ativo === 'boolean' ? body.ativo : null,
-        soDigitos(body.codigoBarras), texto(body.sku, 'sku', { obrigatorio: false, max: 40 }),
+        codigo, texto(body.sku, 'sku', { obrigatorio: false, max: 40 }),
         req.params.id, req.lojaId]
     );
     if (!rowCount) falha(404, 'variação não encontrada');
