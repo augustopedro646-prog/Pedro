@@ -3662,7 +3662,9 @@
     f.contentDocument.open(); f.contentDocument.write(html); f.contentDocument.close();
     setTimeout(() => {
       if (larguraRoloMm) {
-        const alturaMm = Math.ceil(f.contentDocument.body.scrollHeight * 25.4 / 96) + 4;
+        // Nunca mais baixa que larga: página "deitada" faz o Windows girar a impressão (cupom curto
+        // como o de troca saía de lado).
+        const alturaMm = Math.max(Math.ceil(f.contentDocument.body.scrollHeight * 25.4 / 96) + 4, larguraRoloMm + 10);
         const st = f.contentDocument.createElement('style');
         st.textContent = '@page { size: ' + larguraRoloMm + 'mm ' + alturaMm + 'mm; margin: 0; }';
         f.contentDocument.head.appendChild(st);
