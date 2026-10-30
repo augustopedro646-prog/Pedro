@@ -3313,10 +3313,11 @@
         linhas.push({ chave: t + '|' + cor, rotulo: 'Tam ' + t + (cor ? ' · ' + cor : ''), qtd });
       }
       const foco = document.activeElement && document.activeElement.dataset ? document.activeElement.dataset.cod : null;
-      el.innerHTML = linhas.length ? `<div class="modal-dica" style="margin:0 0 6px">Clique no primeiro campo e bipe a etiqueta de uma peça de cada tamanho/cor. Pode deixar em branco quem não tem etiqueta.</div>
+      el.innerHTML = linhas.length ? `<div class="modal-dica" style="margin:0 0 6px">Clique no primeiro campo e bipe a etiqueta de uma peça de cada tamanho/cor. <b>Não tem etiqueta?</b> Deixe em branco (ou toque em "sem etiqueta"): o sistema cria o código e no fim você imprime a etiqueta.</div>
         <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:6px">${linhas.map(l => `<label style="display:flex;gap:6px;align-items:center;font-size:12px">
           <span style="min-width:86px">${esc(l.rotulo)}${l.qtd ? ' <span style="color:var(--text-2)">(' + l.qtd + ')</span>' : ''}</span>
-          <input data-cod="${esc(l.chave)}" data-leitor class="mono" inputmode="numeric" autocomplete="off" placeholder="bipe aqui" value="${esc(codigos[l.chave] || '')}" style="flex:1;min-width:0;padding:6px 8px;border-radius:7px;border:1px solid var(--border)"></label>`).join('')}</div>`
+          <input data-cod="${esc(l.chave)}" data-leitor class="mono" inputmode="numeric" autocomplete="off" placeholder="bipe aqui ou vazio = sistema cria" value="${esc(codigos[l.chave] || '')}" style="flex:1;min-width:0;padding:6px 8px;border-radius:7px;border:1px solid var(--border)">
+          <button type="button" class="link-btn" data-sem-etiqueta="${esc(l.chave)}" title="O sistema cria o código dessa peça" style="font-size:11px;white-space:nowrap">sem etiqueta</button></label>`).join('')}</div>`
         : '<div class="modal-dica">Escolha a grade e as quantidades pra bipar as etiquetas.</div>';
       const inputs = [...el.querySelectorAll('[data-cod]')];
       inputs.forEach((i, k) => {
@@ -3329,6 +3330,13 @@
         });
         if (foco === i.dataset.cod) i.focus();
       });
+      el.querySelectorAll('[data-sem-etiqueta]').forEach(b => b.addEventListener('click', (e) => {
+        e.preventDefault();
+        const k = inputs.findIndex(i => i.dataset.cod === b.dataset.semEtiqueta);
+        inputs[k].value = ''; codigos[b.dataset.semEtiqueta] = '';
+        inputs[k].placeholder = '✓ o sistema cria o código';
+        if (inputs[k + 1]) inputs[k + 1].focus(); else $('#np-salvar').focus();
+      }));
     };
     $('#np-ja-etiqueta').addEventListener('change', () => { desenharCodigos(); const i = $('#np-codigos [data-cod]'); if (i) i.focus(); });
     $('#np-so-com-estoque').addEventListener('change', desenharCodigos);
@@ -3448,7 +3456,7 @@
         <tr><th>Tam.</th><th>Cor</th><th>Código de barras</th><th>Preço</th><th>Mínimo</th><th>Estoque</th><th>Ativa</th></tr>
         ${vars.map((v, i) => `<tr data-linha="${i}">
           <td><b>${esc(v.tamanho)}</b></td><td>${esc(v.cor)}</td>
-          <td><input data-campo="codigo" data-leitor value="${esc(v.codigoBarras)}" class="mono" style="min-width:130px"></td>
+          <td><div style="display:flex;gap:4px;align-items:center"><input data-campo="codigo" data-leitor value="${esc(v.codigoBarras)}" class="mono" style="min-width:130px" placeholder="sem código"><button type="button" class="link-btn" data-gerar-codigo="${i}" title="Criar um código de barras novo pra essa peça" style="font-size:11px">gerar</button></div></td>
           <td><input data-campo="preco" inputmode="decimal" value="${fmtNum(v.preco)}"></td>
           <td><input data-campo="minimo" inputmode="numeric" value="${v.estoqueMinimo}"></td>
           <td><input data-campo="estoque" inputmode="numeric" value="${v.estoque}"></td>
@@ -3487,6 +3495,18 @@
       }
       carregarProdutos().then(() => { if (state.view === 'estoque') renderEstoque(); });
     };
+    // Gera na hora um código novo do sistema pra essa peça (a etiqueta antiga, se tinha, para de bipar).
+    camada.querySelectorAll('[data-gerar-codigo]').forEach(b => b.onclick = async () => {
+      const v = vars[Number(b.dataset.gerarCodigo)];
+      const campo = b.parentElement.querySelector('[data-campo="codigo"]');
+      if (v.codigoBarras && !confirm('Essa peça já tem o código ' + v.codigoBarras + '. Criar um novo? A etiqueta com o código antigo para de bipar.')) return;
+      try {
+        const r = await api('/variacoes/' + v.id, { method: 'PUT', body: { codigoBarras: '' } });
+        v.codigoBarras = r.codigoBarras; campo.value = r.codigoBarras;
+        toast('Código novo: ' + r.codigoBarras + ' — imprima a etiqueta');
+        carregarProdutos().then(render).catch(() => {});
+      } catch (e) { mostrarErro(camada.querySelector('#ep-erro'), e.message); }
+    });
     camada.querySelector('#ep-aplicar').onclick = () => {
       const valor = camada.querySelector('#ep-preco-todas').value;
       camada.querySelectorAll('[data-campo="preco"]').forEach(inp => { inp.value = valor; });
@@ -3712,7 +3732,7 @@
     const semCodigo = lista.filter(e => !e.codigo).length;
     let cfg = configEtiqueta();
     const camada = abrirModal(`<div class="modal-card largo">${cabecalhoModal(titulo || 'Imprimir etiquetas', 'Confira a quantidade de cada peça')}
-      ${semCodigo ? `<div class="aviso-caixa">${semCodigo} peça(s) sem código de barras ficaram de fora.</div>` : ''}
+      ${semCodigo ? `<div class="aviso-caixa">${semCodigo} peça(s) sem código de barras ficaram de fora.${ehAdmin() ? ' <button class="btn-secundario" id="et-gerar-faltam">Criar código pra elas</button>' : ''}</div>` : ''}
       <div class="tabela-scroll" style="max-height:34vh"><table class="tabela"><tr><th>Peça</th><th>Código</th><th style="width:90px">Etiquetas</th></tr>
         ${itens.map((e, k) => `<tr><td>${esc(e.nome)} · <b>${esc(e.tamanho)}</b>${e.cor ? ' · ' + esc(e.cor) : ''}</td><td class="mono">${esc(e.codigo)}</td><td><input data-et="${k}" inputmode="numeric" value="${e.qtd}"></td></tr>`).join('')}
       </table></div>
@@ -3760,6 +3780,17 @@
     camada.querySelectorAll('[data-et]').forEach(inp => inp.addEventListener('input', () => { const q = Math.floor(parseNumBR(inp.value)); itens[Number(inp.dataset.et)].qtd = Number.isFinite(q) && q >= 0 ? Math.min(q, 500) : 0; previa(); }));
     camada.querySelectorAll('#et-config input, #et-usar-promo').forEach(inp => inp.addEventListener('input', previa));
     previa();
+    const bGerar = camada.querySelector('#et-gerar-faltam');
+    if (bGerar) bGerar.onclick = (ev) => comBotao(ev.target, 'Criando...', async () => {
+      const nova = [];
+      for (const e of lista) {
+        if (e.codigo || !e.variacaoId) { nova.push(e); continue; }
+        const r = await api('/variacoes/' + e.variacaoId, { method: 'PUT', body: { codigoBarras: '' } });
+        nova.push(Object.assign({}, e, { codigo: r.codigoBarras }));
+      }
+      carregarProdutos().then(render).catch(() => {});
+      abrirImprimirEtiquetas(nova, titulo);
+    }, camada.querySelector('#et-erro'));
     camada.querySelector('#et-imprimir').onclick = () => {
       const lista2 = itens.filter(e => e.qtd > 0);
       if (!lista2.length) { mostrarErro(camada.querySelector('#et-erro'), 'Coloque a quantidade de pelo menos uma etiqueta.'); return; }

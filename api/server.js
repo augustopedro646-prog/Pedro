@@ -555,7 +555,7 @@ app.put('/api/lojas/:lojaId/variacoes/:id', admin, rota(async (req, res) => {
     if (e.code === '23505') falha(409, 'Esse código de barras já está em uso em outra peça');
     throw e;
   }
-  res.json({ ok: true });
+  res.json({ ok: true, ...(codigo ? { codigoBarras: codigo } : {}) });
 }));
 
 // Entrada avulsa (sem nota) — custo médio ponderado, mesma fórmula do Jabá.
