@@ -777,3 +777,7 @@ ALTER TABLE produtos ADD COLUMN IF NOT EXISTS genero TEXT;
 DO $$ BEGIN
   ALTER TABLE produtos ADD CONSTRAINT produtos_genero_check CHECK (genero IN ('feminino', 'masculino', 'unissex'));
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+-- Impressão direta (sem a janela do Windows): qual impressora recebe o cupom (e cupom de troca,
+-- vale-troca, DANFE...) e qual recebe as etiquetas. { direta, cupom, etiquetas, orientacaoEtiquetas }
+ALTER TABLE lojas ADD COLUMN IF NOT EXISTS impressao_config JSONB NOT NULL DEFAULT '{}'::jsonb;

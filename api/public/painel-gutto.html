@@ -565,7 +565,7 @@
     <div class="view page" id="view-configuracoes">
       <div class="page-topo"><div><h1 class="titulo">Configurações</h1><p class="sub">Vendas, cupom, nota fiscal, site, pagamento, envio e backup</p></div></div>
       <div class="chips" id="cfg-atalhos" style="margin-bottom:12px">
-        <button class="chip" data-cfg-ir="cfg-sec-vendas">Vendas e crediário</button><button class="chip" data-cfg-ir="cfg-sec-cupom">Cupom</button>
+        <button class="chip" data-cfg-ir="cfg-sec-vendas">Vendas e crediário</button><button class="chip" data-cfg-ir="cfg-sec-cupom">Cupom</button><button class="chip" data-cfg-ir="cfg-sec-impressoras">Impressoras</button>
         <button class="chip" data-cfg-ir="cfg-sec-fiscal">Nota fiscal</button><button class="chip" data-cfg-ir="cfg-sec-site">Site da loja</button>
         <button class="chip" data-cfg-ir="cfg-sec-pagamento">Pagamento pelo site</button><button class="chip" data-cfg-ir="cfg-sec-envio">Envio</button>
         <button class="chip" data-cfg-ir="cfg-sec-entregadores">Entregadores</button>
@@ -3727,6 +3727,16 @@
         st.textContent = '@page { size: ' + larguraRoloMm + 'mm ' + alturaMm + 'mm; margin: 0; }';
         f.contentDocument.head.appendChild(st);
       }
+      // Impressão direta ligada (Configurações → Impressoras): o servidor da loja imprime na
+      // impressora certa sem abrir a janela. Se falhar, cai na janela de sempre.
+      const destino = larguraRoloMm ? 'cupom' : 'etiquetas';
+      const im = state.config && state.config.impressao;
+      if (im && im.direta && im[destino]) {
+        api('/imprimir', { method: 'POST', body: { html: '<!doctype html>' + f.contentDocument.documentElement.outerHTML, destino } })
+          .then(r => toast('Imprimindo na ' + r.impressora))
+          .catch(e => { toast('Não imprimiu direto (' + e.message + ') — abrindo a janela de impressão', 'erro'); f.contentWindow.focus(); f.contentWindow.print(); });
+        return;
+      }
       f.contentWindow.focus(); f.contentWindow.print();
     }, 250);
   }
@@ -4908,6 +4918,8 @@
         <label style="display:flex;gap:6px;align-items:center"><input type="checkbox" id="cfg-cupom-auto" ${configCupom().auto ? 'checked' : ''} style="width:auto;min-width:0"> Imprimir o cupom sozinho em toda venda (neste computador)</label>
         <label style="display:flex;gap:6px;align-items:center"><input type="checkbox" id="cfg-cupom-troca" ${configCupom().troca ? 'checked' : ''} style="width:auto;min-width:0"> Cupom de troca (sem preços, com o código pra troca) sai junto, embaixo do cupom</label>
       </div>
+      <div class="painel-titulo" id="cfg-sec-impressoras" style="margin:18px 0 8px;font-size:14px">Impressoras</div>
+      ${htmlConfigImpressoras(cfg.impressao || {})}
       <div class="painel-titulo" id="cfg-sec-fiscal" style="margin:18px 0 8px;font-size:14px">Nota fiscal (NFC-e)</div>
       ${htmlConfigFiscal(cfg.fiscal)}
       <div class="painel-titulo" id="cfg-sec-site" style="margin:18px 0 8px;font-size:14px">Site da loja (pedidos online)</div>
@@ -4950,7 +4962,7 @@
       if (!(condicional.limitePadrao >= 0)) throw new Error('Limite do condicional inválido');
       const troca = { diasLoja: parseInt(document.getElementById('cfg-troca-loja').value, 10), diasSite: parseInt(document.getElementById('cfg-troca-site').value, 10) };
       if (!(troca.diasLoja >= 0 && troca.diasLoja <= 365) || !(troca.diasSite >= 0 && troca.diasSite <= 365)) throw new Error('Prazo de troca: de 0 a 365 dias');
-      await api('/config', { method: 'PUT', body: { cashbackPct, descontoLivrePct, comissaoPct, crediario, troca, condicional, fiscal: fiscalCorpo, pagamento, envio, cupomRodape: document.getElementById('cfg-cupom-rodape').value, site: {
+      await api('/config', { method: 'PUT', body: { cashbackPct, descontoLivrePct, comissaoPct, crediario, troca, condicional, fiscal: fiscalCorpo, pagamento, envio, impressao: lerConfigImpressoras(), cupomRodape: document.getElementById('cfg-cupom-rodape').value, site: {
         ativo: document.getElementById('cfg-site-ativo').checked, aceitaRetirada: document.getElementById('cfg-site-retirada').checked,
         aceitaEntrega: document.getElementById('cfg-site-entrega').checked, taxaEntrega: taxa, whatsapp: document.getElementById('cfg-site-whats').value,
         endereco: document.getElementById('cfg-site-endereco').value, mensagem: document.getElementById('cfg-site-msg').value, avaliacaoGoogle: document.getElementById('cfg-site-avaliacao').value } } });
@@ -4958,6 +4970,64 @@
       renderConfiguracoes();
     }, document.getElementById('cfg-erro'));
     ligarNcmCategorias();
+    ligarConfigImpressoras();
+  }
+
+  // Impressão direta: o servidor da loja imprime sem abrir a janela do Windows — cupom (e cupom de
+  // troca, vale-troca, nota...) numa impressora, etiquetas na outra.
+  function htmlConfigImpressoras(im) {
+    const opcao = (v) => v ? `<option value="${esc(v)}" selected>${esc(v)}</option>` : '<option value="">— escolha —</option>';
+    return `<div id="cfg-imp" style="display:flex;flex-direction:column;gap:8px;max-width:720px">
+      ${im.disponivel === false ? '<div class="modal-dica" style="margin:0">A impressão direta só funciona com o sistema rodando no computador da loja (Windows). Aqui, as impressões abrem a janela do Windows.</div>' : ''}
+      <label style="display:flex;gap:6px;align-items:center;font-size:13px;font-weight:600"><input type="checkbox" id="cfg-imp-direta" ${im.direta ? 'checked' : ''} style="width:auto;min-width:0"> Imprimir direto, sem abrir a janela de impressão</label>
+      <div class="linha-campos" style="align-items:flex-end">
+        <label class="campo">Impressora do cupom (cupom, cupom de troca, vale-troca, nota fiscal, carnê)<select id="cfg-imp-cupom">${opcao(im.cupom)}</select></label>
+        <button class="btn-secundario" type="button" id="cfg-imp-teste-cupom">Testar</button>
+      </div>
+      <div class="linha-campos" style="align-items:flex-end">
+        <label class="campo">Impressora de etiquetas<select id="cfg-imp-etiquetas">${opcao(im.etiquetas)}</select></label>
+        <label class="campo" style="max-width:170px">Etiqueta saiu de lado?<select id="cfg-imp-orient">
+          <option value="" ${!im.orientacaoEtiquetas ? 'selected' : ''}>Automático</option><option value="retrato" ${im.orientacaoEtiquetas === 'retrato' ? 'selected' : ''}>Forçar retrato</option><option value="paisagem" ${im.orientacaoEtiquetas === 'paisagem' ? 'selected' : ''}>Forçar paisagem</option></select></label>
+        <button class="btn-secundario" type="button" id="cfg-imp-teste-etiqueta">Testar</button>
+      </div>
+      <div class="modal-dica" style="margin:0" id="cfg-imp-status">Tamanho do papel do cupom e da etiqueta: os mesmos de sempre (Cupom acima; etiqueta na tela "Imprimir etiquetas").</div>
+    </div>`;
+  }
+  function lerConfigImpressoras() {
+    const el = (id) => document.getElementById(id);
+    if (!el('cfg-imp-direta')) return undefined;
+    return { direta: el('cfg-imp-direta').checked, cupom: el('cfg-imp-cupom').value, etiquetas: el('cfg-imp-etiquetas').value, orientacaoEtiquetas: el('cfg-imp-orient').value };
+  }
+  async function ligarConfigImpressoras() {
+    const im = state.config.impressao || {};
+    const status = document.getElementById('cfg-imp-status');
+    const testar = (destino) => async (ev) => comBotao(ev.target, 'Imprimindo...', async () => {
+      await api('/config', { method: 'PUT', body: { impressao: Object.assign(lerConfigImpressoras(), { direta: true }) } });
+      await carregarConfig();
+      document.getElementById('cfg-imp-direta').checked = true;
+      if (destino === 'cupom') imprimirDocumento(`<!doctype html><html><head><meta charset="utf-8"><style>${estiloCupom(configCupom().largura)}</style></head><body>${cabecalhoCupom()}<hr><div class="c t">TESTE DE IMPRESSÃO</div><div class="c">${dataHora(new Date().toISOString())}</div><hr><div class="c p">Se você está lendo isto, o cupom está saindo direto nesta impressora.</div>${barrasCupom('980000000000', configCupom().largura)}</body></html>`, configCupom().largura);
+      else {
+        const p = state.produtos.find(x => x.variacoes.some(v => v.codigoBarras));
+        const v = p ? p.variacoes.find(x => x.codigoBarras) : null;
+        const cfg = configEtiqueta();
+        imprimirDocumento(documentoEtiquetas([{ nome: p ? p.nome : 'Teste', tamanho: v ? v.tamanho : '4', cor: v ? v.cor : '', preco: v ? v.preco : 49.9, codigo: v ? v.codigoBarras : '2000000000015', qtd: cfg.colunas }], cfg));
+      }
+    }, document.getElementById('cfg-erro'));
+    document.getElementById('cfg-imp-teste-cupom').onclick = testar('cupom');
+    document.getElementById('cfg-imp-teste-etiqueta').onclick = testar('etiquetas');
+    if (im.disponivel === false) return;
+    try {
+      const r = await api('/impressoras');
+      const preencher = (id, atual) => {
+        const sel = document.getElementById(id);
+        if (!sel) return;
+        const nomes = r.impressoras.slice();
+        if (atual && !nomes.includes(atual)) nomes.unshift(atual);
+        sel.innerHTML = '<option value="">— escolha —</option>' + nomes.map(n => `<option value="${esc(n)}" ${n === atual ? 'selected' : ''}>${esc(n)}${atual === n && !r.impressoras.includes(n) ? ' (não encontrada)' : ''}</option>`).join('');
+      };
+      preencher('cfg-imp-cupom', im.cupom); preencher('cfg-imp-etiquetas', im.etiquetas);
+      if (!r.impressoras.length) status.textContent = 'Nenhuma impressora instalada no Windows.';
+    } catch (e) { if (status) status.textContent = e.message; }
   }
 
   // Pagamento pelo site (Mercado Pago) e envio pelos Correios (Melhor Envio).

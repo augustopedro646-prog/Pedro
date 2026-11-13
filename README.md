@@ -304,10 +304,22 @@ comprovante de **vale-troca**. É cupom **não fiscal** (a NFC-e é outra etapa)
 58 mm e o rodapé (ex.: política de troca) em Configurações. A página sai com a
 altura exata do conteúdo, sem gastar rolo.
 
-Sai pela janela de impressão do Windows (o navegador lembra a última impressora usada). Pra
-imprimir sem a janela, dá pra pôr `--kiosk-printing` no atalho do Edge — aí tudo vai direto pra
-impressora padrão do Windows, inclusive as etiquetas; só vale a pena se as etiquetas forem
-impressas em outro computador.
+Sai pela janela de impressão do Windows (o navegador lembra a última impressora usada), ou
+**direto, sem janela** — veja "Impressão direta" abaixo.
+
+## Impressão direta (sem a janela do Windows)
+
+Em **Configurações → Impressoras**: marque "Imprimir direto", escolha a **impressora do cupom**
+(cupom, cupom de troca, vale-troca, nota fiscal, carnê) e a **de etiquetas**, e use os botões
+**Testar**. Daí em diante o servidor da loja imprime sozinho em cada uma, sem abrir janela —
+inclusive quando o painel está aberto no celular. Se a impressão direta falhar, o painel avisa e
+abre a janela de sempre.
+
+Como funciona: o Edge do próprio computador transforma o documento em PDF (sem abrir janela) e o
+SumatraPDF, que vem no pacote `pdf-to-printer`, manda pra impressora. Por isso, depois de atualizar,
+rode `npm.cmd install` na pasta `api`. Se a etiqueta sair girada, troque "Etiqueta saiu de lado?"
+pra "Forçar retrato" ou "Forçar paisagem". O tamanho do papel no driver da impressora tem que ser o
+da etiqueta (ou o do rolo do cupom).
 
 ## Nota fiscal do consumidor (NFC-e)
 

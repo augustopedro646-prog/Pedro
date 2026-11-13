@@ -17,6 +17,7 @@ const mp = require('./mercadopago');
 const frete = require('./frete');
 const ExcelJS = require('exceljs');
 const QRCode = require('qrcode');
+const impressao = require('./impressao');
 const Anthropic = require('@anthropic-ai/sdk');
 const crypto = require('crypto');
 
@@ -35,7 +36,7 @@ app.use(seguranca.filtroInternet); // pela internet (túnel), só o site da loja
 app.use(cors());
 // Só a leitura de nota recebe arquivo grande (fotos/PDF em base64); o resto fica no limite pequeno.
 const jsonPadrao = express.json({ limit: '1mb' });
-app.use((req, res, next) => (req.path.endsWith('/compras/ler-nota') || req.path.endsWith('/produtos/importar-planilha') || /\/produtos\/[^/]+\/fotos$/.test(req.path) ? next() : jsonPadrao(req, res, next)));
+app.use((req, res, next) => (req.path.endsWith('/compras/ler-nota') || req.path.endsWith('/imprimir') || req.path.endsWith('/produtos/importar-planilha') || /\/produtos\/[^/]+\/fotos$/.test(req.path) ? next() : jsonPadrao(req, res, next)));
 app.use(express.static(path.join(__dirname, 'public')));
 app.get('/', (req, res) => res.redirect('/painel-gutto.html'));
 app.get('/loja', (req, res) => res.redirect('/loja-gutto.html'));
@@ -251,6 +252,32 @@ function mesclarPagamento(s) {
   return { pix: s.pix === true, cartao: s.cartao === true, naEntrega: s.naEntrega !== false, maxParcelas: n(s.maxParcelas, 3, 1, 12), minutosPagar: n(s.minutosPagar, 30, 30, 1440) }; // Pix: o Mercado Pago pede no mínimo 30 min
 }
 
+/* ---------- Impressão direta (Configurações → Impressoras) ---------- */
+app.get('/api/lojas/:lojaId/impressoras', admin, rota(async (req, res) => {
+  if (!impressao.disponivel()) return res.json({ disponivel: false, impressoras: [] });
+  try { res.json({ disponivel: true, impressoras: await impressao.listarImpressoras() }); }
+  catch (e) { falha(502, 'Não consegui listar as impressoras do Windows (' + e.message + ')'); }
+}));
+
+// Corpo: { html, destino: 'cupom' | 'etiquetas' }. Imprime na impressora configurada pra esse destino.
+app.post('/api/lojas/:lojaId/imprimir', qualquer, express.json({ limit: '12mb' }), rota(async (req, res) => {
+  const body = req.body || {};
+  if (typeof body.html !== 'string' || !body.html.trim()) falha(400, 'Nada pra imprimir');
+  if (!['cupom', 'etiquetas'].includes(body.destino)) falha(400, 'Destino da impressão inválido');
+  const { rows } = await pool.query('SELECT impressao_config FROM lojas WHERE id = $1', [req.lojaId]);
+  const cfg = mesclarImpressao(rows[0] && rows[0].impressao_config);
+  if (!cfg.direta) falha(409, 'Impressão direta desligada', { codigo: 'impressao_desligada' });
+  const nome = cfg[body.destino];
+  if (!nome) falha(409, 'Escolha a impressora ' + (body.destino === 'cupom' ? 'do cupom' : 'de etiquetas') + ' em Configurações → Impressoras', { codigo: 'sem_impressora' });
+  try {
+    const r = await impressao.imprimir(body.html, nome, { orientacao: body.destino === 'etiquetas' ? cfg.orientacaoEtiquetas : '' });
+    res.json({ ok: true, impressora: r.impressora });
+  } catch (e) {
+    if (e instanceof impressao.ErroImpressao) falha(e.status, e.message);
+    throw e;
+  }
+}));
+
 app.get('/api/lojas/:lojaId/config', qualquer, rota(async (req, res) => {
   const { rows } = await pool.query('SELECT * FROM lojas WHERE id = $1', [req.lojaId]);
   if (!rows.length) falha(404, 'loja não encontrada');
@@ -266,8 +293,16 @@ app.get('/api/lojas/:lojaId/config', qualquer, rota(async (req, res) => {
     site: { ativo: l.site_ativo, aceitaEntrega: l.aceita_entrega, aceitaRetirada: l.aceita_retirada, taxaEntrega: Number(l.taxa_entrega),
       whatsapp: l.whatsapp || '', endereco: l.endereco || '', mensagem: l.mensagem_site || '', avaliacaoGoogle: l.google_avaliacao_url || '' },
     pagamento: { ...mesclarPagamento(l.pagamento_config), configurado: mp.configurado(), teste: mp.modoTeste() },
-    envio: { ...frete.mesclarConfig(l.envio_config), configurado: frete.configurado() } });
+    envio: { ...frete.mesclarConfig(l.envio_config), configurado: frete.configurado() },
+    impressao: { ...mesclarImpressao(l.impressao_config), disponivel: impressao.disponivel() } });
 }));
+
+function mesclarImpressao(c) {
+  c = c && typeof c === 'object' ? c : {};
+  const nome = (v) => (typeof v === 'string' ? v.trim().slice(0, 200) : '');
+  return { direta: c.direta === true, cupom: nome(c.cupom), etiquetas: nome(c.etiquetas),
+    orientacaoEtiquetas: ['retrato', 'paisagem'].includes(c.orientacaoEtiquetas) ? c.orientacaoEtiquetas : '' };
+}
 
 app.put('/api/lojas/:lojaId/config', admin, rota(async (req, res) => {
   const body = req.body || {};
@@ -335,6 +370,11 @@ app.put('/api/lojas/:lojaId/config', admin, rota(async (req, res) => {
     const pg = mesclarPagamento(body.pagamento);
     if (!pg.naEntrega && !pg.pix && !pg.cartao) falha(400, 'Deixe pelo menos uma forma de pagamento no site');
     await pool.query('UPDATE lojas SET pagamento_config = $1 WHERE id = $2', [JSON.stringify(pg), req.lojaId]);
+  }
+  if (body.impressao && typeof body.impressao === 'object') {
+    const im = mesclarImpressao(body.impressao);
+    if (im.direta && !im.cupom && !im.etiquetas) falha(400, 'Pra imprimir direto, escolha pelo menos uma impressora');
+    await pool.query('UPDATE lojas SET impressao_config = $1 WHERE id = $2', [JSON.stringify(im), req.lojaId]);
   }
   if (body.envio && typeof body.envio === 'object') {
     const ev = frete.mesclarConfig(body.envio);
