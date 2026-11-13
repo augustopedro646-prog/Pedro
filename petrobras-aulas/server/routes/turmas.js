@@ -48,38 +48,13 @@ router.get('/', async (req, res, next) => {
               t.professor_id AS "professorId", p.nome AS "professorNome",
               t.dias, to_char(t.hora_inicio, 'HH24:MI') AS "horaInicio",
               to_char(t.hora_fim, 'HH24:MI') AS "horaFim",
-              t.vagas, t.cor, t.ativo,
-              (SELECT count(*) FROM aluno_turmas at2 WHERE at2.turma_id = t.id AND at2.ate IS NULL) AS "vagasOcupadas"
+              t.vagas, t.cor, t.ativo
        FROM turmas t
        JOIN modalidades m ON m.id = t.modalidade_id
        LEFT JOIN professores p ON p.id = t.professor_id
        WHERE ${where}
        ORDER BY t.sigla`,
       params
-    );
-    res.json(rows.map((r) => ({ ...r, vagasRestantes: r.vagas - Number(r.vagasOcupadas) })));
-  } catch (err) {
-    next(err);
-  }
-});
-
-// Alunos atualmente matriculados numa turma — professor só da própria.
-router.get('/:id/alunos', async (req, res, next) => {
-  const id = Number(req.params.id);
-  try {
-    if (req.usuario.tipo !== 'diretoria') {
-      const { rows: dono } = await pool.query('SELECT professor_id FROM turmas WHERE id = $1', [id]);
-      if (!dono[0] || dono[0].professor_id !== req.usuario.id) {
-        return res.status(403).json({ erro: 'Essa turma não é sua' });
-      }
-    }
-    const { rows } = await pool.query(
-      `SELECT a.id, a.nome, a.matricula, a.situacao, to_char(at2.desde, 'YYYY-MM-DD') AS desde
-       FROM aluno_turmas at2
-       JOIN alunos a ON a.id = at2.aluno_id
-       WHERE at2.turma_id = $1 AND at2.ate IS NULL
-       ORDER BY a.nome`,
-      [id]
     );
     res.json(rows);
   } catch (err) {

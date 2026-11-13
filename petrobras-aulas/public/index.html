@@ -108,26 +108,6 @@
   table.tabela-lista th, table.tabela-lista td { border-bottom: 1px solid var(--borda); padding: 8px 10px; text-align: left; vertical-align: middle; }
   table.tabela-lista th { color: var(--texto-fraco); font-weight: 600; }
 
-  .pill { display: inline-block; padding: 2px 9px; border-radius: 999px; font-size: .75rem; font-weight: 600; }
-  .pill.ativo { background: #dff3e4; color: #1e7a3c; }
-  .pill.inadimplente { background: #fdeccb; color: #93600c; }
-  .pill.suspenso { background: #fbdede; color: #93271f; }
-  :root[data-theme="dark"] .pill.ativo, @media (prefers-color-scheme: dark) { }
-  .vaga-badge { display: inline-block; padding: 2px 9px; border-radius: 999px; font-size: .75rem; font-weight: 600; color: #fff; }
-  .vaga-badge.livre { background: #2f8f4e; }
-  .vaga-badge.quase { background: #c98a1a; }
-  .vaga-badge.cheia { background: #b3413a; }
-
-  .checklist { display: flex; flex-direction: column; gap: 2px; }
-  .checklist label { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 6px; cursor: pointer; }
-  .checklist label:hover { background: var(--fundo); }
-  .checklist input[type="checkbox"] { width: 18px; height: 18px; }
-  .checklist .ausente { opacity: .55; text-decoration: line-through; }
-
-  .abas-secundarias { display: flex; gap: 6px; margin-bottom: 14px; }
-  .abas-secundarias button { padding: 6px 14px; border: 1px solid var(--borda); background: var(--fundo); border-radius: 999px; cursor: pointer; font-size: .85rem; }
-  .abas-secundarias button.ativa { background: var(--primaria); color: var(--primaria-texto); border-color: var(--primaria); }
-
   .grid-calendario { display: grid; grid-template-columns: repeat(7, 1fr); gap: 8px; }
   .dia-calendario { background: var(--superficie); border: 1px solid var(--borda); border-radius: 8px; padding: 8px; min-height: 90px; }
   .dia-calendario h4 { margin: 0 0 6px; font-size: .78rem; color: var(--texto-fraco); text-transform: uppercase; }
@@ -150,7 +130,6 @@
     { id: 'seg', nome: 'Seg' }, { id: 'ter', nome: 'Ter' }, { id: 'qua', nome: 'Qua' },
     { id: 'qui', nome: 'Qui' }, { id: 'sex', nome: 'Sex' }, { id: 'sab', nome: 'Sáb' }, { id: 'dom', nome: 'Dom' },
   ];
-  const SITUACOES = ['ativo', 'inadimplente', 'suspenso'];
 
   const state = {
     token: localStorage.getItem('token-aulas') || null,
@@ -170,26 +149,17 @@
     modalidades: [],
     professoresTodos: [],
 
-    // chamada
-    chamadaTurmas: [],
-    chamadaTurmaId: null,
-    chamadaData: new Date().toISOString().slice(0, 10),
-    chamadaAlunos: [],
-    chamadaCarregando: false,
-
     // turmas
     turmasCarregado: false,
     turmasLista: [],
     turmaEditando: null,
 
-    // alunos
-    alunosCarregado: false,
-    alunosLista: [],
-    alunosBusca: '',
-    alunosSituacaoFiltro: '',
-    alunoSelecionadoId: null,
-    alunoTurmasDoAluno: [],
-    novaMatriculaTurmaId: '',
+    // registro de aulas (diretoria marca quando uma turma deu aula, pra
+    // alimentar o relatório de horas — sem aluno, sem chamada)
+    registroTurmaId: null,
+    registroMes: new Date().toISOString().slice(0, 7),
+    registroData: new Date().toISOString().slice(0, 10),
+    registroLista: [],
 
     // calendário
     calendarioCarregado: false,
@@ -219,6 +189,10 @@
     return Number.isFinite(n) ? n : 0;
   }
 
+  function formatarDataBR(iso) {
+    return String(iso || '').split('-').reverse().join('/');
+  }
+
   async function api(caminho, opts = {}) {
     const resp = await fetch(API_BASE + caminho, {
       ...opts,
@@ -241,16 +215,15 @@
     if (ehDiretoria()) {
       return [
         { id: 'inicio', nome: 'Início' },
-        { id: 'chamada', nome: 'Chamada' },
         { id: 'turmas', nome: 'Turmas' },
-        { id: 'alunos', nome: 'Alunos' },
+        { id: 'registro', nome: 'Registro de aulas' },
         { id: 'calendario', nome: 'Calendário' },
         { id: 'relatorio', nome: 'Relatório de horas' },
         { id: 'config', nome: 'Configurações' },
       ];
     }
+    // Professor só enxerga — quem lança a aula dada é a diretoria.
     return [
-      { id: 'chamada', nome: 'Chamada' },
       { id: 'turmas', nome: 'Minhas turmas' },
       { id: 'calendario', nome: 'Calendário' },
       { id: 'relatorio', nome: 'Minhas horas' },
@@ -259,14 +232,6 @@
 
   function nomeModalidade(m) {
     return m.nivel ? `${m.nome} — ${m.nivel}` : m.nome;
-  }
-
-  function badgeVaga(ocupadas, total) {
-    if (total <= 0) return '<span class="vaga-badge cheia">sem vagas</span>';
-    const pct = ocupadas / total;
-    if (ocupadas >= total) return `<span class="vaga-badge cheia">${ocupadas}/${total} — lotada</span>`;
-    if (pct >= 0.8) return `<span class="vaga-badge quase">${ocupadas}/${total}</span>`;
-    return `<span class="vaga-badge livre">${ocupadas}/${total}</span>`;
   }
 
   // ---------- render ----------
@@ -280,7 +245,7 @@
       <div class="tela-login">
         <div class="cartao-login">
           <h1>Clube Petrobras</h1>
-          <p class="sub">Controle de turmas e chamada — entre com seu nome e PIN</p>
+          <p class="sub">Controle de turmas e horas dos professores — entre com seu nome e PIN</p>
 
           <div class="campo">
             <label for="sel-professor">Nome</label>
@@ -336,9 +301,8 @@
   function viewConteudo() {
     switch (state.abaAtual) {
       case 'inicio': return viewInicio();
-      case 'chamada': return viewChamada();
       case 'turmas': return viewTurmas();
-      case 'alunos': return viewAlunos();
+      case 'registro': return viewRegistro();
       case 'calendario': return viewCalendario();
       case 'relatorio': return viewRelatorio();
       case 'config': return viewConfig();
@@ -350,51 +314,16 @@
   function viewInicio() {
     if (!state.turmasCarregado) return '<h2>Início</h2><p class="placeholder">Carregando…</p>';
     const totalTurmas = state.turmasLista.length;
-    const totalVagas = state.turmasLista.reduce((s, t) => s + t.vagas, 0);
-    const totalOcupadas = state.turmasLista.reduce((s, t) => s + Number(t.vagasOcupadas), 0);
+    const totalProfessores = state.professoresTodos.filter((p) => p.tipo === 'professor' && p.ativo).length;
+    const totalModalidades = state.modalidades.length;
     return `
       <h2>Início</h2>
       <div class="cartao-stat">
         <div class="stat"><div class="numero">${totalTurmas}</div><div class="rotulo">Turmas ativas</div></div>
-        <div class="stat"><div class="numero">${totalOcupadas}/${totalVagas}</div><div class="rotulo">Vagas ocupadas</div></div>
-        <div class="stat"><div class="numero">${Math.max(totalVagas - totalOcupadas, 0)}</div><div class="rotulo">Vagas livres</div></div>
+        <div class="stat"><div class="numero">${totalProfessores}</div><div class="rotulo">Professores ativos</div></div>
+        <div class="stat"><div class="numero">${totalModalidades}</div><div class="rotulo">Modalidades</div></div>
       </div>
       <p class="placeholder" style="margin-top:20px">Projetos de campanha de matrícula e divisão ótima de turmas entre professores ainda não entraram — depende da planilha real e de decidir junto com o Pedro como medir isso.</p>`;
-  }
-
-  // ---------- Chamada ----------
-  function viewChamada() {
-    const opcoesTurma = state.chamadaTurmas.map((t) => `<option value="${t.id}" ${t.id === state.chamadaTurmaId ? 'selected' : ''}>${esc(t.sigla)} — ${esc(nomeModalidade({ nome: t.modalidadeNome, nivel: t.modalidadeNivel }))}</option>`).join('');
-
-    let corpo = '<p class="placeholder">Escolha uma turma e uma data.</p>';
-    if (state.chamadaCarregando) {
-      corpo = '<p class="placeholder">Carregando…</p>';
-    } else if (state.chamadaTurmaId && state.chamadaAlunos.length === 0) {
-      corpo = '<p class="placeholder">Nenhum aluno matriculado nessa turma.</p>';
-    } else if (state.chamadaTurmaId) {
-      corpo = `
-        <div class="checklist">
-          ${state.chamadaAlunos.map((a) => `
-            <label class="${a.presente ? '' : 'ausente'}">
-              <input type="checkbox" data-action="toggle-presenca" data-id="${a.id}" ${a.presente ? 'checked' : ''}>
-              ${esc(a.nome)} ${a.matricula ? `<span class="placeholder">(${esc(a.matricula)})</span>` : ''}
-            </label>`).join('')}
-        </div>
-        <div class="linha-form"><button class="botao" data-action="salvar-chamada">Salvar chamada</button></div>`;
-    }
-
-    return `
-      <h2>Chamada</h2>
-      <div class="secao">
-        <div class="linha-form">
-          <select id="sel-chamada-turma" data-action="mudar-chamada-turma">
-            <option value="">Selecione a turma…</option>
-            ${opcoesTurma}
-          </select>
-          <input type="date" id="chamada-data" value="${state.chamadaData}" data-action="mudar-chamada-data" />
-        </div>
-      </div>
-      <div class="secao">${corpo}</div>`;
   }
 
   // ---------- Turmas ----------
@@ -405,10 +334,10 @@
       <tr>
         <td><strong>${esc(t.sigla)}</strong></td>
         <td>${esc(nomeModalidade({ nome: t.modalidadeNome, nivel: t.modalidadeNivel }))}</td>
-        <td>${ehDiretoria() ? esc(t.professorNome || '—') : ''}</td>
+        ${ehDiretoria() ? `<td>${esc(t.professorNome || '—')}</td>` : ''}
         <td>${t.dias.map((d) => esc(d)).join(', ')}</td>
         <td>${esc(t.horaInicio)}–${esc(t.horaFim)}</td>
-        <td>${badgeVaga(Number(t.vagasOcupadas), t.vagas)}</td>
+        <td>${t.vagas}</td>
         ${ehDiretoria() ? `<td><button class="botao-link" data-action="editar-turma" data-id="${t.id}">editar</button></td>` : ''}
       </tr>`).join('') || `<tr><td colspan="7" class="placeholder">Nenhuma turma cadastrada.</td></tr>`;
 
@@ -458,80 +387,46 @@
       </div>`;
   }
 
-  // ---------- Alunos ----------
-  function viewAlunos() {
-    if (!state.alunosCarregado) return '<h2>Alunos</h2><p class="placeholder">Carregando…</p>';
+  // ---------- Registro de aulas (diretoria) ----------
+  function viewRegistro() {
+    if (!state.turmasCarregado) return '<h2>Registro de aulas</h2><p class="placeholder">Carregando…</p>';
 
-    const linhas = state.alunosLista.map((a) => `
-      <tr class="${a.id === state.alunoSelecionadoId ? '' : ''}">
-        <td>${esc(a.nome)}</td>
-        <td>${esc(a.matricula || '—')}</td>
-        <td><span class="pill ${a.situacao}">${esc(a.situacao)}</span></td>
-        <td><button class="botao-link" data-action="abrir-aluno" data-id="${a.id}">ver turmas</button></td>
-      </tr>`).join('') || `<tr><td colspan="4" class="placeholder">Nenhum aluno encontrado.</td></tr>`;
+    const opcoesTurma = state.turmasLista.map((t) => `
+      <option value="${t.id}" ${t.id === state.registroTurmaId ? 'selected' : ''}>
+        ${esc(t.sigla)} — ${esc(nomeModalidade({ nome: t.modalidadeNome, nivel: t.modalidadeNivel }))}${t.professorNome ? ' (' + esc(t.professorNome) + ')' : ''}
+      </option>`).join('');
 
-    const painelAluno = state.alunoSelecionadoId ? viewPainelAluno() : '';
-
-    return `
-      <h2>Alunos</h2>
-      <div class="secao">
+    let corpo = '<p class="placeholder">Escolha uma turma pra lançar ou ver as aulas já marcadas no mês.</p>';
+    if (state.registroTurmaId) {
+      const linhas = state.registroLista.map((r) => `
+        <tr>
+          <td>${esc(formatarDataBR(r.data))}</td>
+          <td><button class="botao-link perigo" data-action="remover-registro" data-id="${r.id}">remover</button></td>
+        </tr>`).join('') || `<tr><td colspan="2" class="placeholder">Nenhuma aula lançada nesse mês pra essa turma.</td></tr>`;
+      corpo = `
         <div class="linha-form">
-          <input id="alunos-busca" placeholder="Buscar por nome ou matrícula…" value="${esc(state.alunosBusca)}" />
-          <select id="alunos-situacao-filtro">
-            <option value="">Todas as situações</option>
-            ${SITUACOES.map((s) => `<option value="${s}" ${s === state.alunosSituacaoFiltro ? 'selected' : ''}>${s}</option>`).join('')}
-          </select>
-          <button class="botao" data-action="buscar-alunos">Buscar</button>
-          <button class="botao secundario" data-action="novo-aluno">+ Novo aluno</button>
+          <input type="date" id="registro-data" value="${state.registroData}" />
+          <button class="botao" data-action="registrar-aula">+ Registrar aula dada</button>
         </div>
-      </div>
-      <div class="secao">
-        <table class="tabela-lista">
-          <thead><tr><th>Nome</th><th>Matrícula</th><th>Situação</th><th></th></tr></thead>
+        <table class="tabela-lista" style="margin-top:16px">
+          <thead><tr><th>Data</th><th></th></tr></thead>
           <tbody>${linhas}</tbody>
-        </table>
-      </div>
-      ${painelAluno}`;
-  }
-
-  function viewPainelAluno() {
-    const a = state.alunosLista.find((x) => x.id === state.alunoSelecionadoId);
-    if (!a) return '';
-    const turmasAtuais = state.alunoTurmasDoAluno.map((t) => `
-      <li>${esc(t.sigla)} — ${esc(nomeModalidade({ nome: t.modalidadeNome, nivel: t.modalidadeNivel }))} (desde ${esc(t.desde)})
-        <button class="botao-link perigo" data-action="sair-turma" data-turma="${t.id}">sair</button>
-      </li>`).join('') || '<li class="placeholder">Nenhuma turma vinculada.</li>';
-
-    const turmasDisponiveis = state.turmasLista
-      .filter((t) => !state.alunoTurmasDoAluno.some((at) => at.id === t.id))
-      .map((t) => `<option value="${t.id}">${esc(t.sigla)} (${badgeVagaTexto(t)})</option>`).join('');
+        </table>`;
+    }
 
     return `
+      <h2>Registro de aulas</h2>
+      <p class="placeholder">Cada data marcada aqui conta como uma aula dada pra essa turma e entra direto no Relatório de horas.</p>
       <div class="secao">
-        <h3>${esc(a.nome)}</h3>
         <div class="linha-form">
-          <input id="aluno-nome" value="${esc(a.nome)}" placeholder="Nome" />
-          <input id="aluno-matricula" value="${esc(a.matricula || '')}" placeholder="Matrícula" />
-          <select id="aluno-situacao">
-            ${SITUACOES.map((s) => `<option value="${s}" ${s === a.situacao ? 'selected' : ''}>${s}</option>`).join('')}
+          <select id="sel-registro-turma" data-action="mudar-registro-turma">
+            <option value="">Selecione a turma…</option>
+            ${opcoesTurma}
           </select>
-          <button class="botao" data-action="salvar-aluno">Salvar cadastro</button>
+          <input type="month" id="registro-mes" value="${state.registroMes}" data-action="mudar-registro-mes" />
         </div>
-        <h4 style="margin-bottom:6px">Turmas vinculadas</h4>
-        <ul style="padding-left:18px">${turmasAtuais}</ul>
-        <div class="linha-form">
-          <select id="sel-nova-matricula">
-            <option value="">Matricular em…</option>
-            ${turmasDisponiveis}
-          </select>
-          <button class="botao" data-action="matricular-aluno">Matricular</button>
-        </div>
-      </div>`;
-  }
-
-  function badgeVagaTexto(t) {
-    const restantes = t.vagas - Number(t.vagasOcupadas);
-    return restantes > 0 ? `${restantes} vaga(s)` : 'sem vaga';
+      </div>
+      <div class="secao">${corpo}</div>`;
   }
 
   // ---------- Calendário ----------
@@ -562,7 +457,7 @@
         <td>${p.aulasDadas}</td>
         <td>${p.horas.toFixed(1)}h</td>
         <td>R$ ${p.valor.toFixed(2).replace('.', ',')}</td>
-      </tr>`).join('') || `<tr><td colspan="4" class="placeholder">Nenhuma chamada registrada nesse mês.</td></tr>`;
+      </tr>`).join('') || `<tr><td colspan="4" class="placeholder">Nenhuma aula registrada nesse mês.</td></tr>`;
 
     return `
       <h2>${ehDiretoria() ? 'Relatório de horas' : 'Minhas horas'}</h2>
@@ -660,21 +555,6 @@
     const btnSair = document.querySelector('[data-action="sair"]');
     if (btnSair) btnSair.addEventListener('click', sair);
 
-    // chamada
-    const selChamadaTurma = document.getElementById('sel-chamada-turma');
-    if (selChamadaTurma) selChamadaTurma.addEventListener('change', (e) => { state.chamadaTurmaId = Number(e.target.value) || null; carregarChamada().then(render); });
-    const inputChamadaData = document.getElementById('chamada-data');
-    if (inputChamadaData) inputChamadaData.addEventListener('change', (e) => { state.chamadaData = e.target.value; carregarChamada().then(render); });
-    document.querySelectorAll('[data-action="toggle-presenca"]').forEach((el) => {
-      el.addEventListener('change', () => {
-        const aluno = state.chamadaAlunos.find((a) => a.id === Number(el.dataset.id));
-        if (aluno) aluno.presente = el.checked;
-        render();
-      });
-    });
-    const btnSalvarChamada = document.querySelector('[data-action="salvar-chamada"]');
-    if (btnSalvarChamada) btnSalvarChamada.addEventListener('click', salvarChamada);
-
     // turmas
     const btnNovaTurma = document.querySelector('[data-action="nova-turma"]');
     if (btnNovaTurma) btnNovaTurma.addEventListener('click', () => { state.turmaEditando = { dias: [] }; render(); });
@@ -690,24 +570,15 @@
     const btnSalvarTurma = document.querySelector('[data-action="salvar-turma"]');
     if (btnSalvarTurma) btnSalvarTurma.addEventListener('click', salvarTurma);
 
-    // alunos
-    const btnBuscarAlunos = document.querySelector('[data-action="buscar-alunos"]');
-    if (btnBuscarAlunos) btnBuscarAlunos.addEventListener('click', () => {
-      state.alunosBusca = document.getElementById('alunos-busca').value;
-      state.alunosSituacaoFiltro = document.getElementById('alunos-situacao-filtro').value;
-      carregarAlunos().then(render);
-    });
-    const btnNovoAluno = document.querySelector('[data-action="novo-aluno"]');
-    if (btnNovoAluno) btnNovoAluno.addEventListener('click', criarAlunoRapido);
-    document.querySelectorAll('[data-action="abrir-aluno"]').forEach((el) => {
-      el.addEventListener('click', () => abrirAluno(Number(el.dataset.id)));
-    });
-    const btnSalvarAluno = document.querySelector('[data-action="salvar-aluno"]');
-    if (btnSalvarAluno) btnSalvarAluno.addEventListener('click', salvarAluno);
-    const btnMatricular = document.querySelector('[data-action="matricular-aluno"]');
-    if (btnMatricular) btnMatricular.addEventListener('click', matricularAluno);
-    document.querySelectorAll('[data-action="sair-turma"]').forEach((el) => {
-      el.addEventListener('click', () => sairDaTurma(Number(el.dataset.turma)));
+    // registro de aulas
+    const selRegistroTurma = document.getElementById('sel-registro-turma');
+    if (selRegistroTurma) selRegistroTurma.addEventListener('change', (e) => { state.registroTurmaId = Number(e.target.value) || null; carregarRegistro().then(render); });
+    const inputRegistroMes = document.getElementById('registro-mes');
+    if (inputRegistroMes) inputRegistroMes.addEventListener('change', (e) => { state.registroMes = e.target.value; carregarRegistro().then(render); });
+    const btnRegistrarAula = document.querySelector('[data-action="registrar-aula"]');
+    if (btnRegistrarAula) btnRegistrarAula.addEventListener('click', registrarAula);
+    document.querySelectorAll('[data-action="remover-registro"]').forEach((el) => {
+      el.addEventListener('click', () => removerRegistro(Number(el.dataset.id)));
     });
 
     // relatório
@@ -764,8 +635,9 @@
     localStorage.removeItem('token-aulas');
     Object.assign(state, {
       token: null, usuario: null, pin: '', erroLogin: '', abaAtual: null,
-      turmasCarregado: false, alunosCarregado: false, calendarioCarregado: false,
+      turmasCarregado: false, calendarioCarregado: false,
       relatorioCarregado: false, configCarregado: false,
+      registroTurmaId: null, registroLista: [],
     });
     carregarProfessoresLogin().then(render);
   }
@@ -782,22 +654,18 @@
     if (ehDiretoria()) {
       state.professoresTodos = await api('/professores');
     }
-    await abrirAba(ehDiretoria() ? 'inicio' : 'chamada');
+    await abrirAba(ehDiretoria() ? 'inicio' : 'turmas');
   }
 
   async function abrirAba(id) {
     if (!id) return;
     state.abaAtual = id;
     render();
-    if ((id === 'inicio' || id === 'turmas' || id === 'calendario') && !state.turmasCarregado) {
+    if ((id === 'inicio' || id === 'turmas' || id === 'calendario' || id === 'registro') && !state.turmasCarregado) {
       await carregarTurmas();
       state.turmasCarregado = true;
     }
-    if (id === 'chamada') await carregarTurmasParaChamada();
-    if (id === 'alunos' && !state.alunosCarregado) {
-      await carregarAlunos();
-      state.alunosCarregado = true;
-    }
+    if (id === 'registro' && state.registroTurmaId) await carregarRegistro();
     if (id === 'calendario') state.calendarioCarregado = true;
     if (id === 'relatorio') await carregarRelatorio();
     if (id === 'config' && !state.configCarregado) {
@@ -810,41 +678,6 @@
   // ---------- turmas ----------
   async function carregarTurmas() {
     state.turmasLista = await api('/turmas');
-  }
-
-  async function carregarTurmasParaChamada() {
-    state.chamadaTurmas = await api('/turmas');
-    if (!state.chamadaTurmaId && state.chamadaTurmas.length === 1) {
-      state.chamadaTurmaId = state.chamadaTurmas[0].id;
-    }
-    if (state.chamadaTurmaId) await carregarChamada();
-  }
-
-  async function carregarChamada() {
-    if (!state.chamadaTurmaId) { state.chamadaAlunos = []; return; }
-    state.chamadaCarregando = true;
-    try {
-      const resp = await api(`/chamadas?turmaId=${state.chamadaTurmaId}&data=${state.chamadaData}`);
-      state.chamadaAlunos = resp.alunos;
-    } finally {
-      state.chamadaCarregando = false;
-    }
-  }
-
-  async function salvarChamada() {
-    try {
-      await api('/chamadas', {
-        method: 'POST',
-        body: {
-          turmaId: state.chamadaTurmaId,
-          data: state.chamadaData,
-          presencas: state.chamadaAlunos.map((a) => ({ alunoId: a.id, presente: a.presente })),
-        },
-      });
-      alert('Chamada salva.');
-    } catch (err) {
-      alert(err.message);
-    }
   }
 
   async function salvarTurma() {
@@ -875,72 +708,30 @@
     }
   }
 
-  // ---------- alunos ----------
-  async function carregarAlunos() {
-    const params = new URLSearchParams();
-    if (state.alunosBusca) params.set('busca', state.alunosBusca);
-    if (state.alunosSituacaoFiltro) params.set('situacao', state.alunosSituacaoFiltro);
-    state.alunosLista = await api(`/alunos?${params.toString()}`);
+  // ---------- registro de aulas ----------
+  async function carregarRegistro() {
+    if (!state.registroTurmaId) { state.registroLista = []; return; }
+    state.registroLista = await api(`/aulas-registradas?turmaId=${state.registroTurmaId}&mes=${state.registroMes}`);
   }
 
-  async function criarAlunoRapido() {
-    const nome = prompt('Nome do novo aluno:');
-    if (!nome || !nome.trim()) return;
+  async function registrarAula() {
+    const data = document.getElementById('registro-data').value;
+    if (!data) return;
     try {
-      await api('/alunos', { method: 'POST', body: { nome: nome.trim() } });
-      await carregarAlunos();
+      await api('/aulas-registradas', { method: 'POST', body: { turmaId: state.registroTurmaId, data } });
+      state.registroData = data;
+      await carregarRegistro();
       render();
     } catch (err) {
       alert(err.message);
     }
   }
 
-  async function abrirAluno(id) {
-    state.alunoSelecionadoId = id;
-    if (!state.turmasCarregado) { await carregarTurmas(); state.turmasCarregado = true; }
-    state.alunoTurmasDoAluno = await api(`/alunos/${id}/turmas`);
-    render();
-  }
-
-  async function salvarAluno() {
-    const id = state.alunoSelecionadoId;
-    const body = {
-      nome: document.getElementById('aluno-nome').value.trim(),
-      matricula: document.getElementById('aluno-matricula').value.trim() || null,
-      situacao: document.getElementById('aluno-situacao').value,
-    };
+  async function removerRegistro(id) {
+    if (!confirm('Remover esse lançamento de aula?')) return;
     try {
-      await api(`/alunos/${id}`, { method: 'PUT', body });
-      await carregarAlunos();
-      render();
-    } catch (err) {
-      alert(err.message);
-    }
-  }
-
-  async function matricularAluno() {
-    const turmaId = Number(document.getElementById('sel-nova-matricula').value);
-    if (!turmaId) return;
-    try {
-      await api(`/alunos/${state.alunoSelecionadoId}/matricular`, { method: 'POST', body: { turmaId } });
-      state.turmasCarregado = false;
-      await carregarTurmas();
-      state.turmasCarregado = true;
-      state.alunoTurmasDoAluno = await api(`/alunos/${state.alunoSelecionadoId}/turmas`);
-      render();
-    } catch (err) {
-      alert(err.message);
-    }
-  }
-
-  async function sairDaTurma(turmaId) {
-    if (!confirm('Tirar esse aluno dessa turma?')) return;
-    try {
-      await api(`/alunos/${state.alunoSelecionadoId}/turmas/${turmaId}/sair`, { method: 'POST' });
-      state.turmasCarregado = false;
-      await carregarTurmas();
-      state.turmasCarregado = true;
-      state.alunoTurmasDoAluno = await api(`/alunos/${state.alunoSelecionadoId}/turmas`);
+      await api(`/aulas-registradas/${id}`, { method: 'DELETE' });
+      await carregarRegistro();
       render();
     } catch (err) {
       alert(err.message);

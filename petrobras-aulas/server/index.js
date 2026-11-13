@@ -6,8 +6,7 @@ const authRoutes = require('./routes/auth');
 const professoresRoutes = require('./routes/professores');
 const modalidadesRoutes = require('./routes/modalidades');
 const turmasRoutes = require('./routes/turmas');
-const alunosRoutes = require('./routes/alunos');
-const chamadasRoutes = require('./routes/chamadas');
+const aulasRegistradasRoutes = require('./routes/aulasRegistradas');
 const relatoriosRoutes = require('./routes/relatorios');
 
 const app = express();
@@ -21,8 +20,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/professores', professoresRoutes);
 app.use('/api/modalidades', modalidadesRoutes);
 app.use('/api/turmas', turmasRoutes);
-app.use('/api/alunos', alunosRoutes);
-app.use('/api/chamadas', chamadasRoutes);
+app.use('/api/aulas-registradas', aulasRegistradasRoutes);
 app.use('/api/relatorios', relatoriosRoutes);
 
 app.use((err, req, res, next) => {

@@ -1,12 +1,16 @@
 -- Sistema de controle de professores/turmas do clube da Petrobras.
 -- Levantado numa reunião inicial, sem a planilha real deles ainda — campos
--- e regras aqui são o que já dá pra desenvolver; o modelo de aluno/matrícula
--- pode precisar de ajuste quando a planilha de migração chegar.
+-- e regras aqui são o que já dá pra desenvolver.
+--
+-- Decisão do Pedro: sem cadastro de aluno nem chamada por aluno — o
+-- controle é só da diretoria, lançando quando uma aula aconteceu, pra
+-- alimentar o cálculo de horas/pagamento dos professores.
 
--- Só dois tipos de acesso (confirmado na reunião): professor (só vê/chama
--- as próprias turmas) e diretoria (vê e edita tudo). Sem matriz de
--- permissão configurável — é um projeto menor que o CEPE/ATPN, dois papéis
--- fixos bastam.
+-- Só dois tipos de acesso (confirmado na reunião): professor (só enxerga as
+-- próprias turmas e o próprio relatório de horas, não lança nada) e
+-- diretoria (vê e edita tudo, inclusive lança as aulas dadas). Sem matriz
+-- de permissão configurável — é um projeto menor que o CEPE/ATPN, dois
+-- papéis fixos bastam.
 CREATE TABLE IF NOT EXISTS professores (
   id SERIAL PRIMARY KEY,
   nome TEXT NOT NULL,
@@ -32,7 +36,8 @@ CREATE TABLE IF NOT EXISTS modalidades (
 );
 
 -- Turma = uma sigla (ex: TN7, TN14, igual ao que já usam na planilha deles)
--- com modalidade, professor, dias da semana, horário e limite de vagas.
+-- com modalidade, professor, dias da semana, horário e limite de vagas
+-- (só informativo agora — não há mais cadastro de aluno pra ocupar vaga).
 CREATE TABLE IF NOT EXISTS turmas (
   id SERIAL PRIMARY KEY,
   sigla TEXT NOT NULL UNIQUE,
@@ -43,7 +48,7 @@ CREATE TABLE IF NOT EXISTS turmas (
   hora_inicio TIME NOT NULL,
   hora_fim TIME NOT NULL,
   vagas INTEGER NOT NULL DEFAULT 0 CHECK (vagas >= 0),
-  -- cor pro calendário/aviso de lotação (hex, ex: '#2f6f4f')
+  -- cor pro calendário (hex, ex: '#2f6f4f')
   cor TEXT,
   ativo BOOLEAN NOT NULL DEFAULT true,
   criado_em TIMESTAMPTZ NOT NULL DEFAULT now()
@@ -51,51 +56,18 @@ CREATE TABLE IF NOT EXISTS turmas (
 CREATE INDEX IF NOT EXISTS idx_turmas_professor ON turmas(professor_id);
 CREATE INDEX IF NOT EXISTS idx_turmas_modalidade ON turmas(modalidade_id);
 
--- Cadastro mínimo de aluno — "os dados mais importantes" ainda por
--- confirmar com a planilha real; matrícula e situação são o que já foi
--- citado na reunião (conferência de matrícula atualizada).
-CREATE TABLE IF NOT EXISTS alunos (
-  id SERIAL PRIMARY KEY,
-  nome TEXT NOT NULL,
-  matricula TEXT UNIQUE,
-  situacao TEXT NOT NULL DEFAULT 'ativo' CHECK (situacao IN ('ativo', 'inadimplente', 'suspenso')),
-  criado_em TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-CREATE INDEX IF NOT EXISTS idx_alunos_situacao ON alunos(situacao);
-
--- Vínculo aluno x turma com histórico (ate IS NULL = vínculo ativo).
--- Troca de turma/horário/dia não edita o vínculo antigo — fecha ele
--- (seta "ate") e abre um novo, pra manter rastro de onde o aluno já passou
--- (pedido explícito: "podendo haver alterações de alunos entre turmas").
-CREATE TABLE IF NOT EXISTS aluno_turmas (
-  id SERIAL PRIMARY KEY,
-  aluno_id INTEGER NOT NULL REFERENCES alunos(id) ON DELETE CASCADE,
-  turma_id INTEGER NOT NULL REFERENCES turmas(id) ON DELETE CASCADE,
-  desde DATE NOT NULL DEFAULT CURRENT_DATE,
-  ate DATE
-);
-CREATE INDEX IF NOT EXISTS idx_aluno_turmas_turma_ativo ON aluno_turmas(turma_id) WHERE ate IS NULL;
-CREATE INDEX IF NOT EXISTS idx_aluno_turmas_aluno ON aluno_turmas(aluno_id);
--- só um vínculo ativo por par aluno/turma ao mesmo tempo
-CREATE UNIQUE INDEX IF NOT EXISTS idx_aluno_turmas_ativo_unico
-  ON aluno_turmas(aluno_id, turma_id) WHERE ate IS NULL;
-
--- Uma linha por turma+data em que a chamada foi feita. Existir a linha já
--- conta como "aula dada" pro cálculo de horas — não existe chamada = não
--- houve aula naquele dia (férias, feriado, professor faltou).
-CREATE TABLE IF NOT EXISTS chamadas (
+-- Uma linha por turma+data em que a diretoria lançou que a aula aconteceu.
+-- Existir a linha já conta como "aula dada" pro cálculo de horas — não
+-- existe lançamento = não houve aula naquele dia (férias, feriado,
+-- professor faltou). professor_id grava quem dava a turma na hora do
+-- lançamento (não muda se o professor da turma for trocado depois).
+CREATE TABLE IF NOT EXISTS aulas_registradas (
   id SERIAL PRIMARY KEY,
   turma_id INTEGER NOT NULL REFERENCES turmas(id),
   data DATE NOT NULL,
   professor_id INTEGER REFERENCES professores(id),
+  registrado_por INTEGER REFERENCES professores(id),
   criado_em TIMESTAMPTZ NOT NULL DEFAULT now(),
   UNIQUE (turma_id, data)
 );
-CREATE INDEX IF NOT EXISTS idx_chamadas_professor_data ON chamadas(professor_id, data);
-
-CREATE TABLE IF NOT EXISTS chamada_presencas (
-  chamada_id INTEGER NOT NULL REFERENCES chamadas(id) ON DELETE CASCADE,
-  aluno_id INTEGER NOT NULL REFERENCES alunos(id) ON DELETE CASCADE,
-  presente BOOLEAN NOT NULL DEFAULT true,
-  PRIMARY KEY (chamada_id, aluno_id)
-);
+CREATE INDEX IF NOT EXISTS idx_aulas_registradas_professor_data ON aulas_registradas(professor_id, data);

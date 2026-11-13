@@ -1,41 +1,40 @@
 # Controle de aulas — Clube da Petrobras
 
-Sistema de controle de professores, turmas e chamada do clube da Petrobras. Levantado numa
+Sistema de controle de professores, turmas e horas de aula do clube da Petrobras. Levantado numa
 reunião inicial com o cliente — **ainda não temos a planilha real deles pra migrar os dados**;
 o que está aqui é o que já dá pra desenvolver sem ela. Projeto separado do CEPE/ATPN e do PDV
 Jabá, mesmo jeito de construir (equipe/padrão reaproveitado, domínio de negócio diferente).
 
+**Decisão do Pedro**: sem cadastro de aluno nem chamada por aluno — o controle é só da
+diretoria, lançando quando uma turma deu aula, pra alimentar o cálculo de horas/pagamento dos
+professores. Professor só acessa pra ver (leitura).
+
 ## O que já tem
 
-- **Login por PIN**, dois tipos de acesso fixos: **Professor(a)** (só vê e faz chamada das
-  próprias turmas) e **Diretoria** (vê e edita tudo).
+- **Login por PIN**, dois tipos de acesso fixos: **Professor(a)** (só vê as próprias turmas e o
+  próprio relatório de horas) e **Diretoria** (vê e edita tudo, inclusive lança as aulas dadas).
 - **Turmas**: sigla (mesmo padrão que eles já usam na planilha, ex: `TN7`, `TN14`), modalidade
   (já com nível embutido, ex: "Natação — Infantil A"), professor responsável, dias da semana,
-  horário, limite de vagas e cor (pro calendário/aviso de lotação). Mostra vagas ocupadas/livres
-  com aviso visual (verde/amarelo/vermelho) direto na listagem.
-- **Alunos**: cadastro mínimo (nome, matrícula, situação ativo/inadimplente/suspenso), vínculo
-  com turma com histórico — trocar de turma/horário/modalidade fecha o vínculo antigo e abre um
-  novo, sem perder o registro de onde o aluno já passou. Confere vaga antes de matricular.
-- **Chamada**: professor só chama as turmas que são dele; lista só quem está matriculado agora;
-  presença marcada por padrão (desmarca quem faltou).
-- **Relatório de horas**: soma as aulas dadas (uma chamada registrada = uma aula) por professor
-  no mês, calcula a duração pela turma e já aplica o valor fixo de R$ 35,00/hora citado na
-  reunião. Professor só vê o próprio; diretoria vê todo mundo.
+  horário, vagas (informativo) e cor (pro calendário).
+- **Registro de aulas**: a diretoria escolhe a turma e marca a data em que ela deu aula — isso
+  já entra direto no cálculo de horas. Lista as datas já lançadas no mês (pra evitar duplicar) e
+  permite remover um lançamento errado.
+- **Relatório de horas**: soma as aulas lançadas por professor no mês, calcula a duração pela
+  turma e já aplica o valor fixo de R$ 35,00/hora citado na reunião. Professor só vê o próprio;
+  diretoria vê todo mundo.
 - **Calendário**: grade semanal (recorrente por dia da semana) mostrando as turmas com a cor
   cadastrada.
 - **Configurações** (diretoria): cadastro de modalidades e de professores/acessos (nome, tipo,
   empresa terceirizada quando for o caso, PIN).
 
-## O que ainda não entrou (de propósito)
+## O que ficou de fora (de propósito)
 
-- **Modelo de dado definitivo de aluno/matrícula** — depende da planilha real que o cliente vai
-  passar pra migração; o que existe hoje é o mínimo pra "conferência de matrícula atualizada"
-  funcionar.
+- **Cadastro de aluno e chamada por aluno** — removido a pedido do Pedro: o controle é só da
+  diretoria lançando aula dada, não há rastreio de quem compareceu.
 - **Calendário por data específica** (feriados, reposição, férias) — só a grade semanal
   recorrente por enquanto.
 - **Projetos de campanha de matrícula / divisão ótima de turmas entre professores** — citado na
   reunião como objetivo futuro, não dá pra desenhar sem saber como eles medem isso hoje.
-- **Otimização automática de alocação de turmas** — mesma razão acima.
 
 ## Stack
 
@@ -61,10 +60,9 @@ os professores, modalidades reais e turmas.
 ## Estrutura
 
 ```
-db/schema.sql         tabelas (professores, modalidades, turmas, alunos, vínculo aluno-turma com
-                       histórico, chamadas, presenças)
-db/seed.sql            modalidades provisórias (trocar pelas reais)
-server/                Express: auth HMAC (12h), rate limiting, rotas de turmas/alunos/chamadas/relatório
-public/index.html      tela de login + shell + todas as abas, tudo num arquivo só
-scripts/seed-diretoria.js  cria o primeiro acesso de Diretoria
+db/schema.sql           tabelas (professores, modalidades, turmas, aulas_registradas)
+db/seed.sql              modalidades provisórias (trocar pelas reais)
+server/                  Express: auth HMAC (12h), rate limiting, rotas de turmas/registro/relatório
+public/index.html        tela de login + shell + todas as abas, tudo num arquivo só
+scripts/seed-diretoria.js   cria o primeiro acesso de Diretoria
 ```
