@@ -3409,15 +3409,20 @@
       const parecido = { categoria: $('#np-categoria').value, genero, ncm, gradeId, cores: cores.filter(Boolean), preco, custo, minimo, soComEstoque, parecido: nome, jaEtiqueta: $('#np-ja-etiqueta').checked };
       const comCodigo = variacoes.filter(v => v.codigoBarras).length;
       const semEtiqueta = variacoes.filter(v => !v.codigoBarras).reduce((t, v) => t + v.estoqueInicial, 0);
+      const prod = state.produtos.find(p => p.id === r.id);
+      const temCodigo = (v) => variacoes.some(x => x.codigoBarras && x.tamanho === v.tamanho && x.cor === v.cor);
+      // Código de barras de cada tamanho/cor, na ordem da grade (pra conferir ou anotar).
+      const codigosCriados = prod ? prod.tamanhos.flatMap(t => prod.variacoes.filter(v => v.tamanho === t)) : [];
       const fim = abrirModal(`<div class="modal-card estreito" style="text-align:center">${cabecalhoModal('Produto criado', '')}
         <div style="font-size:15px"><b>${esc(nome)}</b></div>
         <div style="font-size:13px;color:var(--text-2)">${variacoes.length} tamanho${variacoes.length === 1 ? '' : 's'}/cor${variacoes.length === 1 ? '' : 'es'} · ${pecas} peça${pecas === 1 ? '' : 's'} no estoque</div>
         ${comCodigo ? `<div style="font-size:12px;color:var(--ok-text)">✓ ${comCodigo} código${comCodigo === 1 ? '' : 's'} de etiqueta já ligado${comCodigo === 1 ? '' : 's'} — é só bipar na venda</div>` : ''}
+        ${codigosCriados.length ? `<div class="tabela-scroll" style="max-height:220px;text-align:left"><table class="tabela" id="np-codigos-criados"><tr><th>Tamanho</th><th>Cor</th><th>Código de barras</th><th>Qtd</th></tr>
+          ${codigosCriados.map(v => `<tr><td><b>${esc(v.tamanho)}</b></td><td>${esc(v.cor || '—')}</td><td class="mono" style="font-size:13px">${esc(v.codigoBarras)}${temCodigo(v) ? ' <span class="tag cinza" title="Código que já estava na etiqueta da peça">da etiqueta</span>' : ''}</td><td>${v.estoque}</td></tr>`).join('')}
+        </table></div>` : ''}
         ${semEtiqueta ? `<button class="${comCodigo ? 'btn-secundario' : 'btn-primario'} btn-grande" id="np-etiquetas">🏷 Imprimir ${semEtiqueta} etiqueta${semEtiqueta === 1 ? '' : 's'}${comCodigo ? ' (das peças sem código)' : ''}</button>` : ''}
         <button class="${semEtiqueta && !comCodigo ? 'btn-secundario' : 'btn-primario'} btn-grande" id="np-parecido">+ Cadastrar outro parecido</button>
         <button class="link-btn" id="np-fim">Concluir</button></div>`);
-      const prod = state.produtos.find(p => p.id === r.id);
-      const temCodigo = (v) => variacoes.some(x => x.codigoBarras && x.tamanho === v.tamanho && x.cor === v.cor);
       if (semEtiqueta) fim.querySelector('#np-etiquetas').onclick = () => abrirImprimirEtiquetas(etiquetasDoProduto(prod).filter(e => !temCodigo(prod.variacoes.find(v => v.id === e.variacaoId))), 'Etiquetas — ' + nome);
       fim.querySelector('#np-parecido').onclick = () => abrirNovoProduto(parecido);
       fim.querySelector('#np-fim').onclick = () => fecharModal();
