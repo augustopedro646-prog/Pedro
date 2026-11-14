@@ -1287,9 +1287,19 @@
     return `<div class="grade"><div class="grade-row grade-header"><div class="grade-tamanho"></div>${coresHeader}</div>${rows}</div>`;
   }
 
+  // Final do código de barras: "473" acha as peças cujo código termina em 473 (a partir de 3 números).
+  function variacoesPorFinal(digitos, inclusiveInativas) {
+    if (!/^\d{3,}$/.test(digitos)) return [];
+    const achadas = [];
+    for (const p of state.produtos) for (const v of p.variacoes) {
+      if ((inclusiveInativas || (p.ativo && v.ativo)) && v.codigoBarras && String(v.codigoBarras).replace(/\D/g, '').endsWith(digitos)) achadas.push({ produto: p, variacao: v });
+    }
+    return achadas;
+  }
   function produtosVisiveisVenda() {
     const termo = state.vendaBusca.trim().toLowerCase();
-    return state.produtos.filter(p => p.ativo && p.variacoes.some(v => v.ativo) && (!termo || p.nome.toLowerCase().includes(termo) || p.categoria.toLowerCase().includes(termo)));
+    const porFinal = new Set(variacoesPorFinal(termo).map(a => a.produto.id));
+    return state.produtos.filter(p => p.ativo && p.variacoes.some(v => v.ativo) && (!termo || p.nome.toLowerCase().includes(termo) || p.categoria.toLowerCase().includes(termo) || porFinal.has(p.id)));
   }
 
   function renderVenda() {
@@ -1314,6 +1324,17 @@
           <div class="produto-preco">${htmlPrecoProduto(p)}</div>
         </button>`).join('');
       grid.querySelectorAll('.produto-card').forEach(btn => btn.addEventListener('click', () => abrirGradeVenda(btn.dataset.id)));
+      // Digitou o final de um código: a peça exata (tamanho/cor) aparece em cima, pra pôr no carrinho com um toque.
+      const finais = variacoesPorFinal(state.vendaBusca.trim()).slice(0, 12);
+      if (finais.length) {
+        grid.insertAdjacentHTML('afterbegin', `<div id="venda-por-codigo" style="grid-column:1/-1;display:flex;flex-direction:column;gap:6px">
+          <div style="font-size:12px;color:var(--text-2)">Código terminando em <b>${esc(state.vendaBusca.trim())}</b>${finais.length === 1 ? ' — Enter põe no carrinho' : ''}:</div>
+          ${finais.map(a => `<button class="linha-clicavel" data-final-var="${a.variacao.id}" ${estoqueDisponivel(a.variacao) <= 0 ? 'disabled' : ''}>
+            <div style="flex-grow:1;text-align:left"><b>${esc(a.produto.nome)}</b> · Tam ${esc(a.variacao.tamanho)}${a.variacao.cor ? ' · ' + esc(a.variacao.cor) : ''}
+              <div class="mono" style="font-size:11px;color:var(--text-2)">${esc(a.variacao.codigoBarras)} · ${estoqueDisponivel(a.variacao)} em estoque</div></div>
+            <b>${fmt(a.variacao.precoVenda)}</b></button>`).join('')}</div>`);
+        grid.querySelectorAll('[data-final-var]').forEach(b => b.addEventListener('click', () => { adicionarAoCarrinho(b.dataset.finalVar); limparBuscaVenda(); }));
+      }
     }
     renderCarrinho();
   }
@@ -1353,7 +1374,16 @@
     const termo = state.vendaBusca.trim();
     if (!termo) return;
     const digitos = termo.replace(/\D/g, '');
-    if (digitos && digitos === termo) { limparBuscaVenda(); processarCodigoVenda(digitos); return; }
+    if (digitos && digitos === termo) {
+      // Código inteiro (bipado ou digitado) entra direto; senão, tenta pelo final do código.
+      if (!acharPorCodigo(digitos)) {
+        const finais = variacoesPorFinal(digitos);
+        if (finais.length === 1) { limparBuscaVenda(); adicionarAoCarrinho(finais[0].variacao.id); return; }
+        if (finais.length > 1) { toast(finais.length + ' peças têm o código terminando em ' + digitos + ' — toque na certa'); return; }
+        if (digitos.length < 6) { toast('Nenhuma peça com o código terminando em ' + digitos, 'erro'); return; }
+      }
+      limparBuscaVenda(); processarCodigoVenda(digitos); return;
+    }
     const visiveis = produtosVisiveisVenda();
     if (visiveis.length === 1) abrirGradeVenda(visiveis[0].id);
   }
@@ -3172,7 +3202,8 @@
   function produtosFiltrados() {
     const termo = state.busca.trim().toLowerCase();
     return state.produtos.filter(p => {
-      const bateBusca = !termo || p.nome.toLowerCase().includes(termo) || (/^\d{6,}$/.test(termo) && p.variacoes.some(v => normalizarCodigo(v.codigoBarras) === normalizarCodigo(termo)));
+      const bateBusca = !termo || p.nome.toLowerCase().includes(termo) || (/^\d{6,}$/.test(termo) && p.variacoes.some(v => normalizarCodigo(v.codigoBarras) === normalizarCodigo(termo)))
+        || (/^\d{3,}$/.test(termo) && p.variacoes.some(v => String(v.codigoBarras || '').endsWith(termo)));
       return bateBusca && (!state.filtroCategoria || p.categoria === state.filtroCategoria) && (!state.filtroGenero || p.genero === state.filtroGenero);
     });
   }
