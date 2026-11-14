@@ -82,7 +82,13 @@ function imprimir(html, impressora, opcoes = {}) {
   const trabalho = fila.then(async () => {
     const pasta = fs.mkdtempSync(path.join(os.tmpdir(), 'gutto-impressao-'));
     try {
-      const pdf = await gerarPdf(html, pasta);
+      // A primeira vez que o Edge abre escondido às vezes não grava o PDF: tenta mais uma vez.
+      let pdf;
+      try { pdf = await gerarPdf(html, pasta); } catch (e) {
+        if (!(e instanceof ErroImpressao) || e.status === 503) throw e;
+        fs.rmSync(path.join(pasta, 'perfil'), { recursive: true, force: true });
+        pdf = await gerarPdf(html, pasta);
+      }
       if (simulada()) {
         contador += 1;
         const destino = path.join(process.env.IMPRESSAO_SIMULADA_DIR, String(contador).padStart(3, '0') + '-' + impressora.replace(/[^\w.-]+/g, '_') + '.pdf');
