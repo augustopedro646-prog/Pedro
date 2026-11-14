@@ -82,6 +82,14 @@ As peças voltam pro estoque na hora, o cashback daquela compra é estornado na 
 fica no histórico da aba (últimos 30 dias). Prazo e PIN de Administrador fora do prazo continuam
 valendo.
 
+## Desconto (em % ou R$)
+
+Na Venda rápida cada peça tem o desconto em **%** ou em **R$** (os botões ao lado do campo), e
+embaixo do subtotal tem o **Desconto na venda**, também em % ou R$, repartido entre as peças.
+Em **Configurações → Desconto** o Administrador define até quanto a equipe dá sem pedir PIN: um %
+geral, um teto em R$ por venda (0 = sem teto) e, se quiser, um % próprio pra cada funcionário.
+Passou do limite, a venda pede o PIN de um Administrador.
+
 ## Gênero do produto
 
 No **+ Novo produto** escolha **Feminino, Masculino ou Unissex** (obrigatório; o "cadastrar parecido"

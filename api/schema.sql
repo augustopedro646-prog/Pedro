@@ -781,3 +781,8 @@ EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 -- Impressão direta (sem a janela do Windows): qual impressora recebe o cupom (e cupom de troca,
 -- vale-troca, DANFE...) e qual recebe as etiquetas. { direta, cupom, etiquetas, orientacaoEtiquetas }
 ALTER TABLE lojas ADD COLUMN IF NOT EXISTS impressao_config JSONB NOT NULL DEFAULT '{}'::jsonb;
+
+-- Desconto sem PIN de Administrador: além do % (desconto_livre_pct), um teto em R$ por venda
+-- (0 = sem teto em R$) e um % próprio por funcionário (vazio = vale o da loja).
+ALTER TABLE lojas ADD COLUMN IF NOT EXISTS desconto_livre_valor NUMERIC(12,2) NOT NULL DEFAULT 0;
+ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS desconto_max_pct NUMERIC;

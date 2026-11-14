@@ -189,7 +189,7 @@ app.post('/api/lojas/:lojaId/login', pinLimiter, rota(async (req, res) => {
 
 app.get('/api/lojas/:lojaId/equipe', admin, rota(async (req, res) => {
   const { rows } = await pool.query(
-    'SELECT id, nome, papel, ativo, criado_em, meta_mensal::float AS meta_mensal FROM usuarios WHERE loja_id = $1 ORDER BY ativo DESC, nome',
+    'SELECT id, nome, papel, ativo, criado_em, meta_mensal::float AS meta_mensal, desconto_max_pct::float AS desconto_max_pct FROM usuarios WHERE loja_id = $1 ORDER BY ativo DESC, nome',
     [req.lojaId]
   );
   res.json(rows);
@@ -217,6 +217,9 @@ app.put('/api/lojas/:lojaId/equipe/:id', admin, rota(async (req, res) => {
   if (body.pin != null && body.pin !== '' && !/^\d{4}$/.test(body.pin)) falha(400, 'PIN deve ter 4 dígitos');
   const ativo = typeof body.ativo === 'boolean' ? body.ativo : null;
   const meta = body.metaMensal != null && body.metaMensal !== '' ? numero(body.metaMensal, 'meta do mês', { max: 1e7 }) : null;
+  // Desconto máximo sem PIN só dessa pessoa: '' ou null = volta a valer o da loja.
+  const mudaDesconto = body.descontoMaxPct !== undefined;
+  const descontoMax = mudaDesconto && body.descontoMaxPct !== null && body.descontoMaxPct !== '' ? numero(body.descontoMaxPct, 'desconto máximo', { max: 100 }) : null;
 
   await transacao(async (c) => {
     const { rows } = await c.query('SELECT id, papel, ativo FROM usuarios WHERE id = $1 AND loja_id = $2 FOR UPDATE', [req.params.id, req.lojaId]);
@@ -234,9 +237,10 @@ app.put('/api/lojas/:lojaId/equipe/:id', admin, rota(async (req, res) => {
     }
     await c.query(
       `UPDATE usuarios SET nome = COALESCE($1, nome), papel = $2, ativo = $3,
-         pin_hash = COALESCE($4, pin_hash), meta_mensal = COALESCE($6, meta_mensal)
+         pin_hash = COALESCE($4, pin_hash), meta_mensal = COALESCE($6, meta_mensal),
+         desconto_max_pct = CASE WHEN $7 THEN $8::numeric ELSE desconto_max_pct END
        WHERE id = $5`,
-      [nome, novoPapel, novoAtivo, body.pin ? hashPin(body.pin) : null, req.params.id, meta]
+      [nome, novoPapel, novoAtivo, body.pin ? hashPin(body.pin) : null, req.params.id, meta, mudaDesconto, descontoMax]
     );
   });
   res.json({ ok: true });
@@ -282,7 +286,10 @@ app.get('/api/lojas/:lojaId/config', qualquer, rota(async (req, res) => {
   const { rows } = await pool.query('SELECT * FROM lojas WHERE id = $1', [req.lojaId]);
   if (!rows.length) falha(404, 'loja não encontrada');
   const l = rows[0];
-  res.json({ nome: l.nome, cashbackPct: Number(l.cashback_pct), descontoLivrePct: Number(l.desconto_livre_pct), comissaoPct: Number(l.comissao_pct), leituraIA: !!anthropic,
+  const { rows: eu } = await pool.query('SELECT desconto_max_pct FROM usuarios WHERE id = $1', [req.usuario.id]);
+  const meuPct = eu.length && eu[0].desconto_max_pct != null ? Number(eu[0].desconto_max_pct) : null;
+  res.json({ nome: l.nome, cashbackPct: Number(l.cashback_pct), descontoLivrePct: Number(l.desconto_livre_pct),
+    descontoLivreValor: Number(l.desconto_livre_valor), meuDescontoLivrePct: meuPct, comissaoPct: Number(l.comissao_pct), leituraIA: !!anthropic,
     crediario: { limitePadrao: Number(l.crediario_limite_padrao), maxParcelas: l.crediario_max_parcelas },
     troca: { diasLoja: l.troca_dias_loja, diasSite: l.troca_dias_site },
     condicional: { limitePadrao: Number(l.condicional_limite_padrao) },
@@ -308,6 +315,9 @@ app.put('/api/lojas/:lojaId/config', admin, rota(async (req, res) => {
   const body = req.body || {};
   const cashback = body.cashbackPct != null ? numero(body.cashbackPct, 'cashbackPct', { max: 50 }) : null;
   const desconto = body.descontoLivrePct != null ? numero(body.descontoLivrePct, 'descontoLivrePct', { max: 100 }) : null;
+  if (body.descontoLivreValor != null) {
+    await pool.query('UPDATE lojas SET desconto_livre_valor = $1 WHERE id = $2', [numero(body.descontoLivreValor, 'desconto máximo em R$', { max: 1e6 }), req.lojaId]);
+  }
   await pool.query(
     'UPDATE lojas SET cashback_pct = COALESCE($1, cashback_pct), desconto_livre_pct = COALESCE($2, desconto_livre_pct) WHERE id = $3',
     [cashback, desconto, req.lojaId]
@@ -1435,9 +1445,12 @@ app.post('/api/lojas/:lojaId/vendas', qualquer, rota(async (req, res) => {
       body.clienteId = condicional.cliente_id;
       await devolverCondicional(c, condicional, req.usuario.id, req.lojaId);
     }
-    const { rows: lojaRows } = await c.query('SELECT cashback_pct, desconto_livre_pct FROM lojas WHERE id = $1', [req.lojaId]);
+    const { rows: lojaRows } = await c.query('SELECT cashback_pct, desconto_livre_pct, desconto_livre_valor FROM lojas WHERE id = $1', [req.lojaId]);
     const cashbackPct = Number(lojaRows[0].cashback_pct);
-    const descontoLivrePct = Number(lojaRows[0].desconto_livre_pct);
+    // Limite de desconto sem PIN: o % da pessoa (se o Administrador definiu) ou o da loja, e o teto em R$ da loja.
+    const { rows: vendedora } = await c.query('SELECT desconto_max_pct FROM usuarios WHERE id = $1', [req.usuario.id]);
+    const descontoLivrePct = vendedora.length && vendedora[0].desconto_max_pct != null ? Number(vendedora[0].desconto_max_pct) : Number(lojaRows[0].desconto_livre_pct);
+    const descontoLivreValor = Number(lojaRows[0].desconto_livre_valor);
 
     let bruto = 0, descontoTotal = 0;
     const gravar = [];
@@ -1468,11 +1481,14 @@ app.post('/api/lojas/:lojaId/vendas', qualquer, rota(async (req, res) => {
     // Desconto acima do limite livre: Caixa precisa do PIN de um Administrador.
     let aprovadoPor = null;
     const pctDesconto = bruto > 0 ? (descontoTotal / bruto) * 100 : 0;
-    if (pctDesconto > descontoLivrePct + 1e-9 && req.usuario.papel !== 'administrador') {
+    const passouPct = pctDesconto > descontoLivrePct + 1e-9;
+    const passouValor = descontoLivreValor > 0 && descontoTotal > descontoLivreValor + 0.005;
+    if ((passouPct || passouValor) && req.usuario.papel !== 'administrador') {
       const ap = body.aprovacao || {};
       if (typeof ap.usuarioId !== 'string' || typeof ap.pin !== 'string') {
-        falha(403, 'Desconto de ' + pctDesconto.toFixed(1).replace('.', ',') + '% passa do limite de ' + descontoLivrePct +
-          '% — precisa do PIN de um Administrador', { codigo: 'aprovacao_necessaria' });
+        const brl = (v) => 'R$ ' + v.toFixed(2).replace('.', ',');
+        falha(403, 'Desconto de ' + (passouPct ? pctDesconto.toFixed(1).replace('.', ',') + '% passa do limite de ' + String(descontoLivrePct).replace('.', ',') + '%'
+          : brl(descontoTotal) + ' passa do limite de ' + brl(descontoLivreValor)) + ' — precisa do PIN de um Administrador', { codigo: 'aprovacao_necessaria' });
       }
       const { rows } = await c.query("SELECT id, nome, pin_hash FROM usuarios WHERE id = $1 AND loja_id = $2 AND ativo AND papel = 'administrador'", [ap.usuarioId, req.lojaId]);
       if (!rows.length || !conferirPin(req, rows[0], ap.pin)) falha(403, 'PIN de Administrador incorreto', { codigo: 'aprovacao_invalida' });

@@ -565,7 +565,7 @@
     <div class="view page" id="view-configuracoes">
       <div class="page-topo"><div><h1 class="titulo">Configurações</h1><p class="sub">Vendas, cupom, nota fiscal, site, pagamento, envio e backup</p></div></div>
       <div class="chips" id="cfg-atalhos" style="margin-bottom:12px">
-        <button class="chip" data-cfg-ir="cfg-sec-vendas">Vendas e crediário</button><button class="chip" data-cfg-ir="cfg-sec-cupom">Cupom</button><button class="chip" data-cfg-ir="cfg-sec-impressoras">Impressoras</button>
+        <button class="chip" data-cfg-ir="cfg-sec-vendas">Vendas e crediário</button><button class="chip" data-cfg-ir="cfg-sec-desconto">Desconto</button><button class="chip" data-cfg-ir="cfg-sec-cupom">Cupom</button><button class="chip" data-cfg-ir="cfg-sec-impressoras">Impressoras</button>
         <button class="chip" data-cfg-ir="cfg-sec-fiscal">Nota fiscal</button><button class="chip" data-cfg-ir="cfg-sec-site">Site da loja</button>
         <button class="chip" data-cfg-ir="cfg-sec-pagamento">Pagamento pelo site</button><button class="chip" data-cfg-ir="cfg-sec-envio">Envio</button>
         <button class="chip" data-cfg-ir="cfg-sec-entregadores">Entregadores</button>
@@ -921,8 +921,8 @@
       } else if (view === 'equipe') {
         state.equipe = await api('/equipe');
       } else if (view === 'configuracoes') {
-        const [bkp, ncm, entregadores] = await Promise.all([api('/backup'), api('/fiscal/ncm'), api('/entregadores'), carregarConfig()]);
-        state.backup = bkp; state.fiscalNcm = ncm; state.entregadores = entregadores;
+        const [bkp, ncm, entregadores, equipe] = await Promise.all([api('/backup'), api('/fiscal/ncm'), api('/entregadores'), api('/equipe'), carregarConfig()]);
+        state.backup = bkp; state.fiscalNcm = ncm; state.entregadores = entregadores; state.equipe = equipe;
       } else if (view === 'whatsapp') {
         await carregarWhatsApp(true);
         carregarMensagensClientes();
@@ -1513,17 +1513,35 @@
     toast(achado.produto.nome + ' · Tam ' + achado.variacao.tamanho + ' · ' + achado.variacao.cor + ' — ' + achado.variacao.estoque + ' em estoque');
   }
 
+  // Desconto da peça em % ou em R$ (descModo), mais o desconto na venda inteira (state.descontoVenda),
+  // que é repartido entre as peças na proporção do valor de cada uma — o servidor recebe o desconto
+  // por peça e confere o limite do total.
   function calcCarrinho() {
     let bruto = 0, desconto = 0;
     const linhas = state.cart.map(l => {
       const valorBruto = round2(l.precoUnit * l.qtd);
-      const descontoItem = round2(valorBruto * (l.descPct || 0) / 100);
-      bruto = round2(bruto + valorBruto); desconto = round2(desconto + descontoItem);
-      return Object.assign({}, l, { valorBruto, descontoItem, valorFinal: round2(valorBruto - descontoItem) });
+      const descontoProprio = l.descModo === 'reais' ? round2(Math.min(valorBruto, l.descReais || 0)) : round2(valorBruto * (l.descPct || 0) / 100);
+      bruto = round2(bruto + valorBruto);
+      return Object.assign({}, l, { valorBruto, descontoProprio, descontoItem: descontoProprio });
     });
+    const base = round2(linhas.reduce((t, l) => t + l.valorBruto - l.descontoProprio, 0));
+    const dv = state.descontoVenda;
+    let descontoVenda = 0;
+    if (dv && dv.valor > 0 && base > 0) {
+      descontoVenda = dv.modo === 'reais' ? round2(Math.min(base, dv.valor)) : round2(base * Math.min(100, dv.valor) / 100);
+      let resto = descontoVenda;
+      const comValor = linhas.filter(l => l.valorBruto - l.descontoProprio > 0);
+      comValor.forEach((l, k) => {
+        const parte = k === comValor.length - 1 ? resto : round2(descontoVenda * (l.valorBruto - l.descontoProprio) / base);
+        l.descontoItem = round2(l.descontoProprio + parte); resto = round2(resto - parte);
+      });
+    }
+    linhas.forEach(l => { l.valorFinal = round2(l.valorBruto - l.descontoItem); desconto = round2(desconto + l.descontoItem); });
     const total = round2(bruto - desconto);
-    return { linhas, bruto, desconto, total, pctDesconto: bruto > 0 ? desconto / bruto * 100 : 0 };
+    return { linhas, bruto, desconto, descontoVenda, total, pctDesconto: bruto > 0 ? desconto / bruto * 100 : 0 };
   }
+  // Limite de desconto sem PIN de quem está vendendo: o % dela (se o Administrador definiu) ou o da loja.
+  function limiteDescontoPct() { const c = state.config || {}; return c.meuDescontoLivrePct != null ? c.meuDescontoLivrePct : c.descontoLivrePct; }
 
   // Troco: dinheiro recebido acima do que falta vira troco; o resto das formas é aplicado como está.
   function calcPagamentos(total) {
@@ -1553,7 +1571,7 @@
   function desenharCarrinho() {
     const calc = calcCarrinho();
     const el = document.getElementById('carrinho-lista');
-    const limite = state.config.descontoLivrePct;
+    const limite = limiteDescontoPct();
     el.innerHTML = !state.cart.length ? '<div class="carrinho-vazio">Carrinho vazio — leia um código de barras ou toque num produto.</div>' : calc.linhas.map((l, i) => `
       <div class="carrinho-linha">
         <div class="carrinho-linha-topo">
@@ -1564,18 +1582,27 @@
           </div>
           <div class="carrinho-total">${fmt(l.valorFinal)}</div>
         </div>
-        <div class="carrinho-desc">Desconto <input type="text" inputmode="decimal" data-desc="${i}" value="${l.descPct ? String(l.descPct).replace('.', ',') : ''}" placeholder="0"> %
-          ${l.descontoItem ? `<span>(− ${fmt(l.descontoItem)})</span>` : ''}</div>
+        <div class="carrinho-desc">Desconto <input type="text" inputmode="decimal" data-desc="${i}" value="${l.descModo === 'reais' ? (l.descReais ? fmtNum(l.descReais) : '') : (l.descPct ? String(l.descPct).replace('.', ',') : '')}" placeholder="0">
+          <button type="button" class="chip ${l.descModo === 'reais' ? '' : 'ativo'}" data-desc-modo="${i}" data-modo="pct" style="padding:2px 7px">%</button><button type="button" class="chip ${l.descModo === 'reais' ? 'ativo' : ''}" data-desc-modo="${i}" data-modo="reais" style="padding:2px 7px">R$</button>
+          ${l.descontoProprio ? `<span>(− ${fmt(l.descontoProprio)})</span>` : ''}</div>
       </div>`).join('');
     el.querySelectorAll('[data-menos]').forEach(b => b.addEventListener('click', () => alterarQtd(Number(b.dataset.menos), -1)));
     el.querySelectorAll('[data-mais]').forEach(b => b.addEventListener('click', () => alterarQtd(Number(b.dataset.mais), 1)));
     el.querySelectorAll('[data-desc]').forEach(inp => inp.addEventListener('change', () => {
-      let pct = parseNumBR(inp.value);
-      if (!Number.isFinite(pct) || pct < 0) pct = 0;
-      if (pct > 100) pct = 100;
+      const i = Number(inp.dataset.desc), l = state.cart[i];
+      let v = parseNumBR(inp.value);
+      if (!Number.isFinite(v) || v < 0) v = 0;
       const cart = state.cart.slice();
-      cart[Number(inp.dataset.desc)] = Object.assign({}, cart[Number(inp.dataset.desc)], { descPct: round2(pct) });
+      cart[i] = Object.assign({}, l, l.descModo === 'reais' ? { descReais: round2(Math.min(v, l.precoUnit * l.qtd)), descPct: 0 } : { descPct: round2(Math.min(v, 100)), descReais: 0 });
       setState({ cart, pagamentos: [] });
+    }));
+    el.querySelectorAll('[data-desc-modo]').forEach(b => b.addEventListener('click', () => {
+      const i = Number(b.dataset.descModo);
+      if ((state.cart[i].descModo || 'pct') === b.dataset.modo) return;
+      const cart = state.cart.slice();
+      cart[i] = Object.assign({}, cart[i], { descModo: b.dataset.modo, descPct: 0, descReais: 0 });
+      setState({ cart, pagamentos: [] });
+      const inp = document.querySelector('[data-desc="' + i + '"]'); if (inp) inp.focus();
     }));
 
     const cli = state.cliente;
@@ -1602,13 +1629,30 @@
     const btnRem = document.getElementById('btn-remover-cliente');
     if (btnRem) btnRem.onclick = () => setState({ cliente: null, trocaEmCurso: null, pagamentos: state.pagamentos.filter(p => !TIPO_CREDITO[p.forma] && p.forma !== 'Crediário') });
 
-    const acimaLimite = calc.pctDesconto > limite + 1e-9 && !ehAdmin();
+    const limiteValor = state.config.descontoLivreValor || 0;
+    const acimaPct = calc.pctDesconto > limite + 1e-9, acimaValor = limiteValor > 0 && calc.desconto > limiteValor + 0.005;
+    const acimaLimite = (acimaPct || acimaValor) && !ehAdmin();
+    const dv = state.descontoVenda || { modo: 'pct', valor: 0 };
     document.getElementById('carrinho-totais').innerHTML = `
       <div class="linha-total"><span>Subtotal</span><span>${fmt(calc.bruto)}</span></div>
+      ${state.cart.length ? `<div class="carrinho-desc" style="justify-content:space-between"><span>Desconto na venda</span><span style="display:flex;gap:4px;align-items:center">
+        <input type="text" inputmode="decimal" id="desc-venda" value="${dv.valor ? fmtNum(dv.valor).replace(/,00$/, '') : ''}" placeholder="0">
+        <button type="button" class="chip ${dv.modo === 'reais' ? '' : 'ativo'}" data-desc-venda-modo="pct" style="padding:2px 7px">%</button><button type="button" class="chip ${dv.modo === 'reais' ? 'ativo' : ''}" data-desc-venda-modo="reais" style="padding:2px 7px">R$</button></span></div>` : ''}
       ${calc.desconto ? `<div class="linha-total"><span>Desconto (${fmtNum(calc.pctDesconto)}%)</span><span>− ${fmt(calc.desconto)}</span></div>` : ''}
-      ${acimaLimite ? `<div class="modal-dica" style="color:var(--baixo-text)">Desconto acima de ${limite}% — vai pedir PIN de Administrador ao confirmar.</div>` : ''}
+      ${acimaLimite ? `<div class="modal-dica" style="color:var(--baixo-text)">Desconto acima de ${acimaPct ? String(limite).replace('.', ',') + '%' : fmt(limiteValor)} — vai pedir PIN de Administrador ao confirmar.</div>` : ''}
       <div class="linha-total grande"><span>Total</span><span>${fmt(calc.total)}</span></div>
       ${cli && state.config.cashbackPct > 0 ? `<div class="modal-dica">Cliente ganha ${state.config.cashbackPct}% de cashback no que pagar sem crédito.</div>` : ''}`;
+    const inpDv = document.getElementById('desc-venda');
+    if (inpDv) inpDv.addEventListener('change', () => {
+      let v = parseNumBR(inpDv.value);
+      if (!Number.isFinite(v) || v < 0) v = 0;
+      setState({ descontoVenda: { modo: dv.modo, valor: round2(dv.modo === 'reais' ? v : Math.min(v, 100)) }, pagamentos: [] });
+    });
+    document.querySelectorAll('[data-desc-venda-modo]').forEach(b => b.addEventListener('click', () => {
+      if (b.dataset.descVendaModo === dv.modo) return;
+      setState({ descontoVenda: { modo: b.dataset.descVendaModo, valor: 0 }, pagamentos: [] });
+      const i = document.getElementById('desc-venda'); if (i) i.focus();
+    }));
 
     // Troca: o vale-troca entra sozinho como pagamento (até o total). Tirou na mão, não volta.
     if (te && cli && state.cart.length && !te.semVale && cli.saldo_vale_troca > 0 && !state.pagamentos.some(p => p.forma === 'Vale-troca')) {
@@ -1715,7 +1759,7 @@
       const troco = pag.troco;
       r.clienteNome = state.cliente ? state.cliente.nome : null;
       r.clienteCpf = state.cliente ? (state.cliente.cpf || '') : '';
-      Object.assign(state, { cart: [], pagamentos: [], cliente: null, condicional: null, crediario: null, listaPresente: null, trocaEmCurso: null });
+      Object.assign(state, { cart: [], pagamentos: [], cliente: null, condicional: null, crediario: null, listaPresente: null, trocaEmCurso: null, descontoVenda: null });
       if (r.crediario) carregarResumoCrediario();
       await Promise.all([carregarProdutos(), carregarCaixa()]);
       render();
@@ -2228,7 +2272,7 @@
     const cli = state.cliente || {};
     const linhas = state.cart.map(l => { const a = acharVariacao(l.variacaoId); return { ...l, nome: a ? a.produto.nome + ' ' + a.variacao.tamanho + (a.variacao.cor ? ' ' + a.variacao.cor : '') : 'peça' }; });
     const subtotal = round2(linhas.reduce((t, l) => t + l.precoUnit * l.qtd, 0));
-    const temDesconto = state.cart.some(l => l.descPct);
+    const temDesconto = state.cart.some(l => l.descPct || l.descReais) || !!(state.descontoVenda && state.descontoVenda.valor);
     const pgCfg = (state.config && state.config.pagamento) || {};
     const online = { pix: !!(pgCfg.pix && pgCfg.configurado), cartao: !!(pgCfg.cartao && pgCfg.configurado) };
     let tipo = 'envio', fr = null, opcao = null, pag = online.pix ? 'link-pix' : online.cartao ? 'link-cartao' : 'ja-pago';
@@ -3301,7 +3345,7 @@
           Todos com <input id="np-qtd-todos" type="text" inputmode="numeric" style="width:60px;padding:6px 8px;border-radius:7px;border:1px solid var(--border)"> <button class="btn-secundario" id="np-qtd-aplicar" type="button">Preencher</button>
           <span style="flex:1"></span><b id="np-qtd-total" style="color:var(--text)"></b>
         </div>
-        <label style="display:flex;gap:6px;align-items:center;font-size:12px;color:var(--text-2)"><input type="checkbox" id="np-so-com-estoque" ${modelo.soComEstoque ? 'checked' : ''}> Não criar os tamanhos/cores com 0 peças (dá pra criar depois em "+ Nova cor" / Editar)</label>
+        <label style="display:flex;gap:6px;align-items:center;font-size:12px;color:var(--text-2)"><input type="checkbox" id="np-so-com-estoque" ${modelo.soComEstoque !== false ? 'checked' : ''}> Não criar os tamanhos/cores com 0 peças (dá pra criar depois em "+ Nova cor" / Editar)</label>
         <label style="display:flex;gap:6px;align-items:center;font-size:13px;font-weight:600"><input type="checkbox" id="np-ja-etiqueta" ${modelo.jaEtiqueta ? 'checked' : ''} style="width:auto;min-width:0"> As peças já têm etiqueta com código de barras (bipar o código de cada tamanho/cor)</label>
         <div id="np-codigos"></div>
         <div class="erro-modal" id="np-erro"></div>
@@ -3443,7 +3487,7 @@
       const prod = state.produtos.find(p => p.id === r.id);
       const temCodigo = (v) => variacoes.some(x => x.codigoBarras && x.tamanho === v.tamanho && x.cor === v.cor);
       // Código de barras de cada tamanho/cor, na ordem da grade (pra conferir ou anotar).
-      const codigosCriados = prod ? prod.tamanhos.flatMap(t => prod.variacoes.filter(v => v.tamanho === t)) : [];
+      const codigosCriados = prod ? prod.tamanhos.flatMap(t => prod.variacoes.filter(v => v.tamanho === t && v.estoque > 0)) : [];
       const fim = abrirModal(`<div class="modal-card estreito" style="text-align:center">${cabecalhoModal('Produto criado', '')}
         <div style="font-size:15px"><b>${esc(nome)}</b></div>
         <div style="font-size:13px;color:var(--text-2)">${variacoes.length} tamanho${variacoes.length === 1 ? '' : 's'}/cor${variacoes.length === 1 ? '' : 'es'} · ${pecas} peça${pecas === 1 ? '' : 's'} no estoque</div>
@@ -4924,9 +4968,18 @@
     document.getElementById('config-loja').innerHTML = `
       <div class="linha-campos" style="max-width:520px;align-items:flex-end">
         <label class="campo">Cashback pro cliente (%)<input id="cfg-cashback" inputmode="decimal" value="${String(cfg.cashbackPct).replace('.', ',')}"></label>
-        <label class="campo">Desconto que o Caixa dá sem PIN (%)<input id="cfg-desconto" inputmode="decimal" value="${String(cfg.descontoLivrePct).replace('.', ',')}"></label>
         <label class="campo">Comissão sobre o vendido (%)<input id="cfg-comissao" inputmode="decimal" value="${String(cfg.comissaoPct || 0).replace('.', ',')}"></label>
       </div>
+      <div class="painel-titulo" id="cfg-sec-desconto" style="margin:18px 0 4px;font-size:14px">Desconto que a equipe pode dar</div>
+      <div class="modal-dica" style="margin:0 0 8px">Até esse limite a vendedora dá o desconto sozinha (em % ou em R$, na peça ou na venda toda). Passou, o sistema pede o PIN de um Administrador. Administrador não tem limite.</div>
+      <div class="linha-campos" style="max-width:520px;align-items:flex-end">
+        <label class="campo">Até quanto % sem PIN<input id="cfg-desconto" inputmode="decimal" value="${String(cfg.descontoLivrePct).replace('.', ',')}"></label>
+        <label class="campo">E no máximo R$ por venda (0 = sem teto)<input id="cfg-desconto-valor" inputmode="decimal" value="${fmtNum(cfg.descontoLivreValor || 0)}"></label>
+      </div>
+      ${(state.equipe || []).some(u => u.ativo && u.papel !== 'administrador') ? `<div class="tabela-scroll" style="max-width:520px;margin-top:8px"><table class="tabela"><tr><th>Funcionário</th><th>% próprio sem PIN</th></tr>
+        ${state.equipe.filter(u => u.ativo && u.papel !== 'administrador').map(u => `<tr><td>${esc(u.nome)} <span style="font-size:11px;color:var(--text-2)">${esc(PAPEL_LABEL[u.papel] || u.papel)}</span></td>
+          <td><input data-desc-func="${u.id}" inputmode="decimal" value="${u.desconto_max_pct != null ? String(u.desconto_max_pct).replace('.', ',') : ''}" placeholder="padrão (${String(cfg.descontoLivrePct).replace('.', ',')}%)" style="max-width:150px"></td></tr>`).join('')}
+      </table><div class="modal-dica" style="margin:4px 0 0">Deixe em branco pra valer o % geral acima.</div></div>` : ''}
       <div class="linha-campos" style="max-width:520px;align-items:flex-end;margin-top:10px">
         <label class="campo">Crediário: limite padrão por cliente (R$)<input id="cfg-cred-limite" inputmode="decimal" value="${fmtNum((cfg.crediario || {}).limitePadrao || 0)}"></label>
         <label class="campo">Crediário: máximo de parcelas<input id="cfg-cred-max" inputmode="numeric" value="${(cfg.crediario || {}).maxParcelas || 6}"></label>
@@ -4978,6 +5031,15 @@
     renderBackup();
     document.getElementById('cfg-salvar').onclick = (ev) => comBotao(ev.target, 'Salvando...', async () => {
       const cashbackPct = parseNumBR(document.getElementById('cfg-cashback').value), descontoLivrePct = parseNumBR(document.getElementById('cfg-desconto').value);
+      const descontoLivreValor = parseNumBR(document.getElementById('cfg-desconto-valor').value || '0');
+      if (!(descontoLivrePct >= 0 && descontoLivrePct <= 100)) throw new Error('Desconto sem PIN: de 0 a 100%');
+      if (!(descontoLivreValor >= 0)) throw new Error('Teto de desconto em R$ inválido');
+      const porFuncionario = [...document.querySelectorAll('[data-desc-func]')].map(inp => {
+        const u = state.equipe.find(x => x.id === inp.dataset.descFunc);
+        const v = inp.value.trim() === '' ? null : parseNumBR(inp.value);
+        if (v !== null && !(v >= 0 && v <= 100)) throw new Error('Desconto de ' + u.nome + ': de 0 a 100% (ou em branco)');
+        return { u, v };
+      }).filter(x => x.v !== x.u.desconto_max_pct);
       const comissaoPct = parseNumBR(document.getElementById('cfg-comissao').value || '0');
       const crediario = { limitePadrao: parseNumBR(document.getElementById('cfg-cred-limite').value || '0'), maxParcelas: parseInt(document.getElementById('cfg-cred-max').value, 10) };
       if (!(crediario.limitePadrao >= 0) || !(crediario.maxParcelas >= 1 && crediario.maxParcelas <= 24)) throw new Error('Confira o limite e as parcelas do crediário (1 a 24)');
@@ -4993,7 +5055,9 @@
       if (!(condicional.limitePadrao >= 0)) throw new Error('Limite do condicional inválido');
       const troca = { diasLoja: parseInt(document.getElementById('cfg-troca-loja').value, 10), diasSite: parseInt(document.getElementById('cfg-troca-site').value, 10) };
       if (!(troca.diasLoja >= 0 && troca.diasLoja <= 365) || !(troca.diasSite >= 0 && troca.diasSite <= 365)) throw new Error('Prazo de troca: de 0 a 365 dias');
-      await api('/config', { method: 'PUT', body: { cashbackPct, descontoLivrePct, comissaoPct, crediario, troca, condicional, fiscal: fiscalCorpo, pagamento, envio, impressao: lerConfigImpressoras(), cupomRodape: document.getElementById('cfg-cupom-rodape').value, site: {
+      for (const x of porFuncionario) await api('/equipe/' + x.u.id, { method: 'PUT', body: { descontoMaxPct: x.v } });
+      if (porFuncionario.length) state.equipe = await api('/equipe');
+      await api('/config', { method: 'PUT', body: { cashbackPct, descontoLivrePct, descontoLivreValor, comissaoPct, crediario, troca, condicional, fiscal: fiscalCorpo, pagamento, envio, impressao: lerConfigImpressoras(), cupomRodape: document.getElementById('cfg-cupom-rodape').value, site: {
         ativo: document.getElementById('cfg-site-ativo').checked, aceitaRetirada: document.getElementById('cfg-site-retirada').checked,
         aceitaEntrega: document.getElementById('cfg-site-entrega').checked, taxaEntrega: taxa, whatsapp: document.getElementById('cfg-site-whats').value,
         endereco: document.getElementById('cfg-site-endereco').value, mensagem: document.getElementById('cfg-site-msg').value, avaliacaoGoogle: document.getElementById('cfg-site-avaliacao').value } } });
@@ -6094,7 +6158,7 @@
   document.getElementById('btn-enviar-condicional').addEventListener('click', () => enviarComoCondicional());
   document.getElementById('btn-vender-envio').addEventListener('click', () => venderComEnvio());
   document.getElementById('btn-presente-lista').addEventListener('click', () => escolherListaNoCaixa());
-  document.getElementById('btn-limpar-carrinho').addEventListener('click', () => { if (!state.cart.length || confirm('Limpar o carrinho?')) setState({ cart: [], pagamentos: [], cliente: null, condicional: null, listaPresente: null, trocaEmCurso: null }); });
+  document.getElementById('btn-limpar-carrinho').addEventListener('click', () => { if (!state.cart.length || confirm('Limpar o carrinho?')) setState({ cart: [], pagamentos: [], cliente: null, condicional: null, listaPresente: null, trocaEmCurso: null, descontoVenda: null }); });
   document.getElementById('btn-trocas-lista').addEventListener('click', () => abrirTroca(true));
   document.getElementById('vendas-busca').addEventListener('input', (e) => { state.vendasBusca = e.target.value; renderVendas(); });
   document.getElementById('troca-bipar').addEventListener('keydown', (e) => {
