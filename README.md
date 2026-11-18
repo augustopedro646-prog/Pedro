@@ -70,7 +70,8 @@ node scripts/seed-admin.js "Seu Nome" 1234   # cria o primeiro Administrador
 npm start
 ```
 
-Abrir `http://localhost:3000`.
+Abrir `http://localhost:3001` (porta separada da 3000 do PDV Jabá, pra rodar nos dois ao mesmo
+tempo na mesma máquina).
 
 ## Estrutura
 
