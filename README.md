@@ -24,12 +24,20 @@ cargos/modelo de sócio:
 - **Tarefas** — checklist do dia por etapa (Abertura/Durante o dia/Fechamento), tarefa atribuída
   a um cargo (todo mundo daquele cargo vê e marca), frequência diária, por dia da semana ou a cada
   N dias. Administrador cadastra/edita/remove.
+- **Calendário** — **integrado de verdade com o PDV Jabá**: reservas/eventos são a mesma agenda
+  nos dois sistemas (decisão com o Pedro), não uma cópia sincronizada. Usa a tabela
+  `agenda_eventos` do banco do PDV Jabá (que já é multi-loja desde o início); a ATPN entra como
+  mais uma "loja" lá — um evento criado aqui já aparece sozinho no calendário consolidado do
+  admin do PDV Jabá, sem precisar mexer no repositório de lá. Ver "Integração com o PDV Jabá"
+  abaixo pra configurar. Sem configurar, a aba funciona normalmente avisando que a integração
+  está pendente.
 
 **Ainda não tem a aba "Sócios"** — o modelo de dado dela depende da visita do Pedro à associação
-pra ver o sistema que eles já usam hoje (ver histórico da conversa). As demais abas (Início,
-Relatórios, Calendário, Eventos) existem no menu mas ainda são só placeholder — o "quiosque" de
-bater ponto por outra pessoa via PIN (como o PDV Jabá tem) também não entrou ainda, por depender
-de como a associação opera fisicamente na prática.
+pra ver o sistema que eles já usam hoje (ver histórico da conversa); quando entrar, a identidade
+de pessoa compartilhada com o PDV Jabá (fidelidade, fiado) será por **telefone**, do jeito que o
+PDV Jabá já usa hoje. As demais abas (Início, Relatórios, Eventos) existem no menu mas ainda são
+só placeholder — o "quiosque" de bater ponto por outra pessoa via PIN (como o PDV Jabá tem)
+também não entrou ainda, por depender de como a associação opera fisicamente na prática.
 
 O "Robô WhatsApp" do PDV Jabá não entrou aqui ainda — precisa confirmar com o Pedro se faz
 sentido pra esse contexto antes de construir.
@@ -73,14 +81,28 @@ npm start
 Abrir `http://localhost:3001` (porta separada da 3000 do PDV Jabá, pra rodar nos dois ao mesmo
 tempo na mesma máquina).
 
+## Integração com o PDV Jabá (Calendário)
+
+Passo único, na máquina onde os dois sistemas rodam juntos:
+
+```bash
+JABA_DATABASE_URL="postgresql://postgres:<senha>@localhost:5432/pdv_jaba" node scripts/configurar-integracao-jaba.js
+```
+
+A senha é a mesma que já está em `api/.env` do PDV Jabá. O script cria (ou encontra) a loja
+"ATPN" no banco do PDV Jabá e imprime `JABA_DATABASE_URL`/`JABA_LOJA_ID` pra colar no `.env`
+**deste** projeto. Reinicie o servidor da ATPN depois.
+
 ## Estrutura
 
 ```
-db/schema.sql        tabelas (cargos, pessoas, permissões, ponto, despesas/receitas, histórico)
-db/seed.sql           cargos provisórios
-server/               Express: auth HMAC (12h), rate limiting, rotas de config/ponto/financeiro
-public/index.html     tela de login + shell + Bater ponto + Fluxo de caixa, tudo num arquivo só
-scripts/seed-admin.js  cria o primeiro Administrador
+db/schema.sql                       tabelas (cargos, pessoas, permissões, ponto, despesas/receitas, tarefas, histórico)
+db/seed.sql                          cargos provisórios
+server/                              Express: auth HMAC (12h), rate limiting, rotas de config/ponto/financeiro/tarefas/calendário
+server/jabaDb.js                     segunda conexão Postgres, só pra agenda_eventos do PDV Jabá (Calendário)
+public/index.html                    tela de login + shell + todas as abas com conteúdo real, tudo num arquivo só
+scripts/seed-admin.js                cria o primeiro Administrador
+scripts/configurar-integracao-jaba.js  passo único: registra a loja "ATPN" no banco do PDV Jabá
 ```
 
 Padrões reaproveitados do PDV Jabá (mecanismo, não código copiado): histórico de versão pra dado
