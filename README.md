@@ -5,9 +5,10 @@ Natal/RN). Projeto irmão do **PDV Jabá**, mesma forma de trabalhar, domínio d
 (associação/sócio, não restaurante/mesa).
 
 O sistema roda só pra ATPN — não existe mais conceito de "unidade"/multi-sede (o CEPE deixou de
-ser uma unidade operacional separada). A informação de sócios CEPE/ATPN em geral continua
-relevante e vai entrar como **categoria de sócio** dentro da futura aba "Sócios" (sócio só-ATPN,
-sócio conjunto CEPE-ATPN etc.), não como um sistema paralelo.
+ser uma unidade operacional separada). A informação de sócios CEPE/ATPN entra como **categoria de
+sócio** dentro da aba "Sócios" (clube = CEPE ou CEPE-ATPN, ver seção própria abaixo), não como um
+sistema paralelo — e, olhando a planilha real, **não existe sócio "só ATPN"**: todo sócio é do
+CEPE, uma parte tem ATPN como parceria extra.
 
 ## Estado atual
 
@@ -32,12 +33,23 @@ cargos/modelo de sócio:
   abaixo pra configurar. Sem configurar, a aba funciona normalmente avisando que a integração
   está pendente.
 
-**Ainda não tem a aba "Sócios"** — o modelo de dado dela depende da visita do Pedro à associação
-pra ver o sistema que eles já usam hoje (ver histórico da conversa); quando entrar, a identidade
-de pessoa compartilhada com o PDV Jabá (fidelidade, fiado) será por **telefone**, do jeito que o
-PDV Jabá já usa hoje. As demais abas (Início, Relatórios, Eventos) existem no menu mas ainda são
-só placeholder — o "quiosque" de bater ponto por outra pessoa via PIN (como o PDV Jabá tem)
-também não entrou ainda, por depender de como a associação opera fisicamente na prática.
+- **Sócios** — importado direto da planilha oficial (`scripts/importar-socios.js`, abas
+  "ATIVO GERAL" e "DESLIGADOS"), não cadastrado à mão. Busca por nome em destaque (foco
+  automático ao abrir a aba — é o uso principal, recepção conferindo quem chegou), filtro por
+  clube (CEPE/CEPE-ATPN) e por situação (Em dia / Até 2 meses / 3 a 5 meses / 6 meses ou mais /
+  Desligado — os mesmos buckets que a planilha já resume no rodapé dela, calculados aqui a
+  partir do histórico mensal de pagamento, que fica todo guardado pra conferência). Aviso de que
+  a planilha tem ~10 dias de defasagem em relação ao bloqueio físico de acesso. Identidade de
+  pessoa compartilhada com o PDV Jabá (fidelidade, fiado) será por **telefone** quando/se isso
+  for construído — ainda não tem nada ligado.
+
+  Achados reais que corrigem suposições de antes de ter a planilha: não existe dependente
+  cadastrado (categoria "Dependente Provisório" = 0 pessoas); a "matrícula dupla" que ~20% dos
+  sócios têm é sistema antigo + novo da mesma pessoa, não titular + dependente.
+
+As demais abas (Início, Relatórios, Eventos) existem no menu mas ainda são só placeholder — o
+"quiosque" de bater ponto por outra pessoa via PIN (como o PDV Jabá tem) também não entrou ainda,
+por depender de como a associação opera fisicamente na prática.
 
 O "Robô WhatsApp" do PDV Jabá não entrou aqui ainda — precisa confirmar com o Pedro se faz
 sentido pra esse contexto antes de construir.
@@ -93,16 +105,30 @@ A senha é a mesma que já está em `api/.env` do PDV Jabá. O script cria (ou e
 "ATPN" no banco do PDV Jabá e imprime `JABA_DATABASE_URL`/`JABA_LOJA_ID` pra colar no `.env`
 **deste** projeto. Reinicie o servidor da ATPN depois.
 
+## Importar a planilha de sócios
+
+```bash
+node scripts/importar-socios.js "caminho/da/planilha.xlsx"
+```
+
+Lê as abas "ATIVO GERAL" e "DESLIGADOS" e popula `socios`/`socios_mensalidades`. Reimportável —
+roda de novo a cada planilha nova, sem acumular duplicata (casa por matrícula, ou por nome+clube
+quando não tem matrícula, e substitui cadastro + histórico mensal). Segundo argumento opcional:
+a data em que essa planilha foi atualizada (`AAAA-MM-DD`); sem ele, usa a data de hoje — é o que
+alimenta o aviso dos ~10 dias na aba Sócios. O arquivo da planilha **nunca** deve ir pro
+repositório (dado real de sócio) — só rodar local, apontando pro caminho onde ele estiver.
+
 ## Estrutura
 
 ```
-db/schema.sql                       tabelas (cargos, pessoas, permissões, ponto, despesas/receitas, tarefas, histórico)
+db/schema.sql                       tabelas (cargos, pessoas, permissões, ponto, despesas/receitas, tarefas, sócios, histórico)
 db/seed.sql                          cargos provisórios
-server/                              Express: auth HMAC (12h), rate limiting, rotas de config/ponto/financeiro/tarefas/calendário
+server/                              Express: auth HMAC (12h), rate limiting, rotas de config/ponto/financeiro/tarefas/calendário/sócios
 server/jabaDb.js                     segunda conexão Postgres, só pra agenda_eventos do PDV Jabá (Calendário)
 public/index.html                    tela de login + shell + todas as abas com conteúdo real, tudo num arquivo só
 scripts/seed-admin.js                cria o primeiro Administrador
 scripts/configurar-integracao-jaba.js  passo único: registra a loja "ATPN" no banco do PDV Jabá
+scripts/importar-socios.js           lê a planilha oficial e popula a aba Sócios (reimportável)
 ```
 
 Padrões reaproveitados do PDV Jabá (mecanismo, não código copiado): histórico de versão pra dado
