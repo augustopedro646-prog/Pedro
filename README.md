@@ -12,7 +12,7 @@ sócio conjunto CEPE-ATPN etc.), não como um sistema paralelo.
 ## Estado atual
 
 Esqueleto inicial: base de dados, login por PIN, menu lateral, permissões configuráveis por
-cargo e cadastro de cargos. Duas abas já têm conteúdo real, por não dependerem do levantamento de
+cargo e cadastro de cargos. Três abas já têm conteúdo real, por não dependerem do levantamento de
 cargos/modelo de sócio:
 
 - **Bater ponto** — cada pessoa bate o próprio (entrada/saída alterna sozinho), Administrador
@@ -21,12 +21,15 @@ cargos/modelo de sócio:
   receita/despesa/saldo, gráfico de tendência dos últimos 6 meses e detalhamento por categoria.
   "Receita" ainda não vem de mensalidade de sócio (isso depende do modelo de Sócio, a confirmar
   com o Pedro) — por ora é lançamento manual, igual à despesa.
+- **Tarefas** — checklist do dia por etapa (Abertura/Durante o dia/Fechamento), tarefa atribuída
+  a um cargo (todo mundo daquele cargo vê e marca), frequência diária, por dia da semana ou a cada
+  N dias. Administrador cadastra/edita/remove.
 
 **Ainda não tem a aba "Sócios"** — o modelo de dado dela depende da visita do Pedro à associação
 pra ver o sistema que eles já usam hoje (ver histórico da conversa). As demais abas (Início,
-Relatórios, Calendário, Eventos, Tarefas) existem no menu mas ainda são só placeholder — o
-"quiosque" de bater ponto por outra pessoa via PIN (como o PDV Jabá tem) também não entrou ainda,
-por depender de como a associação opera fisicamente na prática.
+Relatórios, Calendário, Eventos) existem no menu mas ainda são só placeholder — o "quiosque" de
+bater ponto por outra pessoa via PIN (como o PDV Jabá tem) também não entrou ainda, por depender
+de como a associação opera fisicamente na prática.
 
 O "Robô WhatsApp" do PDV Jabá não entrou aqui ainda — precisa confirmar com o Pedro se faz
 sentido pra esse contexto antes de construir.
