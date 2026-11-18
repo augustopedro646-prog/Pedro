@@ -213,6 +213,18 @@
   .legenda-tendencia { display: flex; gap: 16px; margin-top: 10px; font-size: .8rem; color: var(--texto-fraco); }
   .legenda-cor { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 4px; vertical-align: middle; }
 
+  /* ---------- Tarefas ---------- */
+  .lista-tarefas { display: flex; flex-direction: column; gap: 10px; }
+  .item-tarefa { display: flex; align-items: flex-start; gap: 10px; padding: 10px; border: 1px solid var(--borda); border-radius: 8px; cursor: pointer; }
+  .item-tarefa input[type="checkbox"] { margin-top: 3px; width: 18px; height: 18px; flex: none; }
+  .item-tarefa.concluida { opacity: .6; }
+  .item-tarefa.concluida .item-tarefa-titulo { text-decoration: line-through; }
+  .item-tarefa-titulo { font-weight: 600; }
+  .item-tarefa-descricao { color: var(--texto-fraco); font-size: .85rem; margin-top: 2px; }
+  .item-tarefa-cargo { color: var(--texto-fraco); font-size: .78rem; margin-top: 4px; }
+  .dias-semana-tarefa { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 10px; }
+  .dias-semana-tarefa label { display: flex; align-items: center; gap: 4px; font-size: .85rem; }
+
   /* ---------- Rodapé da sidebar: tema, atualizar ---------- */
   .rodape-sidebar { padding: 10px 16px; border-top: 1px solid rgba(255,255,255,.1); display: flex; flex-direction: column; gap: 6px; }
   .rodape-sidebar button {
@@ -267,6 +279,14 @@
     financeiroDespesas: [],
     financeiroReceitas: [],
     financeiroResumo: null,
+
+    // tarefas
+    tarefasCarregado: false,
+    tarefasData: null, // 'YYYY-MM-DD', padrão: hoje
+    tarefasLista: [],
+    tarefasCadastroCarregado: false,
+    tarefasCadastro: [],
+    novaTarefaFrequencia: 'diaria',
   };
 
   // Aplica o tema salvo antes do primeiro render (senão a tela nasce no
@@ -420,6 +440,7 @@
     if (state.abaAtual === 'config') return viewConfiguracoes();
     if (state.abaAtual === 'ponto') return viewPonto();
     if (state.abaAtual === 'fluxo_caixa') return viewFluxoCaixa();
+    if (state.abaAtual === 'tarefas') return viewTarefas();
     const nomeAba = (state.abas.find((a) => a.id === state.abaAtual) || {}).nome || '';
     return `
       <h2>${esc(nomeAba)}</h2>
@@ -608,6 +629,119 @@
       </div>`;
   }
 
+  // ---------- tarefas ----------
+  const ETAPAS_TAREFA = [
+    { id: 'abertura', nome: 'Abertura' },
+    { id: 'durante_dia', nome: 'Durante o dia' },
+    { id: 'fechamento', nome: 'Fechamento' },
+  ];
+  const DIAS_SEMANA_NOMES = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+
+  function hojeStr() {
+    return new Date().toISOString().slice(0, 10);
+  }
+
+  function formatarDataExibicao(dataStr) {
+    return dataStr.split('-').reverse().join('/');
+  }
+
+  function descricaoFrequenciaTarefa(t) {
+    if (t.frequencia === 'diaria') return 'Todo dia';
+    if (t.frequencia === 'dias_semana') return (t.diasSemana || []).map((d) => DIAS_SEMANA_NOMES[d]).join(', ');
+    if (t.frequencia === 'intervalo') return `A cada ${t.intervaloDias} dias`;
+    return '';
+  }
+
+  function viewCadastroTarefas() {
+    if (!state.tarefasCadastroCarregado) return '<div class="secao"><h3>Cadastro de tarefas</h3><p class="placeholder">Carregando…</p></div>';
+
+    const linhas = state.tarefasCadastro.map((t) => `
+      <tr>
+        <td>${esc(t.titulo)}${t.ativo ? '' : ' <span class="placeholder">(inativa)</span>'}</td>
+        <td>${esc(t.cargoNome)}</td>
+        <td>${esc(ETAPAS_TAREFA.find((e) => e.id === t.etapa)?.nome || t.etapa)}</td>
+        <td>${esc(descricaoFrequenciaTarefa(t))}</td>
+        <td><button class="botao-link" data-action="remover-tarefa" data-id="${t.id}">remover</button></td>
+      </tr>`).join('') || `<tr><td colspan="5" class="placeholder">Nenhuma tarefa cadastrada.</td></tr>`;
+
+    return `
+      <div class="secao">
+        <h3>Cadastro de tarefas</h3>
+        <table class="tabela-lista">
+          <thead><tr><th>Título</th><th>Cargo</th><th>Etapa</th><th>Frequência</th><th></th></tr></thead>
+          <tbody>${linhas}</tbody>
+        </table>
+
+        <h3 style="margin-top:20px;">Nova tarefa</h3>
+        <div class="linha-form">
+          <input type="text" id="nova-tarefa-titulo" placeholder="Título" />
+          <input type="text" id="nova-tarefa-descricao" placeholder="Descrição (opcional)" />
+        </div>
+        <div class="linha-form">
+          <select id="nova-tarefa-cargo">
+            ${state.configCargos.map((c) => `<option value="${c.id}">${esc(c.nome)}</option>`).join('')}
+          </select>
+          <select id="nova-tarefa-etapa">
+            ${ETAPAS_TAREFA.map((e) => `<option value="${e.id}">${esc(e.nome)}</option>`).join('')}
+          </select>
+          <select id="nova-tarefa-frequencia" data-action="mudar-frequencia-tarefa">
+            <option value="diaria" ${state.novaTarefaFrequencia === 'diaria' ? 'selected' : ''}>Todo dia</option>
+            <option value="dias_semana" ${state.novaTarefaFrequencia === 'dias_semana' ? 'selected' : ''}>Dias da semana</option>
+            <option value="intervalo" ${state.novaTarefaFrequencia === 'intervalo' ? 'selected' : ''}>A cada N dias</option>
+          </select>
+        </div>
+        <div class="dias-semana-tarefa" id="campo-dias-semana" style="${state.novaTarefaFrequencia === 'dias_semana' ? '' : 'display:none;'}">
+          ${DIAS_SEMANA_NOMES.map((nome, i) => `
+            <label><input type="checkbox" class="dia-semana-tarefa" value="${i}"> ${esc(nome)}</label>`).join('')}
+        </div>
+        <div class="linha-form" id="campo-intervalo" style="${state.novaTarefaFrequencia === 'intervalo' ? '' : 'display:none;'}">
+          <input type="text" inputmode="numeric" id="nova-tarefa-intervalo" placeholder="A cada quantos dias" />
+        </div>
+        <div class="linha-form">
+          <button class="botao" data-action="add-tarefa">Adicionar tarefa</button>
+        </div>
+      </div>`;
+  }
+
+  function viewTarefas() {
+    if (!state.tarefasCarregado) return '<h2>Tarefas</h2><p class="placeholder">Carregando…</p>';
+
+    const listaEtapa = (etapaId, nome) => {
+      const itens = state.tarefasLista.filter((t) => t.etapa === etapaId);
+      if (!itens.length) return '';
+      return `
+        <div class="secao">
+          <h3>${esc(nome)}</h3>
+          <div class="lista-tarefas">
+            ${itens.map((t) => `
+              <label class="item-tarefa ${t.concluida ? 'concluida' : ''}">
+                <input type="checkbox" data-action="toggle-tarefa" data-id="${t.id}" ${t.concluida ? 'checked' : ''}>
+                <div>
+                  <div class="item-tarefa-titulo">${esc(t.titulo)}</div>
+                  ${t.descricao ? `<div class="item-tarefa-descricao">${esc(t.descricao)}</div>` : ''}
+                  ${state.usuario.administrador ? `<div class="item-tarefa-cargo">${esc(t.cargoNome)}</div>` : ''}
+                </div>
+              </label>`).join('')}
+          </div>
+        </div>`;
+    };
+
+    return `
+      <h2>Tarefas</h2>
+      <div class="secao">
+        <div class="navegacao-mes">
+          <button class="botao" data-action="tarefa-dia-anterior">‹</button>
+          <strong>${esc(formatarDataExibicao(state.tarefasData))}${state.tarefasData === hojeStr() ? ' (hoje)' : ''}</strong>
+          <button class="botao" data-action="tarefa-dia-seguinte">›</button>
+        </div>
+      </div>
+
+      ${!state.tarefasLista.length ? '<p class="placeholder">Nenhuma tarefa pro seu cargo nesse dia.</p>' : ''}
+      ${ETAPAS_TAREFA.map((e) => listaEtapa(e.id, e.nome)).join('')}
+
+      ${state.usuario.administrador ? viewCadastroTarefas() : ''}`;
+  }
+
   function viewConfiguracoes() {
     if (!state.configCarregado) return '<h2>Configurações</h2><p class="placeholder">Carregando…</p>';
 
@@ -711,6 +845,35 @@
     document.querySelectorAll('[data-action="remover-lancamento"]').forEach((el) => {
       el.addEventListener('click', () => removerLancamento(Number(el.dataset.id)));
     });
+
+    document.querySelectorAll('[data-action="toggle-tarefa"]').forEach((el) => {
+      el.addEventListener('change', () => toggleTarefa(Number(el.dataset.id), el.checked));
+    });
+
+    const btnTarefaDiaAnterior = document.querySelector('[data-action="tarefa-dia-anterior"]');
+    if (btnTarefaDiaAnterior) btnTarefaDiaAnterior.addEventListener('click', () => mudarDiaTarefas(-1));
+
+    const btnTarefaDiaSeguinte = document.querySelector('[data-action="tarefa-dia-seguinte"]');
+    if (btnTarefaDiaSeguinte) btnTarefaDiaSeguinte.addEventListener('click', () => mudarDiaTarefas(1));
+
+    // Não chama render() aqui de propósito: um render inteiro reconstruiria o
+    // formulário e apagaria título/descrição/cargo/etapa já preenchidos antes
+    // de mexer na frequência — só alterna os dois blocos condicionais.
+    const selFrequenciaTarefa = document.getElementById('nova-tarefa-frequencia');
+    if (selFrequenciaTarefa) selFrequenciaTarefa.addEventListener('change', (e) => {
+      state.novaTarefaFrequencia = e.target.value;
+      const campoDias = document.getElementById('campo-dias-semana');
+      const campoIntervalo = document.getElementById('campo-intervalo');
+      if (campoDias) campoDias.style.display = state.novaTarefaFrequencia === 'dias_semana' ? '' : 'none';
+      if (campoIntervalo) campoIntervalo.style.display = state.novaTarefaFrequencia === 'intervalo' ? '' : 'none';
+    });
+
+    const btnAddTarefa = document.querySelector('[data-action="add-tarefa"]');
+    if (btnAddTarefa) btnAddTarefa.addEventListener('click', adicionarTarefa);
+
+    document.querySelectorAll('[data-action="remover-tarefa"]').forEach((el) => {
+      el.addEventListener('click', () => removerTarefa(Number(el.dataset.id)));
+    });
   }
 
   // ---------- login ----------
@@ -773,6 +936,8 @@
       pontoCarregado: false, pontoRegistros: [],
       financeiroCarregado: false, financeiroMesRef: null, financeiroAba: 'despesas',
       financeiroDespesas: [], financeiroReceitas: [], financeiroResumo: null,
+      tarefasCarregado: false, tarefasData: null, tarefasLista: [],
+      tarefasCadastroCarregado: false, tarefasCadastro: [], novaTarefaFrequencia: 'diaria',
     });
     carregarCargos().then(render);
   }
@@ -819,6 +984,15 @@
       if (!state.financeiroMesRef) state.financeiroMesRef = refMesAtual();
       await carregarFinanceiro();
       state.financeiroCarregado = true;
+    }
+    if (id === 'tarefas' && !state.tarefasCarregado) {
+      render();
+      if (!state.tarefasData) state.tarefasData = hojeStr();
+      const pendentes = [carregarTarefas()];
+      if (state.usuario.administrador) pendentes.push(carregarTarefasCadastro());
+      await Promise.all(pendentes);
+      state.tarefasCarregado = true;
+      if (state.usuario.administrador) state.tarefasCadastroCarregado = true;
     }
     render();
   }
@@ -923,6 +1097,77 @@
     if (!confirm('Remover esse lançamento?')) return;
     await api(`/financeiro/${state.financeiroAba}/${id}`, { method: 'DELETE' });
     await carregarFinanceiro();
+    render();
+  }
+
+  // ---------- tarefas ----------
+  async function carregarTarefas() {
+    state.tarefasLista = await api(`/tarefas?data=${state.tarefasData}`);
+  }
+
+  async function carregarTarefasCadastro() {
+    const [tarefas, cargos] = await Promise.all([
+      api('/tarefas/cadastro'),
+      state.configCargos.length ? Promise.resolve(state.configCargos) : api('/config/cargos'),
+    ]);
+    state.tarefasCadastro = tarefas;
+    if (!state.configCargos.length) state.configCargos = cargos;
+  }
+
+  async function toggleTarefa(id, concluida) {
+    try {
+      if (concluida) {
+        await api(`/tarefas/${id}/concluir`, { method: 'POST', body: { data: state.tarefasData } });
+      } else {
+        await api(`/tarefas/${id}/concluir?data=${state.tarefasData}`, { method: 'DELETE' });
+      }
+      await carregarTarefas();
+      render();
+    } catch (err) {
+      alert(err.message);
+    }
+  }
+
+  async function mudarDiaTarefas(delta) {
+    const d = new Date(`${state.tarefasData}T00:00:00`);
+    d.setDate(d.getDate() + delta);
+    state.tarefasData = d.toISOString().slice(0, 10);
+    await carregarTarefas();
+    render();
+  }
+
+  async function adicionarTarefa() {
+    const titulo = document.getElementById('nova-tarefa-titulo').value.trim();
+    const descricao = document.getElementById('nova-tarefa-descricao').value.trim();
+    const cargoId = Number(document.getElementById('nova-tarefa-cargo').value);
+    const etapa = document.getElementById('nova-tarefa-etapa').value;
+    const frequencia = document.getElementById('nova-tarefa-frequencia').value;
+    if (!titulo || !cargoId) { alert('Preencha pelo menos o título e o cargo.'); return; }
+
+    const body = { titulo, descricao: descricao || null, cargoId, etapa, frequencia };
+    if (frequencia === 'dias_semana') {
+      body.diasSemana = [...document.querySelectorAll('.dia-semana-tarefa:checked')].map((el) => Number(el.value));
+      if (!body.diasSemana.length) { alert('Escolha pelo menos um dia da semana.'); return; }
+    }
+    if (frequencia === 'intervalo') {
+      body.intervaloDias = parseInt(document.getElementById('nova-tarefa-intervalo').value, 10);
+      if (!(body.intervaloDias > 0)) { alert('Informe a cada quantos dias a tarefa se repete.'); return; }
+    }
+
+    try {
+      await api('/tarefas', { method: 'POST', body });
+      state.novaTarefaFrequencia = 'diaria';
+      await Promise.all([carregarTarefas(), carregarTarefasCadastro()]);
+      render();
+    } catch (err) {
+      alert(err.message);
+    }
+  }
+
+  async function removerTarefa(id) {
+    if (!confirm('Remover essa tarefa? O histórico de conclusões dela também será apagado.')) return;
+    await api(`/tarefas/${id}`, { method: 'DELETE' });
+    await Promise.all([carregarTarefas(), carregarTarefasCadastro()]);
     render();
   }
 

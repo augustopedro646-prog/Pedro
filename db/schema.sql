@@ -90,3 +90,35 @@ CREATE TABLE IF NOT EXISTS receitas (
   criado_em TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS idx_receitas_data ON receitas(data);
+
+-- Tarefas (aba "tarefas"): checklist do dia por etapa (abertura/durante o
+-- dia/fechamento), atribuída a um cargo — todo mundo daquele cargo vê e
+-- marca (mesmo padrão do PDV Jabá). Pra atribuir a mais de um cargo, cria
+-- a mesma tarefa de novo pro outro cargo (sem tabela de junção — simples
+-- de bastar). Administrador sempre vê todas, cria/edita/remove.
+CREATE TABLE IF NOT EXISTS tarefas (
+  id SERIAL PRIMARY KEY,
+  titulo TEXT NOT NULL,
+  descricao TEXT,
+  cargo_id INTEGER NOT NULL REFERENCES cargos(id) ON DELETE CASCADE,
+  etapa TEXT NOT NULL CHECK (etapa IN ('abertura', 'durante_dia', 'fechamento')),
+  -- 'diaria' repete todo dia; 'dias_semana' usa dias_semana (0=domingo..6=sábado);
+  -- 'intervalo' repete a cada intervalo_dias dias, contando da criação.
+  frequencia TEXT NOT NULL CHECK (frequencia IN ('diaria', 'dias_semana', 'intervalo')),
+  dias_semana INTEGER[],
+  intervalo_dias INTEGER,
+  ativo BOOLEAN NOT NULL DEFAULT true,
+  criado_em TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_tarefas_cargo ON tarefas(cargo_id) WHERE ativo;
+
+-- Uma linha por tarefa concluída num dia específico — não guarda "pendente"
+-- (pendente é só a ausência de linha aqui pra uma tarefa que se aplica ao dia).
+CREATE TABLE IF NOT EXISTS tarefas_concluidas (
+  id SERIAL PRIMARY KEY,
+  tarefa_id INTEGER NOT NULL REFERENCES tarefas(id) ON DELETE CASCADE,
+  data DATE NOT NULL,
+  concluido_por INTEGER REFERENCES pessoas(id),
+  concluido_em TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE (tarefa_id, data)
+);
