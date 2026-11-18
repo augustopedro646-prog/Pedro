@@ -2,7 +2,7 @@ const express = require('express');
 const bcrypt = require('bcryptjs');
 const { pool } = require('../db');
 const { assinarToken, exigirAuth } = require('../auth');
-const { sensivel } = require('../rateLimit');
+const { sensivel, pinBloqueado, registrarFalhaPin, limparFalhaPin } = require('../rateLimit');
 const { ABAS } = require('../abas');
 
 const router = express.Router();
@@ -38,6 +38,12 @@ router.post('/login', sensivel, async (req, res, next) => {
   const { pessoaId, pin, unidadeId } = req.body;
   if (!pessoaId || !pin) return res.status(400).json({ erro: 'pessoaId e pin obrigatórios' });
 
+  // Bloqueio vale pra pessoa, não por unidade/IP — ver comentário em rateLimit.js.
+  const chaveFalha = `login:${String(pessoaId).slice(0, 80)}`;
+  if (pinBloqueado(chaveFalha)) {
+    return res.status(429).json({ erro: 'Muitas tentativas erradas — aguarde 15 minutos ou chame um administrador.' });
+  }
+
   try {
     const { rows } = await pool.query(
       `SELECT p.id, p.nome, p.pin_hash, p.ativo, c.id AS cargo_id, c.nome AS cargo_nome, c.administrador
@@ -46,10 +52,11 @@ router.post('/login', sensivel, async (req, res, next) => {
       [pessoaId]
     );
     const pessoa = rows[0];
-    if (!pessoa || !pessoa.ativo) return res.status(401).json({ erro: 'PIN incorreto' });
+    if (!pessoa || !pessoa.ativo) { registrarFalhaPin(chaveFalha); return res.status(401).json({ erro: 'PIN incorreto' }); }
 
     const ok = await bcrypt.compare(String(pin), pessoa.pin_hash);
-    if (!ok) return res.status(401).json({ erro: 'PIN incorreto' });
+    if (!ok) { registrarFalhaPin(chaveFalha); return res.status(401).json({ erro: 'PIN incorreto' }); }
+    limparFalhaPin(chaveFalha);
 
     const unidades = pessoa.administrador
       ? (await pool.query('SELECT id, nome FROM unidades ORDER BY nome')).rows
