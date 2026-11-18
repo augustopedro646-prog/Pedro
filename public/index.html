@@ -177,6 +177,44 @@
   .abas-secundarias button { padding: 6px 14px; border: 1px solid var(--borda); background: var(--fundo); border-radius: 999px; cursor: pointer; font-size: .85rem; }
   .abas-secundarias button.ativa { background: var(--primaria); color: var(--primaria-texto); border-color: var(--primaria); }
   .navegacao-mes { display: flex; align-items: center; gap: 12px; }
+
+  /* ---------- Cartões/gráficos do Fluxo de caixa ---------- */
+  .cor-receita { color: var(--primaria); }
+  .cor-despesa { color: var(--perigo); }
+  .cor-receita-bg { background: var(--primaria); }
+  .cor-despesa-bg { background: var(--perigo); }
+
+  .cartoes-resumo { display: flex; gap: 14px; margin-bottom: 20px; flex-wrap: wrap; }
+  .cartao-resumo { flex: 1 1 170px; background: var(--superficie); border: 1px solid var(--borda); border-radius: var(--radius); padding: 16px; box-shadow: var(--shadow); }
+  .cartao-resumo-label { display: block; color: var(--texto-fraco); font-size: .8rem; margin-bottom: 6px; }
+  .cartao-resumo-valor { font-size: 1.4rem; }
+
+  .graficos-lado-a-lado { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  @media (max-width: 820px) { .graficos-lado-a-lado { grid-template-columns: 1fr; } }
+
+  .grafico-categorias { display: flex; flex-direction: column; gap: 10px; }
+  .linha-categoria { display: flex; align-items: center; gap: 10px; font-size: .85rem; }
+  .categoria-nome { flex: 0 0 38%; color: var(--texto-fraco); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .categoria-barra-trilho { flex: 1; background: var(--fundo); border-radius: 6px; height: 14px; overflow: hidden; }
+  .categoria-barra { height: 100%; border-radius: 6px; }
+  .categoria-valor { flex: 0 0 auto; text-align: right; white-space: nowrap; }
+
+  .grafico-tendencia { display: flex; align-items: flex-end; gap: 14px; height: 160px; padding: 10px 4px 0; overflow-x: auto; }
+  .coluna-mes { display: flex; flex-direction: column; align-items: center; flex: 1; min-width: 28px; height: 100%; justify-content: flex-end; }
+  .duas-barras { display: flex; align-items: flex-end; gap: 4px; height: 100%; width: 100%; justify-content: center; }
+  .barra-tendencia { width: 14px; min-height: 2px; border-radius: 3px 3px 0 0; }
+  .mes-label { margin-top: 6px; font-size: .75rem; color: var(--texto-fraco); text-transform: capitalize; }
+  .legenda-tendencia { display: flex; gap: 16px; margin-top: 10px; font-size: .8rem; color: var(--texto-fraco); }
+  .legenda-cor { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 4px; vertical-align: middle; }
+
+  /* ---------- Rodapé da sidebar: tema, atualizar, trocar de unidade ---------- */
+  .rodape-sidebar { padding: 10px 16px; border-top: 1px solid rgba(255,255,255,.1); display: flex; flex-direction: column; gap: 6px; }
+  .rodape-sidebar button {
+    background: transparent; border: 1px solid rgba(255,255,255,.2); color: var(--sidebar-text);
+    border-radius: 6px; padding: 7px 10px; cursor: pointer; font-size: .82rem; text-align: left;
+  }
+  .lista-trocar-unidade { display: flex; flex-direction: column; gap: 4px; padding-left: 6px; }
+  .lista-trocar-unidade button { border-style: dashed; }
 </style>
 </head>
 <body>
@@ -205,6 +243,11 @@
     sidebarColapsada: localStorage.getItem('sidebarColapsada') === '1',
     abas: [],
     abaAtual: null,
+    trocandoUnidade: false,
+
+    // tema (claro/escuro): preferência salva neste aparelho. Sem escolha
+    // salva, o CSS já reage sozinho a prefers-color-scheme (não força nada).
+    tema: localStorage.getItem('tema'),
 
     // configurações
     configCarregado: false,
@@ -223,7 +266,13 @@
     financeiroAba: 'despesas', // ou 'receitas'
     financeiroDespesas: [],
     financeiroReceitas: [],
+    financeiroResumo: null,
   };
+
+  // Aplica o tema salvo antes do primeiro render (senão a tela nasce no
+  // tema errado e pisca ao corrigir). Sem escolha salva, não toca no
+  // atributo — o CSS cuida da preferência do sistema por conta própria.
+  if (state.tema) document.documentElement.setAttribute('data-theme', state.tema);
 
   const FORMAS_PAGAMENTO = ['Dinheiro', 'Cartão de crédito', 'Cartão de débito', 'Pix', 'Boleto', 'Transferência'];
 
@@ -310,6 +359,18 @@
       </div>`;
   }
 
+  // Tema em efeito agora: o explícito salvo, ou (sem escolha salva) o que
+  // o sistema operacional está usando.
+  function temaEscuroAgora() {
+    const explicito = document.documentElement.getAttribute('data-theme');
+    if (explicito) return explicito === 'dark';
+    return window.matchMedia('(prefers-color-scheme: dark)').matches;
+  }
+
+  function nomeDaUnidadeAtual() {
+    return (state.usuario.unidades || []).find((u) => u.id === state.usuario.unidadeId)?.nome || '';
+  }
+
   function sidebarHtml() {
     const itens = [...state.abas];
     if (state.usuario.administrador) itens.push({ id: 'config', nome: 'Configurações' });
@@ -321,14 +382,27 @@
       </button>`;
     }).join('');
 
+    const outrasUnidades = (state.usuario.unidades || []).filter((u) => u.id !== state.usuario.unidadeId);
+    const blocoTrocarUnidade = outrasUnidades.length ? `
+      <button data-action="toggle-trocar-unidade">🔁 Trocar de unidade</button>
+      ${state.trocandoUnidade ? `
+        <div class="lista-trocar-unidade">
+          ${outrasUnidades.map((u) => `<button data-action="trocar-unidade" data-id="${u.id}">${esc(u.nome)}</button>`).join('')}
+        </div>` : ''}` : '';
+
     return `
       <aside class="sidebar ${state.sidebarColapsada ? 'colapsada' : ''}">
         <div class="marca">
           <strong>CEPE / ATPN</strong>
-          <span>Gestão</span>
+          <span>${esc(nomeDaUnidadeAtual())}</span>
           <button data-action="toggle-sidebar">« Esconder</button>
         </div>
         <nav class="tabs">${nav}</nav>
+        <div class="rodape-sidebar">
+          <button data-action="atualizar">↻ Atualizar</button>
+          <button data-action="toggle-tema">${temaEscuroAgora() ? '☀️ Modo claro' : '🌙 Modo escuro'}</button>
+          ${blocoTrocarUnidade}
+        </div>
         <div class="user-chip">
           <div>${esc(state.usuario.nome)}</div>
           <div style="opacity:.7">${esc(state.usuario.cargoNome)}</div>
@@ -411,9 +485,69 @@
     return `R$ ${Number(valor).toFixed(2).replace('.', ',')}`;
   }
 
+  function cartoesResumoFinanceiro(resumo) {
+    const saldo = resumo.totalReceitas - resumo.totalDespesas;
+    return `
+      <div class="cartoes-resumo">
+        <div class="cartao-resumo">
+          <span class="cartao-resumo-label">Receitas do mês</span>
+          <strong class="cartao-resumo-valor cor-receita">${formatarMoeda(resumo.totalReceitas)}</strong>
+        </div>
+        <div class="cartao-resumo">
+          <span class="cartao-resumo-label">Despesas do mês</span>
+          <strong class="cartao-resumo-valor cor-despesa">${formatarMoeda(resumo.totalDespesas)}</strong>
+        </div>
+        <div class="cartao-resumo">
+          <span class="cartao-resumo-label">Saldo do mês</span>
+          <strong class="cartao-resumo-valor ${saldo >= 0 ? 'cor-receita' : 'cor-despesa'}">${formatarMoeda(saldo)}</strong>
+        </div>
+      </div>`;
+  }
+
+  function graficoCategorias(lista, classeCor) {
+    if (!lista.length) return '<p class="placeholder">Nenhum lançamento com categoria no período.</p>';
+    const max = Math.max(...lista.map((l) => l.total));
+    return `
+      <div class="grafico-categorias">
+        ${lista.map((l) => `
+          <div class="linha-categoria">
+            <span class="categoria-nome" title="${esc(l.categoria)}">${esc(l.categoria)}</span>
+            <div class="categoria-barra-trilho">
+              <div class="categoria-barra ${classeCor}" style="width:${max ? (l.total / max * 100) : 0}%"></div>
+            </div>
+            <span class="categoria-valor">${formatarMoeda(l.total)}</span>
+          </div>`).join('')}
+      </div>`;
+  }
+
+  function nomeMesCurto(chaveAnoMes) {
+    const [ano, mes] = chaveAnoMes.split('-').map(Number);
+    return new Date(ano, mes - 1, 1).toLocaleDateString('pt-BR', { month: 'short' }).replace('.', '');
+  }
+
+  function graficoTendencia(tendencia) {
+    const max = Math.max(1, ...tendencia.map((t) => Math.max(t.receitas, t.despesas)));
+    return `
+      <div class="grafico-tendencia">
+        ${tendencia.map((t) => `
+          <div class="coluna-mes">
+            <div class="duas-barras">
+              <div class="barra-tendencia cor-receita-bg" style="height:${(t.receitas / max * 100).toFixed(1)}%" title="Receitas em ${esc(nomeMesCurto(t.mes))}: ${formatarMoeda(t.receitas)}"></div>
+              <div class="barra-tendencia cor-despesa-bg" style="height:${(t.despesas / max * 100).toFixed(1)}%" title="Despesas em ${esc(nomeMesCurto(t.mes))}: ${formatarMoeda(t.despesas)}"></div>
+            </div>
+            <span class="mes-label">${esc(nomeMesCurto(t.mes))}</span>
+          </div>`).join('')}
+      </div>
+      <div class="legenda-tendencia">
+        <span><i class="legenda-cor cor-receita-bg"></i>Receitas</span>
+        <span><i class="legenda-cor cor-despesa-bg"></i>Despesas</span>
+      </div>`;
+  }
+
   function viewFluxoCaixa() {
     if (!state.financeiroCarregado) return '<h2>Fluxo de caixa</h2><p class="placeholder">Carregando…</p>';
 
+    const resumo = state.financeiroResumo;
     const lista = state.financeiroAba === 'despesas' ? state.financeiroDespesas : state.financeiroReceitas;
     const total = lista.reduce((soma, l) => soma + Number(l.valor), 0);
 
@@ -436,7 +570,27 @@
           <button class="botao" data-action="mes-seguinte">›</button>
         </div>
       </div>
+
+      ${cartoesResumoFinanceiro(resumo)}
+
       <div class="secao">
+        <h3>Tendência (últimos 6 meses)</h3>
+        ${graficoTendencia(resumo.tendencia)}
+      </div>
+
+      <div class="graficos-lado-a-lado">
+        <div class="secao">
+          <h3>Despesas por categoria</h3>
+          ${graficoCategorias(resumo.categoriasDespesas, 'cor-despesa-bg')}
+        </div>
+        <div class="secao">
+          <h3>Receitas por categoria</h3>
+          ${graficoCategorias(resumo.categoriasReceitas, 'cor-receita-bg')}
+        </div>
+      </div>
+
+      <div class="secao">
+        <h3>Lançamentos</h3>
         <div class="abas-secundarias">
           <button class="${state.financeiroAba === 'despesas' ? 'ativa' : ''}" data-action="financeiro-aba" data-aba="despesas">Despesas</button>
           <button class="${state.financeiroAba === 'receitas' ? 'ativa' : ''}" data-action="financeiro-aba" data-aba="receitas">Receitas</button>
@@ -532,6 +686,22 @@
 
     const btnSair = document.querySelector('[data-action="sair"]');
     if (btnSair) btnSair.addEventListener('click', sair);
+
+    const btnAtualizar = document.querySelector('[data-action="atualizar"]');
+    if (btnAtualizar) btnAtualizar.addEventListener('click', () => window.location.reload());
+
+    const btnToggleTema = document.querySelector('[data-action="toggle-tema"]');
+    if (btnToggleTema) btnToggleTema.addEventListener('click', toggleTema);
+
+    const btnToggleTrocarUnidade = document.querySelector('[data-action="toggle-trocar-unidade"]');
+    if (btnToggleTrocarUnidade) btnToggleTrocarUnidade.addEventListener('click', () => {
+      state.trocandoUnidade = !state.trocandoUnidade;
+      render();
+    });
+
+    document.querySelectorAll('[data-action="trocar-unidade"]').forEach((el) => {
+      el.addEventListener('click', () => trocarUnidade(Number(el.dataset.id)));
+    });
 
     const btnAddUnidade = document.querySelector('[data-action="add-unidade"]');
     if (btnAddUnidade) btnAddUnidade.addEventListener('click', adicionarUnidade);
@@ -644,9 +814,9 @@
       token: null, usuario: null, pin: '', erroLogin: '',
       unidadesPendentes: null, unidadeSelecionada: null,
       abas: [], abaAtual: null, configCarregado: false,
-      pontoCarregado: false, pontoRegistros: [],
+      pontoCarregado: false, pontoRegistros: [], trocandoUnidade: false,
       financeiroCarregado: false, financeiroMesRef: null, financeiroAba: 'despesas',
-      financeiroDespesas: [], financeiroReceitas: [],
+      financeiroDespesas: [], financeiroReceitas: [], financeiroResumo: null,
     });
     carregarCargos().then(render);
   }
@@ -656,6 +826,32 @@
     state.sidebarColapsada = !state.sidebarColapsada;
     localStorage.setItem('sidebarColapsada', state.sidebarColapsada ? '1' : '0');
     render();
+  }
+
+  function toggleTema() {
+    const novo = temaEscuroAgora() ? 'light' : 'dark';
+    document.documentElement.setAttribute('data-theme', novo);
+    localStorage.setItem('tema', novo);
+    state.tema = novo;
+    render();
+  }
+
+  // Reemite o token pra outra unidade sem precisar digitar o PIN de novo
+  // (back-end confere de novo que a pessoa realmente acessa aquela unidade).
+  async function trocarUnidade(unidadeId) {
+    try {
+      const resposta = await api('/auth/trocar-unidade', { method: 'POST', body: { unidadeId } });
+      localStorage.setItem('token', resposta.token);
+      state.token = resposta.token;
+      state.usuario = resposta.usuario;
+      state.trocandoUnidade = false;
+      state.configCarregado = false;
+      state.pontoCarregado = false;
+      state.financeiroCarregado = false;
+      await entrarNoApp();
+    } catch (err) {
+      alert(err.message);
+    }
   }
 
   async function entrarNoApp() {
@@ -754,12 +950,14 @@
   async function carregarFinanceiro() {
     const { inicio, fim } = limitesMes(state.financeiroMesRef);
     const qs = `?inicio=${inicio}&fim=${fim}`;
-    const [despesas, receitas] = await Promise.all([
+    const [despesas, receitas, resumo] = await Promise.all([
       api(`/financeiro/despesas${qs}`),
       api(`/financeiro/receitas${qs}`),
+      api(`/financeiro/resumo${qs}`),
     ]);
     state.financeiroDespesas = despesas;
     state.financeiroReceitas = receitas;
+    state.financeiroResumo = resumo;
   }
 
   async function mudarMesFinanceiro(delta) {

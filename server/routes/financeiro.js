@@ -101,4 +101,62 @@ function criarRotasLancamento(tabela) {
 router.use('/despesas', criarRotasLancamento('despesas'));
 router.use('/receitas', criarRotasLancamento('receitas'));
 
+// Totais, detalhamento por categoria e tendência dos últimos meses, pra
+// alimentar os cartões e gráficos da tela — tudo calculado no banco (soma
+// de milhares de lançamentos no navegador seria lento e duplicaria a regra).
+async function totalPorCategoria(tabela, unidadeId, inicio, fim) {
+  const { rows } = await pool.query(
+    `SELECT COALESCE(categoria, 'Sem categoria') AS categoria, SUM(valor) AS total
+     FROM ${tabela} WHERE unidade_id = $1 AND data BETWEEN $2 AND $3
+     GROUP BY categoria ORDER BY total DESC`,
+    [unidadeId, inicio, fim]
+  );
+  return rows.map((r) => ({ categoria: r.categoria, total: Number(r.total) }));
+}
+
+async function tendenciaMensal(unidadeId, fimRef, nMeses) {
+  const fimDate = new Date(fimRef);
+  const anoFim = fimDate.getFullYear();
+  const mesFim = fimDate.getMonth();
+  const inicioTendencia = new Date(anoFim, mesFim - (nMeses - 1), 1).toISOString().slice(0, 10);
+  const fimTendencia = new Date(anoFim, mesFim + 1, 0).toISOString().slice(0, 10);
+
+  const porMes = (tabela) => pool.query(
+    `SELECT to_char(data, 'YYYY-MM') AS mes, SUM(valor) AS total
+     FROM ${tabela} WHERE unidade_id = $1 AND data BETWEEN $2 AND $3
+     GROUP BY mes`,
+    [unidadeId, inicioTendencia, fimTendencia]
+  );
+  const [despesas, receitas] = await Promise.all([porMes('despesas'), porMes('receitas')]);
+  const mapaDespesas = new Map(despesas.rows.map((r) => [r.mes, Number(r.total)]));
+  const mapaReceitas = new Map(receitas.rows.map((r) => [r.mes, Number(r.total)]));
+
+  const lista = [];
+  for (let i = nMeses - 1; i >= 0; i--) {
+    const d = new Date(anoFim, mesFim - i, 1);
+    const chave = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    lista.push({ mes: chave, despesas: mapaDespesas.get(chave) || 0, receitas: mapaReceitas.get(chave) || 0 });
+  }
+  return lista;
+}
+
+router.get('/resumo', async (req, res, next) => {
+  const padrao = intervaloMesAtual();
+  const inicio = req.query.inicio || padrao.inicio;
+  const fim = req.query.fim || padrao.fim;
+  const meses = Math.min(Math.max(Number(req.query.meses) || 6, 2), 12);
+  try {
+    const [categoriasDespesas, categoriasReceitas, tendencia] = await Promise.all([
+      totalPorCategoria('despesas', req.usuario.unidadeId, inicio, fim),
+      totalPorCategoria('receitas', req.usuario.unidadeId, inicio, fim),
+      tendenciaMensal(req.usuario.unidadeId, fim, meses),
+    ]);
+    const totalDespesas = categoriasDespesas.reduce((soma, c) => soma + c.total, 0);
+    const totalReceitas = categoriasReceitas.reduce((soma, c) => soma + c.total, 0);
+    res.json({ totalDespesas, totalReceitas, categoriasDespesas, categoriasReceitas, tendencia });
+  } catch (err) {
+    next(err);
+  }
+});
+
 module.exports = router;
