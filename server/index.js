@@ -8,6 +8,7 @@ const pontoRoutes = require('./routes/ponto');
 const financeiroRoutes = require('./routes/financeiro');
 const tarefasRoutes = require('./routes/tarefas');
 const calendarioRoutes = require('./routes/calendario');
+const sociosRoutes = require('./routes/socios');
 
 const app = express();
 app.set('trust proxy', 1); // necessário pro ipKeyGenerator ver o IP real atrás do proxy da hospedagem
@@ -22,6 +23,7 @@ app.use('/api/ponto', pontoRoutes);
 app.use('/api/financeiro', financeiroRoutes);
 app.use('/api/tarefas', tarefasRoutes);
 app.use('/api/calendario', calendarioRoutes);
+app.use('/api/socios', sociosRoutes);
 
 app.use((err, req, res, next) => {
   console.error(err);

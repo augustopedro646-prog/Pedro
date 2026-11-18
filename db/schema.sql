@@ -122,3 +122,59 @@ CREATE TABLE IF NOT EXISTS tarefas_concluidas (
   concluido_em TIMESTAMPTZ NOT NULL DEFAULT now(),
   UNIQUE (tarefa_id, data)
 );
+
+-- Sócios (aba "socios") — importado da planilha real da associação
+-- (scripts/importar-socios.js), não cadastrado manualmente. Achados reais
+-- que mudam o que se sabia antes:
+--   * Não existe sócio "só ATPN" nessa planilha — todo mundo é sócio do
+--     CEPE, e uma parte tem ATPN como parceria extra (clube = 'cepe_atpn').
+--     As categorias "Cepe/ATPN", "Aposentado/ATPN" etc. do legado são só
+--     o clube 'cepe_atpn' combinado com efetivo/contribuinte/aposentado,
+--     não um tipo de sócio à parte.
+--   * A "matrícula dupla" (dois números na mesma célula, ~20% das linhas)
+--     é sistema antigo + novo da mesma pessoa, não titular+dependente —
+--     confirmado pela ausência de nome diferente na segunda matrícula.
+--   * Não há dependente nenhum nos dados reais (categoria "Dependente
+--     Provisório" = 0 pessoas) — a tabela de dependentes fica pra quando
+--     (se) a associação passar a cadastrar isso de verdade.
+--   * O "status" não é um campo solto — é calculado a partir do histórico
+--     mensal de pagamento, igual ao resumo que a própria planilha já tira
+--     (EM DIA / ATÉ 2 MESES / 3 A 5 MESES / 6 MESES OU MAIS / DESLIGADO).
+--     Guardamos o histórico completo (`socios_mensalidades`) pra poder
+--     reconferir/recalcular, e um status já calculado pra busca/filtro.
+CREATE TABLE IF NOT EXISTS socios (
+  id SERIAL PRIMARY KEY,
+  matricula TEXT,
+  matricula_secundaria TEXT, -- número do sistema antigo/novo, quando a célula trazia dois
+  nome TEXT NOT NULL,
+  cpf TEXT,
+  clube TEXT NOT NULL CHECK (clube IN ('cepe', 'cepe_atpn')),
+  categoria TEXT CHECK (categoria IN ('efetivo', 'contribuinte')), -- null = legado sem mapeamento claro (ver categoria_original)
+  categoria_original TEXT, -- texto/código cru da planilha, pra conferência
+  dia_vencimento INTEGER,
+  telefone TEXT,
+  telefone_secundario TEXT,
+  status TEXT NOT NULL CHECK (status IN ('em_dia', 'ate_2_meses', '3_a_5_meses', '6_meses_ou_mais', 'desligado')),
+  situacao_especial TEXT, -- ex: "ABONADO", "ISENTO", "Sem margem" no mês mais recente — não é bucket de atraso
+  motivo_desligamento TEXT,
+  origem_planilha TEXT NOT NULL CHECK (origem_planilha IN ('ativo_geral', 'desligados')),
+  planilha_atualizada_em DATE NOT NULL, -- data da própria planilha importada — base pro aviso dos "10 dias"
+  importado_em TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_socios_nome ON socios(nome);
+CREATE INDEX IF NOT EXISTS idx_socios_matricula ON socios(matricula);
+CREATE INDEX IF NOT EXISTS idx_socios_clube_status ON socios(clube, status);
+
+-- Histórico mensal de pagamento, como está na planilha (valor OU uma nota
+-- livre tipo "DESLIGADO - ...", "ABONADO", "Sem margem") — fonte de onde
+-- o `status` de cima foi calculado na importação.
+CREATE TABLE IF NOT EXISTS socios_mensalidades (
+  id SERIAL PRIMARY KEY,
+  socio_id INTEGER NOT NULL REFERENCES socios(id) ON DELETE CASCADE,
+  ano INTEGER NOT NULL,
+  mes INTEGER NOT NULL CHECK (mes BETWEEN 1 AND 12),
+  valor NUMERIC,
+  observacao TEXT,
+  UNIQUE (socio_id, ano, mes)
+);
+CREATE INDEX IF NOT EXISTS idx_socios_mensalidades_socio ON socios_mensalidades(socio_id);
