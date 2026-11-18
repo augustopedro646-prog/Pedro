@@ -37,7 +37,9 @@ setInterval(() => {
 
 const geral = rateLimit({
   windowMs: 15 * 60 * 1000,
-  limit: 300,
+  // 300 era pouco: cada tela faz várias chamadas e a recepção/diretoria usam o
+  // sistema atrás do mesmo IP. Login e PIN continuam no limite apertado abaixo.
+  limit: 1500,
   standardHeaders: true,
   legacyHeaders: false,
   keyGenerator,

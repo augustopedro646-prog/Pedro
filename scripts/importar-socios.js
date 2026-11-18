@@ -84,35 +84,10 @@ function categoriaDoNomeLegado(nome) {
   return null; // aluno/funcionário/portaria/etc não é categoria de sócio — deixa null de propósito
 }
 
-// Status da aba ATIVO GERAL: olha o mês mais recente preenchido. Texto
-// "DESLIGADO..." vira desligado; outro texto (ABONADO, ISENTO, Sem margem,
-// INSS, AUSENTE...) é uma situação especial, não atraso; valor numérico
-// conta quantos meses seguidos (voltando) vieram exatamente 0 e aplica o
-// mesmo corte que a planilha já usa no resumo (até 2 / 3 a 5 / 6 ou mais).
-// A planilha é digitada à mão: "DESLIGADO", "DESLIGAMENTO - ...", e também
-// erros como "desligaod", "desigado", "desliagdo". Tudo que começa com
-// "desl"/"desig" é desligamento; sem isso essas pessoas ficavam como ativas.
-function ehDesligamento(texto) {
-  return /^(desl|desig)/i.test(String(texto || '').trim());
-}
-
-function calcularStatusAtivo(mensalidades) {
-  if (!mensalidades.length) return { status: 'em_dia', situacaoEspecial: null, motivo: null };
-  const ultimo = mensalidades[mensalidades.length - 1];
-  const obsUltimo = (ultimo.observacao || '').trim();
-  if (ehDesligamento(obsUltimo)) return { status: 'desligado', situacaoEspecial: null, motivo: obsUltimo };
-  if (obsUltimo && ultimo.valor == null) return { status: 'em_dia', situacaoEspecial: obsUltimo, motivo: null };
-
-  let mesesSemPagamento = 0;
-  for (let i = mensalidades.length - 1; i >= 0; i--) {
-    if (mensalidades[i].valor === 0) mesesSemPagamento++;
-    else break;
-  }
-  if (mesesSemPagamento === 0) return { status: 'em_dia', situacaoEspecial: null, motivo: null };
-  if (mesesSemPagamento <= 2) return { status: 'ate_2_meses', situacaoEspecial: null, motivo: null };
-  if (mesesSemPagamento <= 5) return { status: '3_a_5_meses', situacaoEspecial: null, motivo: null };
-  return { status: '6_meses_ou_mais', situacaoEspecial: null, motivo: null };
-}
+// ehDesligamento/calcularStatusAtivo moraram aqui; agora ficam em
+// server/statusSocio.js porque a baixa direta de mensalidade (recepção) usa a
+// MESMA regra pra recalcular o status quando um pagamento é registrado.
+const { ehDesligamento, calcularStatusAtivo, recalcularStatusSocio } = require('../server/statusSocio');
 
 // Motivo de quem já está na aba DESLIGADOS: o primeiro "DESLIGADO..." no
 // histórico (ordem cronológica) é o evento real; o resto depois disso é só
@@ -306,6 +281,13 @@ async function main() {
     // sinal mais forte de que a pessoa está mesmo frequentando hoje.
     for (const s of desligados) await salvarSocio(client, s, 'desligados', planilhaAtualizadaEm);
     for (const s of ativos) await salvarSocio(client, s, 'ativo_geral', planilhaAtualizadaEm);
+    // pagamentos registrados na ATPN (baixa direta) valem por cima da planilha:
+    // recalcula o status de quem tem pagamento, dentro da mesma transação
+    const { rows: comPagamento } = await client.query(
+      'SELECT DISTINCT socio_id FROM mensalidade_pagamentos WHERE cancelado_em IS NULL'
+    );
+    for (const { socio_id } of comPagamento) await recalcularStatusSocio(client, socio_id);
+    if (comPagamento.length) console.log(`\nStatus recalculado considerando pagamentos registrados na ATPN: ${comPagamento.length} sócio(s).`);
     await client.query('COMMIT');
   } catch (err) {
     await client.query('ROLLBACK');

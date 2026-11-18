@@ -28,6 +28,7 @@ app.use('/api/inicio', require('./routes/inicio'));
 app.use('/api/relatorios', require('./routes/relatorios'));
 app.use('/api/historico', require('./routes/historico'));
 app.use('/api/reservas', require('./routes/reservas'));
+app.use('/api/mensalidades', require('./routes/mensalidades'));
 
 app.use((err, req, res, next) => {
   console.error(err);

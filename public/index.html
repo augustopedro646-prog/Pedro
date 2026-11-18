@@ -191,6 +191,17 @@
   .abas-secundarias button.ativa { background: var(--primaria); color: var(--primaria-texto); border-color: var(--primaria); }
   .navegacao-mes { display: flex; align-items: center; gap: 12px; }
 
+  /* ---------- Despesas por foto ---------- */
+  .tag-tipo { font-size: .68rem; font-weight: 700; padding: 1px 7px; border-radius: 999px; border: 1px solid var(--borda); color: var(--texto-fraco); white-space: nowrap; }
+  .form-despesa { border-color: var(--primaria); }
+  .fotos-despesa { margin: 10px 0; }
+  .miniaturas { display: flex; flex-wrap: wrap; gap: 10px; margin: 8px 0; }
+  .miniatura { display: inline-flex; align-items: flex-start; gap: 4px; }
+  .miniatura img { width: 96px; height: 96px; object-fit: cover; border-radius: 8px; border: 1px solid var(--borda); }
+  .pdf-icone { display: inline-flex; align-items: center; justify-content: center; width: 96px; height: 96px; border: 1px solid var(--borda); border-radius: 8px; font-weight: 700; }
+  .aviso-ia { padding: 8px 12px; border-radius: 8px; background: var(--ev-bg); color: var(--ev-fg); font-size: .85rem; }
+  .painel-anexos { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+
   /* ---------- Eventos / Reservas ---------- */
   .cartao-reserva { border: 1px solid var(--borda); border-left-width: 4px; border-radius: var(--radius); padding: 12px 14px; margin-bottom: 12px; background: var(--superficie); }
   .cartao-reserva.status-novo { border-left-color: var(--dourado); }
@@ -343,6 +354,16 @@
     configCarregado: false,
     configCargos: [],
     configEquipe: [],
+    despForm: null,
+    despAnexos: null,
+    financeiroAPagar: null,
+    leituraNotaConfigurada: false,
+    mensBusca: '',
+    mensResultados: [],
+    mensFicha: null,
+    mensForm: null,
+    mensHoje: null,
+    mensErro: null,
     eventosAba: 'reservas',
     reservas: null,
     reservasErro: null,
@@ -356,7 +377,6 @@
     relErro: null,
     relAba: 'mensalidades',
     relPeriodo: '3m',
-    relInadClube: 'cepe_atpn',
     relInadFaixa: 'todas',
     inicio: null,
     inicioCarregado: false,
@@ -441,6 +461,7 @@
     if (!resp.ok) {
       const erro = new Error(dado.erro || 'Erro na requisição');
       if (dado.conflitos) erro.conflitos = dado.conflitos; // reservas: conflito de espaço (409)
+      if (dado.precisaConfirmar) erro.precisaConfirmar = true; // mensalidades: mês já tem pagamento registrado
       throw erro;
     }
     return dado;
@@ -569,6 +590,7 @@
     if (state.abaAtual === 'inicio') return viewInicio();
     if (state.abaAtual === 'relatorios') return viewRelatorios();
     if (state.abaAtual === 'historico') return viewHistorico();
+    if (state.abaAtual === 'mensalidades') return viewMensalidades();
     const nomeAba = (state.abas.find((a) => a.id === state.abaAtual) || {}).nome || '';
     return `
       <h2>${esc(nomeAba)}</h2>
@@ -694,7 +716,20 @@
     const lista = state.financeiroAba === 'despesas' ? state.financeiroDespesas : state.financeiroReceitas;
     const total = lista.reduce((soma, l) => soma + Number(l.valor), 0);
 
-    const linhas = lista.map((l) => `
+    const ehDespesa = state.financeiroAba === 'despesas';
+    const linhas = lista.map((l) => ehDespesa ? `
+      <tr>
+        <td>${esc(l.data.split('-').reverse().join('/'))}</td>
+        <td>${esc(l.descricao)}${l.fornecedor ? ` <span class="placeholder">· ${esc(l.fornecedor)}</span>` : ''} <span class="tag-tipo">${esc(rotuloTipoDespesa(l.tipo))}</span></td>
+        <td>${esc(l.categoria || '—')}</td>
+        <td>${esc(l.formaPagamento || '—')}</td>
+        <td>${formatarMoeda(l.valor)}</td>
+        <td style="white-space:nowrap;">
+          ${l.anexos ? `<button class="botao-ir" data-desp="anexos" data-id="${l.id}" title="Ver foto/PDF anexado">📎 ${l.anexos}</button>` : ''}
+          <button class="botao-ir" data-desp="editar" data-id="${l.id}">editar</button>
+          <button class="botao-link" data-action="remover-lancamento" data-id="${l.id}">remover</button>
+        </td>
+      </tr>` : `
       <tr>
         <td>${esc(l.data.split('-').reverse().join('/'))}</td>
         <td>${esc(l.descricao)}</td>
@@ -703,6 +738,22 @@
         <td>${formatarMoeda(l.valor)}</td>
         <td><button class="botao-link" data-action="remover-lancamento" data-id="${l.id}">remover</button></td>
       </tr>`).join('') || `<tr><td colspan="6" class="placeholder">Nenhum lançamento no mês.</td></tr>`;
+    const cabecalho = ehDespesa
+      ? '<thead><tr><th>Pago em</th><th>Descrição</th><th>Categoria</th><th>Forma de pagamento</th><th>Valor</th><th></th></tr></thead>'
+      : '<thead><tr><th>Data</th><th>Descrição</th><th>Categoria</th><th>Forma de pagamento</th><th>Valor</th><th></th></tr></thead>';
+    const formSimples = `
+        <div class="linha-form">
+          <input type="date" id="novo-lancamento-data" value="${new Date().toISOString().slice(0, 10)}" />
+          <input type="text" id="novo-lancamento-descricao" placeholder="Descrição" />
+          <input type="text" id="novo-lancamento-categoria" placeholder="Categoria (opcional)" />
+          <select id="novo-lancamento-forma">
+            <option value="">Forma de pagamento…</option>
+            ${FORMAS_PAGAMENTO.map((f) => `<option value="${esc(f)}">${esc(f)}</option>`).join('')}
+          </select>
+          <input type="text" inputmode="decimal" id="novo-lancamento-valor" placeholder="Valor" />
+          <button class="botao" data-action="add-lancamento">Adicionar</button>
+        </div>`;
+    const formHtml = ehDespesa ? formDespesaHtml() : formSimples;
 
     return `
       <h2>Fluxo de caixa</h2>
@@ -716,10 +767,11 @@
 
       ${cartoesResumoFinanceiro(resumo)}
       ${resumo.mensalidades && resumo.mensalidades.total > 0 ? `
-        <p class="placeholder">As receitas incluem <strong>${formatarMoeda(resumo.mensalidades.total)}</strong> de mensalidades vindas da planilha dos sócios
-        (atualizada em ${esc(formatarDataExibicao(resumo.mensalidades.planilhaAtualizadaEm))}). Entram sozinhas — não aparecem na lista de lançamentos abaixo.
+        <p class="placeholder">As receitas incluem <strong>${formatarMoeda(resumo.mensalidades.total)}</strong> de mensalidades dos <strong>sócios ATPN</strong> (planilha atualizada em ${esc(formatarDataExibicao(resumo.mensalidades.planilhaAtualizadaEm))} + o que a recepção registrou na aba Mensalidades). Entram sozinhas — não aparecem na lista de lançamentos abaixo. Sócios do CEPE não entram no financeiro.
         ${resumo.mensalidades.parcial ? '<strong>Mês parcial:</strong> a planilha ainda não cobre o mês inteiro, o valor sobe quando ela for atualizada.' : ''}</p>`
         : resumo.mensalidades && resumo.mensalidades.semCobertura ? '<p class="placeholder">Antes de 2026 a planilha não cobre o quadro inteiro de sócios, então não há receita de mensalidade nesse período.</p>' : ''}
+
+      ${contasAPagarHtml()}
 
       <div class="secao">
         <h3>Tendência (últimos 6 meses)</h3>
@@ -743,22 +795,13 @@
           <button class="${state.financeiroAba === 'despesas' ? 'ativa' : ''}" data-action="financeiro-aba" data-aba="despesas">Despesas</button>
           <button class="${state.financeiroAba === 'receitas' ? 'ativa' : ''}" data-action="financeiro-aba" data-aba="receitas">Receitas</button>
         </div>
-        <table class="tabela-lista">
-          <thead><tr><th>Data</th><th>Descrição</th><th>Categoria</th><th>Forma de pagamento</th><th>Valor</th><th></th></tr></thead>
+        <div style="overflow-x:auto;"><table class="tabela-lista">
+          ${cabecalho}
           <tbody>${linhas}</tbody>
-        </table>
-        <p><strong>Total: ${formatarMoeda(total)}</strong></p>
-        <div class="linha-form">
-          <input type="date" id="novo-lancamento-data" value="${new Date().toISOString().slice(0, 10)}" />
-          <input type="text" id="novo-lancamento-descricao" placeholder="Descrição" />
-          <input type="text" id="novo-lancamento-categoria" placeholder="Categoria (opcional)" />
-          <select id="novo-lancamento-forma">
-            <option value="">Forma de pagamento…</option>
-            ${FORMAS_PAGAMENTO.map((f) => `<option value="${esc(f)}">${esc(f)}</option>`).join('')}
-          </select>
-          <input type="text" inputmode="decimal" id="novo-lancamento-valor" placeholder="Valor" />
-          <button class="botao" data-action="add-lancamento">Adicionar</button>
-        </div>
+        </table></div>
+        <p><strong>Total${ehDespesa ? ' pago' : ''}: ${formatarMoeda(total)}</strong></p>
+        ${painelAnexosHtml()}
+        ${formHtml}
       </div>`;
   }
 
@@ -936,21 +979,17 @@
     const vistos = new Map();
     m.serie.forEach((r) => {
       const k = idxMes(r.ano, r.mes);
-      if (!vistos.has(k)) vistos.set(k, { ano: r.ano, mes: r.mes, idx: k, arrecadado: 0, pagantes: 0, naoPagaram: 0, especiais: 0, porClube: {} });
+      if (!vistos.has(k)) vistos.set(k, { ano: r.ano, mes: r.mes, idx: k, arrecadado: 0, pagantes: 0, naoPagaram: 0, especiais: 0 });
       const v = vistos.get(k);
       v.arrecadado += r.arrecadado; v.pagantes += r.pagantes; v.naoPagaram += r.naoPagaram; v.especiais += r.especiais;
-      v.porClube[r.clube] = { arrecadado: r.arrecadado, pagantes: r.pagantes, naoPagaram: r.naoPagaram };
     });
     const todos = [...vistos.values()].sort((a, b) => a.idx - b.idx).map((v) => ({ ...v, parcial: v.idx >= idxRef, emCobranca: v.idx === idxRef - 1 }));
     return { todos, fechados: todos.filter((v) => !v.parcial) };
   }
 
   function relSoma(meses) {
-    const s = { arrecadado: 0, pagantes: 0, naoPagaram: 0, n: meses.length, porClube: { cepe_atpn: { arrecadado: 0, pagantes: 0, naoPagaram: 0 }, cepe: { arrecadado: 0, pagantes: 0, naoPagaram: 0 } } };
-    meses.forEach((m) => {
-      s.arrecadado += m.arrecadado; s.pagantes += m.pagantes; s.naoPagaram += m.naoPagaram;
-      Object.entries(m.porClube).forEach(([c, v]) => { const x = s.porClube[c]; if (x) { x.arrecadado += v.arrecadado; x.pagantes += v.pagantes; x.naoPagaram += v.naoPagaram; } });
-    });
+    const s = { arrecadado: 0, pagantes: 0, naoPagaram: 0, n: meses.length };
+    meses.forEach((m) => { s.arrecadado += m.arrecadado; s.pagantes += m.pagantes; s.naoPagaram += m.naoPagaram; });
     s.ticket = s.pagantes ? s.arrecadado / s.pagantes : 0;
     s.taxaInad = (s.pagantes + s.naoPagaram) ? s.naoPagaram / (s.pagantes + s.naoPagaram) * 100 : 0;
     return s;
@@ -1000,31 +1039,21 @@
         <div class="rel-barra-fill" style="height:${(m.arrecadado / maxArr * 100).toFixed(1)}%"></div>
       </div>`).join('');
     const rotulos = meses.todos.map((m) => `<span>${NOMES_MES_CURTO[m.mes - 1]}${m.emCobranca ? '*' : ''}</span>`).join('');
-    const linhaClube = (c) => {
-      const x = S.porClube[c];
-      const t = x.pagantes ? x.arrecadado / x.pagantes : 0;
-      const p = (x.pagantes + x.naoPagaram) ? x.naoPagaram / (x.pagantes + x.naoPagaram) * 100 : 0;
-      return `<tr><td>${REL_CLUBE[c]}</td><td>${formatarMoeda(x.arrecadado)}</td><td>${S.arrecadado ? (x.arrecadado / S.arrecadado * 100).toFixed(0) : 0}%</td><td>${S.n ? Math.round(x.pagantes / S.n) : 0}</td><td>${formatarMoeda(t)}</td><td>${p.toFixed(1).replace('.', ',')}%</td></tr>`;
-    };
     const presetBtn = (id, rot) => `<button class="${state.relPeriodo === id ? 'ativa' : ''}" data-rel="periodo" data-valor="${id}">${rot}</button>`;
     return `
       <div class="abas-secundarias">${presetBtn('ultimo', 'Último mês')}${presetBtn('3m', 'Últimos 3 meses')}${presetBtn('ano', 'Ano 2026')}</div>
       <p class="placeholder">Período: <strong>${esc(relRotuloPeriodo(atual))}</strong>${anterior ? ` · comparado com ${esc(relRotuloPeriodo(anterior))}` : ''}${atual.some((m) => m.emCobranca) ? ' · <strong>inclui um mês ainda em cobrança</strong> (pagamentos podem subir e a inadimplência cair)' : ''}</p>
       <div class="cartoes-resumo">
-        ${cartao('Arrecadado (planilha)', formatarMoeda(S.arrecadado), relDelta(S.arrecadado, P && P.arrecadado), 'cor-receita')}
+        ${cartao('Arrecadado (sócios ATPN)', formatarMoeda(S.arrecadado), relDelta(S.arrecadado, P && P.arrecadado), 'cor-receita')}
         ${cartao('Pagantes por mês (média)', mediaPag, P ? relDelta(S.pagantes / S.n, P.pagantes / P.n) : '')}
         ${cartao('Ticket médio', formatarMoeda(S.ticket), P ? relDelta(S.ticket, P.ticket) : '')}
         ${cartao('Inadimplência', S.taxaInad.toFixed(1).replace('.', ',') + '%', P ? relDelta(S.taxaInad, P.taxaInad, true) : 'não pagaram ÷ (pagaram + não pagaram)', S.taxaInad > 8 ? 'cor-atraso' : '')}
       </div>
-      <div style="overflow-x:auto;"><table class="tabela-lista">
-        <thead><tr><th>Clube</th><th>Arrecadado</th><th>% do total</th><th>Pagantes/mês</th><th>Ticket</th><th>Inadimplência</th></tr></thead>
-        <tbody>${linhaClube('cepe_atpn')}${linhaClube('cepe')}</tbody>
-      </table></div>
       <h3>Arrecadação mês a mês — 2026</h3>
       <div class="rel-barras">${barras}</div>
       <div class="rel-barra-rot">${rotulos}</div>
       <p class="placeholder">Barras listradas = mês parcial (a planilha é de ${esc(state.rel.mensal.planilhaAtualizadaEm.split('-').reverse().join('/'))}). * = mês ainda em cobrança, pode subir. Passe o mouse para ver os valores.</p>
-      <p class="placeholder">Os valores são os lançados na planilha dos sócios, não o caixa conferido. Linhas repetidas na planilha (mesma matrícula e nome) entram uma vez, então o total pode ficar uns 0,6% abaixo do total do rodapé da planilha. Só 2026: os meses de 2024/2025 existem apenas para quem já saiu e dariam um total falso.</p>`;
+      <p class="placeholder">Só sócios da ATPN (os do CEPE ficam apenas na aba Sócios). O valor de cada mês é o da planilha e, quando a planilha não tem o pagamento, o que foi registrado na aba Mensalidades — o mesmo dinheiro nunca conta duas vezes. É por mês de referência da mensalidade. Só 2026: os meses de 2024/2025 existem apenas para quem já saiu e dariam um total falso.</p>`;
   }
 
   function relBarraH(rotulo, n, max) {
@@ -1033,25 +1062,27 @@
 
   function relAbaSocios() {
     const d = state.rel.socios;
-    const n = (clube, status) => (d.porStatus.find((r) => r.clube === clube && r.status === status) || { n: 0 }).n;
-    const linha = (clube) => {
-      const ativos = ['em_dia', 'ate_2_meses', '3_a_5_meses', '6_meses_ou_mais'].reduce((s, st) => s + n(clube, st), 0);
-      return `<tr><td>${REL_CLUBE[clube]}</td><td>${ativos}</td><td class="cor-receita">${n(clube, 'em_dia')}</td><td>${n(clube, 'ate_2_meses')}</td><td>${n(clube, '3_a_5_meses')}</td><td class="cor-atraso">${n(clube, '6_meses_ou_mais')}</td><td>${n(clube, 'desligado')}</td></tr>`;
-    };
-    const cat = (clube, c) => (d.porCategoria.find((r) => r.clube === clube && r.categoria === c) || { n: 0 }).n;
+    // só ATPN (o servidor já manda só ATPN): dado de sócio do CEPE fica na aba Sócios
+    const n = (status) => (d.porStatus.find((r) => r.status === status) || { n: 0 }).n;
+    const ativos = ['em_dia', 'ate_2_meses', '3_a_5_meses', '6_meses_ou_mais'].reduce((s, st) => s + n(st), 0);
+    const cat = (c) => (d.porCategoria.find((r) => r.categoria === c) || { n: 0 }).n;
     const maxMot = Math.max(...d.motivosDesligamento.map((m) => m.n), 1);
     const maxEsp = Math.max(...d.situacoesEspeciais.map((m) => m.n), 1);
     return `
-      <p class="placeholder">Retrato da planilha de ${esc(d.atualizadoEm.split('-').reverse().join('/'))}.</p>
+      <p class="placeholder">Sócios da ATPN — retrato da planilha de ${esc(d.atualizadoEm.split('-').reverse().join('/'))}, mais o que foi recebido na aba Mensalidades.</p>
       <h3>Situação dos sócios</h3>
-      <div style="overflow-x:auto;"><table class="tabela-lista">
-        <thead><tr><th>Clube</th><th>Ativos</th><th>Em dia</th><th>Até 2 meses</th><th>3 a 5 meses</th><th>6+ meses</th><th>Desligados</th></tr></thead>
-        <tbody>${linha('cepe_atpn')}${linha('cepe')}</tbody>
-      </table></div>
+      <div class="cartoes-resumo">
+        <div class="cartao-resumo"><span class="cartao-resumo-label">Ativos</span><strong class="cartao-resumo-valor">${ativos}</strong></div>
+        <div class="cartao-resumo"><span class="cartao-resumo-label">Em dia</span><strong class="cartao-resumo-valor cor-receita">${n('em_dia')}</strong></div>
+        <div class="cartao-resumo"><span class="cartao-resumo-label">Até 2 meses</span><strong class="cartao-resumo-valor">${n('ate_2_meses')}</strong></div>
+        <div class="cartao-resumo"><span class="cartao-resumo-label">3 a 5 meses</span><strong class="cartao-resumo-valor">${n('3_a_5_meses')}</strong></div>
+        <div class="cartao-resumo"><span class="cartao-resumo-label">6 meses ou mais</span><strong class="cartao-resumo-valor cor-atraso">${n('6_meses_ou_mais')}</strong></div>
+        <div class="cartao-resumo"><span class="cartao-resumo-label">Desligados</span><strong class="cartao-resumo-valor">${n('desligado')}</strong></div>
+      </div>
       <h3>Ativos por categoria</h3>
       <div style="overflow-x:auto;"><table class="tabela-lista">
-        <thead><tr><th>Clube</th>${Object.values(REL_CATEGORIA).map((c) => `<th>${c}</th>`).join('')}</tr></thead>
-        <tbody>${['cepe_atpn', 'cepe'].map((cl) => `<tr><td>${REL_CLUBE[cl]}</td>${Object.keys(REL_CATEGORIA).map((c) => `<td>${cat(cl, c)}</td>`).join('')}</tr>`).join('')}</tbody>
+        <thead><tr>${Object.values(REL_CATEGORIA).map((c) => `<th>${c}</th>`).join('')}</tr></thead>
+        <tbody><tr>${Object.keys(REL_CATEGORIA).map((c) => `<td>${cat(c)}</td>`).join('')}</tr></tbody>
       </table></div>
       <p class="placeholder">"Não identificada" = categoria da planilha que não é efetivo nem contribuinte (alunos, funcionários, convidados etc.).</p>
       ${d.situacoesEspeciais.length ? `<h3>Situações especiais (ativos)</h3>${d.situacoesEspeciais.map((s) => relBarraH(s.situacao, s.n, maxEsp)).join('')}` : ''}
@@ -1061,22 +1092,20 @@
 
   function relAbaInadimplentes() {
     const l = state.rel.inad;
-    const clubeBtn = (v, r) => `<button class="${state.relInadClube === v ? 'ativa' : ''}" data-rel="inad-clube" data-valor="${v}">${r}</button>`;
     const faixaBtn = (v, r) => `<button class="${state.relInadFaixa === v ? 'ativa' : ''}" data-rel="inad-faixa" data-valor="${v}">${r}</button>`;
     const linhas = l.socios.map((s) => `
       <tr>
-        <td>${esc(s.nome)}</td><td>${esc(s.matricula || '—')}</td><td>${REL_CLUBE[s.clube]}</td>
+        <td>${esc(s.nome)}</td><td>${esc(s.matricula || '—')}</td>
         <td><strong class="cor-atraso">${s.mesesEmAberto}</strong> <span class="placeholder">(${esc(REL_STATUS[s.status])})</span></td>
         <td>${s.ultimoPagamento ? `${esc(s.ultimoPagamento)} · ${formatarMoeda(s.ultimoValor)}` : '<span class="placeholder">nenhum em 2026</span>'}</td>
         <td>${esc(s.telefone || '—')}</td>
-      </tr>`).join('') || '<tr><td colspan="6" class="placeholder">Nenhum sócio nessa seleção.</td></tr>';
+      </tr>`).join('') || '<tr><td colspan="5" class="placeholder">Nenhum sócio nessa seleção.</td></tr>';
     return `
-      <div class="abas-secundarias">${clubeBtn('cepe_atpn', 'ATPN')}${clubeBtn('cepe', 'CEPE')}${clubeBtn('todos', 'Todos')}</div>
       <div class="abas-secundarias">${faixaBtn('todas', 'Qualquer atraso')}${faixaBtn('ate_2_meses', 'Até 2 meses')}${faixaBtn('3_a_5_meses', '3 a 5 meses')}${faixaBtn('6_meses_ou_mais', '6 meses ou mais')}</div>
       <p><strong>${l.total}</strong> sócio${l.total === 1 ? '' : 's'} em atraso${l.total > l.socios.length ? ` (mostrando ${l.socios.length})` : ''}.
         <button class="botao" data-rel="csv">Baixar CSV</button></p>
       <div style="overflow-x:auto;"><table class="tabela-lista">
-        <thead><tr><th>Nome</th><th>Matrícula</th><th>Clube</th><th>Meses em aberto</th><th>Último pagamento</th><th>Telefone</th></tr></thead>
+        <thead><tr><th>Nome</th><th>Matrícula</th><th>Meses em aberto</th><th>Último pagamento</th><th>Telefone</th></tr></thead>
         <tbody>${linhas}</tbody>
       </table></div>
       <p class="placeholder">Meses em aberto = meses seguidos com valor zero, contando de trás pra frente (mesma regra da planilha). Quem tem "sem margem", INSS, abonado etc. não entra como atraso.</p>`;
@@ -1093,7 +1122,6 @@
 
   async function carregarInadimplentes() {
     const p = new URLSearchParams();
-    if (state.relInadClube !== 'todos') p.set('clube', state.relInadClube);
     if (state.relInadFaixa !== 'todas') p.set('status', state.relInadFaixa);
     state.rel.inad = await api(`/relatorios/inadimplentes?${p.toString()}`);
   }
@@ -1112,7 +1140,6 @@
 
   async function baixarInadimplentesCsv() {
     const p = new URLSearchParams();
-    if (state.relInadClube !== 'todos') p.set('clube', state.relInadClube);
     if (state.relInadFaixa !== 'todas') p.set('status', state.relInadFaixa);
     try {
       const resp = await fetch(`${API_BASE}/relatorios/inadimplentes.csv?${p.toString()}`, { headers: { Authorization: `Bearer ${state.token}` } });
@@ -1132,7 +1159,6 @@
     const v = el.dataset.valor;
     if (tipo === 'aba') state.relAba = v;
     else if (tipo === 'periodo') state.relPeriodo = v;
-    else if (tipo === 'inad-clube') { state.relInadClube = v; await carregarInadimplentes(); }
     else if (tipo === 'inad-faixa') { state.relInadFaixa = v; await carregarInadimplentes(); }
     else if (tipo === 'csv') { await baixarInadimplentesCsv(); return; }
     else if (tipo === 'recarregar') { state.rel = null; render(); await carregarRelatorios(); }
@@ -1278,6 +1304,190 @@
     }
   }
 
+  // ---------- mensalidades (recepção: receber, comprovante, estorno) ----------
+  const MENS_SITUACAO = {
+    pago_planilha: ['Pago', 'cor-receita'], pago_atpn: ['Pago (recebido aqui)', 'cor-receita'],
+    aberto: ['Em aberto', 'cor-atraso'], especial: ['Situação especial', ''], sem_lancamento: ['Sem lançamento', 'placeholder'],
+  };
+
+  function mensFormValoresIniciais(f) {
+    // mês mais antigo em aberto; senão o mês atual
+    const aberto = f.meses.find((m) => m.situacao === 'aberto');
+    const hoje = new Date();
+    const alvo = aberto || f.meses.find((m) => m.ano === hoje.getFullYear() && m.mes === hoje.getMonth() + 1) || f.meses[f.meses.length - 1];
+    return { mes: `${alvo.ano}-${alvo.mes}`, valor: f.valorSugerido != null ? String(f.valorSugerido).replace('.', ',') : '', forma: 'Dinheiro', data: dataLocalStr(hoje), obs: '' };
+  }
+
+  function mensFichaHtml() {
+    const f = state.mensFicha;
+    if (!f) return '';
+    const s = f.socio;
+    const ehAdmin = state.usuario.administrador;
+    const frm = state.mensForm;
+    const abertos = f.meses.filter((m) => m.situacao === 'aberto').length;
+    const linhasMeses = f.meses.map((m) => {
+      const [rot, cls] = MENS_SITUACAO[m.situacao];
+      return `<tr><td>${String(m.mes).padStart(2, '0')}/${m.ano}</td><td class="${cls}">${rot}${m.observacao && m.situacao === 'especial' ? ` (${esc(m.observacao)})` : ''}</td><td>${m.valor ? formatarMoeda(m.valor) : '—'}</td></tr>`;
+    }).join('');
+    const linhasPag = f.pagamentos.map((p) => `
+      <tr style="${p.canceladoEm ? 'opacity:.55;text-decoration:line-through;' : ''}">
+        <td>${esc(String(p.mes).padStart(2, '0'))}/${p.ano}</td><td>${formatarMoeda(p.valor)}</td><td>${esc(p.forma)}</td>
+        <td>${esc(p.dataPagamento.split('-').reverse().join('/'))}</td><td>${esc(p.registradoPor || '—')}</td>
+        <td style="text-decoration:none;">${p.canceladoEm ? `<span class="placeholder">estornado: ${esc(p.motivoCancelamento || '')}</span>`
+          : `<button class="botao-ir" data-mens="comprovante" data-id="${p.id}">comprovante</button>${ehAdmin ? ` <button class="botao-link" data-mens="estornar" data-id="${p.id}">estornar</button>` : ''}`}</td>
+      </tr>`).join('') || '<tr><td colspan="6" class="placeholder">Nenhum pagamento registrado aqui para esse sócio.</td></tr>';
+    const opcoesMes = f.meses.map((m) => `<option value="${m.ano}-${m.mes}" ${frm.mes === `${m.ano}-${m.mes}` ? 'selected' : ''}>${String(m.mes).padStart(2, '0')}/${m.ano} — ${MENS_SITUACAO[m.situacao][0]}</option>`).join('');
+    const opcoesForma = f.formas.map((x) => `<option ${frm.forma === x ? 'selected' : ''}>${esc(x)}</option>`).join('');
+    return `
+      <div class="secao">
+        <h3>${esc(s.nome)}</h3>
+        <p class="placeholder">Matrícula ${esc(s.matricula || '—')} · ${esc(s.categoria || 'categoria não identificada')} · ${esc(s.telefone || 'sem telefone')} ·
+          situação: <strong>${esc(REL_STATUS[s.status] || s.status)}</strong> · <strong>${abertos}</strong> ${abertos === 1 ? 'mês' : 'meses'} em aberto em 2026</p>
+        <h3>Receber mensalidade</h3>
+        <div class="grade-assoc">
+          <label class="campo-assoc"><span>Mês de referência</span><select id="mf-mes">${opcoesMes}</select></label>
+          <label class="campo-assoc"><span>Valor (R$)</span><input id="mf-valor" inputmode="decimal" autocomplete="off" value="${esc(frm.valor)}" /></label>
+          <label class="campo-assoc"><span>Forma de pagamento</span><select id="mf-forma">${opcoesForma}</select></label>
+          <label class="campo-assoc"><span>Data do pagamento</span><input id="mf-data" type="date" value="${esc(frm.data)}" /></label>
+          <label class="campo-assoc"><span>Observação (opcional)</span><input id="mf-obs" maxlength="300" value="${esc(frm.obs)}" /></label>
+        </div>
+        <div class="linha-form"><button class="botao" data-mens="receber">Registrar recebimento</button></div>
+        <h3>Meses de 2026</h3>
+        <div style="overflow-x:auto;"><table class="tabela-lista"><thead><tr><th>Mês</th><th>Situação</th><th>Valor</th></tr></thead><tbody>${linhasMeses}</tbody></table></div>
+        <h3>Pagamentos registrados aqui</h3>
+        <div style="overflow-x:auto;"><table class="tabela-lista"><thead><tr><th>Mês ref.</th><th>Valor</th><th>Forma</th><th>Pago em</th><th>Por</th><th></th></tr></thead><tbody>${linhasPag}</tbody></table></div>
+      </div>`;
+  }
+
+  function viewMensalidades() {
+    if (state.mensErro) return `<h2>Mensalidades</h2><div class="secao"><p>Não foi possível carregar (${esc(state.mensErro)}). Isso é falha de carregamento, não "nenhum recebimento". <button class="botao" data-mens="recarregar">Tentar de novo</button></p></div>`;
+    const res = state.mensResultados.map((s) => `
+      <tr class="linha-socio" data-mens="abrir" data-id="${s.id}">
+        <td>${esc(s.nome)}</td><td>${esc(s.matricula || '—')}</td><td>${esc(REL_STATUS[s.status] || s.status)}</td><td>${esc(s.telefone || '—')}</td>
+      </tr>`).join('');
+    const h = state.mensHoje;
+    const formasHoje = h ? Object.entries(h.porForma).map(([k, v]) => `${esc(k)}: ${formatarMoeda(v)}`).join(' · ') : '';
+    const linhasHoje = h ? h.pagamentos.map((p) => `
+      <tr style="${p.canceladoEm ? 'opacity:.55;text-decoration:line-through;' : ''}">
+        <td>${esc(p.socioNome)}</td><td>${String(p.mes).padStart(2, '0')}/${p.ano}</td><td>${formatarMoeda(p.valor)}</td><td>${esc(p.forma)}</td><td>${esc(p.registradoPor || '—')}</td>
+      </tr>`).join('') : '';
+    return `
+      <h2>Mensalidades</h2>
+      <div class="secao">
+        <p class="placeholder">Recepção da ATPN: procure o sócio, confira o que está em aberto e registre o recebimento. Só sócios da <strong>ATPN</strong> (os do CEPE ficam apenas na aba Sócios). O valor entra no fluxo de caixa e no relatório, e a reimportação da planilha não apaga o que foi registrado aqui.</p>
+        <input type="text" id="mens-busca" class="busca-socios-grande" placeholder="Nome, matrícula, telefone ou CPF do sócio…" value="${esc(state.mensBusca)}" autocomplete="off" />
+        ${state.mensBusca.trim().length >= 2 ? (state.mensResultados.length
+          ? `<div style="overflow-x:auto;"><table class="tabela-lista"><thead><tr><th>Nome</th><th>Matrícula</th><th>Situação</th><th>Telefone</th></tr></thead><tbody>${res}</tbody></table></div>`
+          : '<p class="placeholder">Nenhum sócio ATPN ativo encontrado.</p>') : ''}
+      </div>
+      ${mensFichaHtml()}
+      <div class="secao">
+        <h3>Recebido hoje</h3>
+        ${!h ? '<p class="placeholder">Carregando…</p>' : `
+          <p><strong>${formatarMoeda(h.total)}</strong> <span class="placeholder">${formasHoje ? '· ' + formasHoje : '· nada recebido hoje ainda'}</span></p>
+          ${h.pagamentos.length ? `<div style="overflow-x:auto;"><table class="tabela-lista"><thead><tr><th>Sócio</th><th>Mês ref.</th><th>Valor</th><th>Forma</th><th>Por</th></tr></thead><tbody>${linhasHoje}</tbody></table></div>` : ''}`}
+      </div>`;
+  }
+
+  async function carregarMensHoje() {
+    try { state.mensHoje = await api('/mensalidades/hoje'); state.mensErro = null; } catch (err) { state.mensErro = err.message; }
+  }
+
+  let timerBuscaMens = null;
+  async function abrirFichaMens(id) {
+    state.mensFicha = await api(`/mensalidades/socio/${id}`);
+    state.mensForm = mensFormValoresIniciais(state.mensFicha);
+  }
+
+  function lerFormMens() {
+    return {
+      mes: document.getElementById('mf-mes').value,
+      valor: document.getElementById('mf-valor').value,
+      forma: document.getElementById('mf-forma').value,
+      data: document.getElementById('mf-data').value,
+      obs: document.getElementById('mf-obs').value,
+    };
+  }
+
+  function imprimirComprovante(c) {
+    const brl = (v) => `R$ ${Number(v).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    const dt = (s) => String(s).split('-').reverse().join('/');
+    const w = window.open('', '_blank', 'width=520,height=680');
+    if (!w) { alert('O navegador bloqueou a janela do comprovante. Permita pop-ups para este site.'); return; }
+    w.document.write(`<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Comprovante ${c.id}</title>
+      <style>body{font-family:system-ui,sans-serif;padding:24px;color:#111} h1{font-size:18px;margin:0 0 2px} .sub{color:#555;font-size:12px;margin-bottom:18px}
+      table{width:100%;border-collapse:collapse;font-size:14px} td{padding:6px 0;border-bottom:1px solid #ddd} td:first-child{color:#555;width:42%}
+      .v{font-size:22px;font-weight:700;margin:14px 0} .rod{margin-top:22px;font-size:11px;color:#666} .canc{color:#b00;font-weight:700}
+      @media print{button{display:none}}</style></head><body>
+      <h1>${esc(c.associacao.nome)}</h1>
+      <div class="sub">${esc([c.associacao.endereco, c.associacao.telefone].filter(Boolean).join(' · '))}</div>
+      <h1>Comprovante de pagamento — mensalidade</h1>
+      ${c.canceladoEm ? '<div class="canc">PAGAMENTO ESTORNADO</div>' : ''}
+      <div class="v">${esc(brl(c.valor))}</div>
+      <table>
+        <tr><td>Sócio</td><td>${esc(c.socioNome)}</td></tr>
+        <tr><td>Matrícula</td><td>${esc(c.matricula || '—')}</td></tr>
+        <tr><td>Mês de referência</td><td>${esc(String(c.mes).padStart(2, '0'))}/${c.ano}</td></tr>
+        <tr><td>Forma de pagamento</td><td>${esc(c.forma)}</td></tr>
+        <tr><td>Data do pagamento</td><td>${esc(dt(c.dataPagamento))}</td></tr>
+        <tr><td>Recebido por</td><td>${esc(c.registradoPor || '—')}</td></tr>
+        <tr><td>Nº do registro</td><td>${c.id}</td></tr>
+        ${c.observacao ? `<tr><td>Observação</td><td>${esc(c.observacao)}</td></tr>` : ''}
+      </table>
+      <div class="rod">Este comprovante não é documento fiscal. Emitido em ${esc(new Date().toLocaleString('pt-BR'))}.</div>
+      <p><button onclick="window.print()">Imprimir</button></p></body></html>`);
+    w.document.close();
+  }
+
+  async function acaoMens(el) {
+    const tipo = el.dataset.mens;
+    try {
+      if (tipo === 'recarregar') { state.mensHoje = null; render(); await carregarMensHoje(); render(); return; }
+      if (tipo === 'abrir') {
+        await abrirFichaMens(Number(el.dataset.id));
+        render();
+        const campo = document.getElementById('mf-valor');
+        if (campo) campo.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        return;
+      }
+      if (tipo === 'comprovante') {
+        imprimirComprovante(await api(`/mensalidades/comprovante/${el.dataset.id}`));
+        return;
+      }
+      if (tipo === 'estornar') {
+        const motivo = prompt('Motivo do estorno (obrigatório):');
+        if (!motivo || motivo.trim().length < 3) { if (motivo !== null) alert('Informe o motivo (pelo menos 3 letras).'); return; }
+        await api(`/mensalidades/pagamentos/${el.dataset.id}/estornar`, { method: 'POST', body: { motivo: motivo.trim() } });
+      } else if (tipo === 'receber') {
+        const f = lerFormMens();
+        state.mensForm = f;
+        const [ano, mes] = f.mes.split('-').map(Number);
+        const valor = parseNumero(f.valor);
+        if (!(valor > 0)) { alert('Informe o valor.'); return; }
+        const corpo = { socioId: state.mensFicha.socio.id, ano, mes, valor, forma: f.forma, dataPagamento: f.data, observacao: f.obs };
+        let pagamento;
+        try {
+          pagamento = await api('/mensalidades/pagamentos', { method: 'POST', body: corpo });
+        } catch (err) {
+          if (!err.precisaConfirmar) throw err;
+          if (!confirm(err.message)) return;
+          pagamento = await api('/mensalidades/pagamentos', { method: 'POST', body: { ...corpo, confirmarParcial: true } });
+        }
+        state.mensForm = null;
+        await abrirFichaMens(state.mensFicha.socio.id);
+        await carregarMensHoje();
+        render();
+        if (confirm('Recebimento registrado. Abrir o comprovante para imprimir?')) imprimirComprovante(await api(`/mensalidades/comprovante/${pagamento.id}`));
+        return;
+      }
+      await abrirFichaMens(state.mensFicha.socio.id);
+      await carregarMensHoje();
+      render();
+    } catch (err) {
+      alert(err.message);
+    }
+  }
+
   // ---------- início ----------
   const ETAPA_LABEL = { abertura: 'Abertura', durante_dia: 'Durante o dia', fechamento: 'Fechamento' };
 
@@ -1295,21 +1505,17 @@
     const ver = (aba, texto) => (state.abas.some((a) => a.id === aba) ? `<p><button class="botao-ir" data-nav="${aba}">${texto} →</button></p>` : '');
 
     if (d.socios) {
-      const g = d.socios.grupos;
-      const linha = (nomeGrupo, x) => `<tr><td>${nomeGrupo}</td><td>${x.total - x.desligados}</td><td class="cor-receita">${x.emDia}</td><td class="cor-atraso">${x.atrasados}</td><td>${x.seisOuMais}</td><td>${x.desligados}</td></tr>`;
+      // só ATPN: sócios do CEPE aparecem apenas na aba Sócios
+      const g = d.socios.atpn;
       blocos.push(`
         <div class="secao">
-          <h3>Sócios</h3>
+          <h3>Sócios ATPN</h3>
           <div class="cartoes-resumo">
-            ${cartao('Sócios ativos', g.todos.total - g.todos.desligados)}
-            ${cartao('Em dia', g.todos.emDia, 'cor-receita')}
-            ${cartao('Com atraso', g.todos.atrasados, 'cor-atraso')}
-            ${cartao('6 meses ou mais', g.todos.seisOuMais, g.todos.seisOuMais ? 'cor-atraso' : '')}
+            ${cartao('Sócios ativos', g.total - g.desligados)}
+            ${cartao('Em dia', g.emDia, 'cor-receita')}
+            ${cartao('Com atraso', g.atrasados, 'cor-atraso')}
+            ${cartao('6 meses ou mais', g.seisOuMais, g.seisOuMais ? 'cor-atraso' : '')}
           </div>
-          <div style="overflow-x:auto;"><table class="tabela-lista">
-            <thead><tr><th></th><th>Ativos</th><th>Em dia</th><th>Atraso</th><th>6+ meses</th><th>Desligados</th></tr></thead>
-            <tbody>${linha('ATPN', g.cepe_atpn)}${linha('CEPE', g.cepe)}</tbody>
-          </table></div>
           ${d.socios.atualizadoEm ? `<p class="placeholder">Planilha atualizada em ${esc(formatarDataExibicao(d.socios.atualizadoEm))}.</p>` : ''}
           ${ver('socios', 'Ver sócios')}
         </div>`);
@@ -1324,7 +1530,7 @@
             ${cartao('Despesas', formatarMoeda(d.caixa.despesas), 'cor-atraso')}
             ${cartao('Saldo', formatarMoeda(d.caixa.saldo), d.caixa.saldo >= 0 ? 'cor-receita' : 'cor-atraso')}
           </div>
-          ${d.caixa.mensalidades > 0 ? `<p class="placeholder">Receitas incluem ${formatarMoeda(d.caixa.mensalidades)} de mensalidades da planilha${d.caixa.mensalidadesParcial ? ' (mês parcial: a planilha ainda não cobre o mês todo)' : ''}.</p>` : ''}
+          ${d.caixa.mensalidades > 0 ? `<p class="placeholder">Receitas incluem ${formatarMoeda(d.caixa.mensalidades)} de mensalidades de sócios ATPN${d.caixa.mensalidadesParcial ? ' (mês parcial: a planilha ainda não cobre o mês todo)' : ''}.</p>` : ''}
           ${ver('fluxo_caixa', 'Abrir fluxo de caixa')}
         </div>`);
     }
@@ -1936,6 +2142,36 @@
       el.addEventListener('click', () => acaoRelatorio(el));
     });
 
+    document.querySelectorAll('[data-desp]').forEach((el) => {
+      el.addEventListener('click', () => acaoDesp(el));
+    });
+    const arqCamera = document.getElementById('desp-arquivo-camera');
+    if (arqCamera) arqCamera.addEventListener('change', async (e) => { const fs = [...e.target.files]; e.target.value = ''; await adicionarArquivosDespesa(fs, !state.despForm || !state.despForm.id); });
+    const arqGaleria = document.getElementById('desp-arquivo');
+    if (arqGaleria) arqGaleria.addEventListener('change', async (e) => { const fs = [...e.target.files]; e.target.value = ''; await adicionarArquivosDespesa(fs, false); });
+    // trocar "já pago" <-> "a pagar" muda o rótulo da data (pagamento x vencimento)
+    const selPago = document.getElementById('df-pago');
+    if (selPago) selPago.addEventListener('change', () => { lerDespFormDoDom(); render(); });
+
+    document.querySelectorAll('[data-mens]').forEach((el) => {
+      el.addEventListener('click', () => acaoMens(el));
+    });
+    const campoBuscaMens = document.getElementById('mens-busca');
+    if (campoBuscaMens) campoBuscaMens.addEventListener('input', (e) => {
+      const cursor = e.target.selectionStart;
+      state.mensBusca = e.target.value;
+      clearTimeout(timerBuscaMens);
+      timerBuscaMens = setTimeout(async () => {
+        try {
+          state.mensResultados = state.mensBusca.trim().length >= 2 ? await api(`/mensalidades/buscar?q=${encodeURIComponent(state.mensBusca.trim())}`) : [];
+          state.mensErro = null;
+        } catch (err) { state.mensErro = err.message; }
+        render();
+        const novo = document.getElementById('mens-busca');
+        if (novo) { novo.focus(); novo.setSelectionRange(cursor, cursor); }
+      }, 300);
+    });
+
     document.querySelectorAll('[data-rv]').forEach((el) => {
       el.addEventListener('click', () => acaoReserva(el));
     });
@@ -2117,6 +2353,8 @@
       rel: null, relErro: null, inicio: null, inicioCarregado: false, inicioErro: null,
       configAssoc: null, historicoVersoes: null, historicoErro: null,
       reservas: null, reservasErro: null, reservaEditando: null, eventosAba: 'reservas',
+      mensBusca: '', mensResultados: [], mensFicha: null, mensForm: null, mensHoje: null, mensErro: null,
+      despForm: null, despAnexos: null, financeiroAPagar: null,
       pontoCarregado: false, pontoRegistros: [],
       financeiroCarregado: false, financeiroMesRef: null, financeiroAba: 'despesas',
       financeiroDespesas: [], financeiroReceitas: [], financeiroResumo: null,
@@ -2163,6 +2401,17 @@
       render();
       try { state.inicio = await api('/inicio'); } catch (err) { state.inicio = null; state.inicioErro = err.message; }
       state.inicioCarregado = true;
+    }
+    if (id === 'mensalidades') {
+      state.mensHoje = null;
+      state.mensFicha = null;
+      state.mensBusca = '';
+      state.mensResultados = [];
+      render();
+      await carregarMensHoje();
+      render();
+      const campo = document.getElementById('mens-busca');
+      if (campo) campo.focus();
     }
     if (id === 'historico') {
       state.historicoVersoes = null;
@@ -2314,18 +2563,322 @@
     render();
   }
 
+  // ---------- despesas: compra, boleto, conta, pagamento (com foto) ----------
+  const TIPOS_DESPESA = [['compra', 'Compra'], ['boleto', 'Boleto'], ['conta', 'Conta (água, luz, internet…)'], ['pagamento', 'Pagamento'], ['outro', 'Outro']];
+  const CATEGORIAS_DESPESA = ['Alimentação', 'Bebidas', 'Limpeza', 'Manutenção', 'Material de escritório', 'Água', 'Energia', 'Internet/Telefone',
+    'Impostos/Taxas', 'Folha de pagamento', 'Serviços', 'Eventos', 'Equipamentos', 'Outros'];
+  const MAX_ARQUIVOS = 6;
+  const rotuloTipoDespesa = (t) => ((TIPOS_DESPESA.find(([id]) => id === t) || ['', String(t || '')])[1]).split(' (')[0];
+
+  function novaDespForm() {
+    return { id: null, tipo: 'compra', descricao: '', fornecedor: '', categoria: '', valor: '', pago: true, data: dataLocalStr(new Date()),
+      forma: '', obs: '', arquivos: [], aviso: '', lendo: false };
+  }
+
+  function lerDespFormDoDom() {
+    const f = state.despForm;
+    if (!f || !document.getElementById('df-descricao')) return;
+    const v = (id) => document.getElementById(id).value;
+    f.tipo = v('df-tipo'); f.descricao = v('df-descricao'); f.fornecedor = v('df-fornecedor'); f.categoria = v('df-categoria');
+    f.valor = v('df-valor'); f.pago = v('df-pago') === '1'; f.data = v('df-data'); f.forma = v('df-forma'); f.obs = v('df-obs');
+  }
+
+  function formDespesaHtml() {
+    const f = state.despForm;
+    const entradas = `
+      <input type="file" id="desp-arquivo-camera" accept="image/*" capture="environment" hidden />
+      <input type="file" id="desp-arquivo" accept="image/*,application/pdf" multiple hidden />`;
+    if (!f) {
+      return `${entradas}
+        <div class="linha-form">
+          <button class="botao" data-desp="nova">＋ Nova despesa</button>
+          <button class="botao" data-desp="foto">📷 Cadastrar por foto (nota, cupom, boleto)</button>
+        </div>`;
+    }
+    const opt = (lista, atual) => lista.map(([id, rot]) => `<option value="${esc(id)}" ${atual === id ? 'selected' : ''}>${esc(rot)}</option>`).join('');
+    const miniaturas = f.arquivos.map((a, i) => `
+      <span class="miniatura">${a.mime === 'application/pdf' ? '<span class="pdf-icone">📄 PDF</span>' : `<img src="${a.url}" alt="foto ${i + 1}" />`}
+        <button class="botao-link" data-desp="rm-arquivo" data-i="${i}" title="Tirar">✕</button></span>`).join('');
+    const configurada = state.leituraNotaConfigurada;
+    return `${entradas}
+      <div class="secao form-despesa">
+        <h3>${f.id ? 'Editar despesa' : 'Nova despesa'}</h3>
+        <div class="grade-assoc">
+          <label class="campo-assoc"><span>Tipo</span><select id="df-tipo">${opt(TIPOS_DESPESA, f.tipo)}</select></label>
+          <label class="campo-assoc"><span>Descrição (obrigatório)</span><input id="df-descricao" maxlength="200" value="${esc(f.descricao)}" placeholder="Ex.: Material de limpeza" /></label>
+          <label class="campo-assoc"><span>Fornecedor</span><input id="df-fornecedor" maxlength="120" value="${esc(f.fornecedor)}" /></label>
+          <label class="campo-assoc"><span>Categoria</span><input id="df-categoria" maxlength="60" list="df-categorias" value="${esc(f.categoria)}" /><datalist id="df-categorias">${CATEGORIAS_DESPESA.map((c) => `<option value="${esc(c)}">`).join('')}</datalist></label>
+          <label class="campo-assoc"><span>Valor (R$)</span><input id="df-valor" inputmode="decimal" autocomplete="off" value="${esc(f.valor)}" /></label>
+          <label class="campo-assoc"><span>Situação</span><select id="df-pago"><option value="1" ${f.pago ? 'selected' : ''}>Já pago</option><option value="0" ${f.pago ? '' : 'selected'}>A pagar (conta/boleto)</option></select></label>
+          <label class="campo-assoc"><span>${f.pago ? 'Data do pagamento' : 'Vencimento'}</span><input id="df-data" type="date" value="${esc(f.data)}" /></label>
+          <label class="campo-assoc"><span>Forma de pagamento</span><select id="df-forma"><option value="">—</option>${FORMAS_PAGAMENTO.map((x) => `<option ${f.forma === x ? 'selected' : ''}>${esc(x)}</option>`).join('')}</select></label>
+          <label class="campo-assoc"><span>Observação</span><input id="df-obs" maxlength="500" value="${esc(f.obs)}" /></label>
+        </div>
+        <div class="fotos-despesa">
+          <div class="linha-form">
+            <button class="botao" data-desp="anexar">📎 Anexar foto/PDF</button>
+            <button class="botao" data-desp="foto-camera">📷 Tirar foto</button>
+            ${f.arquivos.length ? `<button class="botao" data-desp="ler-ia" ${f.lendo ? 'disabled' : ''}>${f.lendo ? 'Lendo a foto…' : '✨ Ler dados da foto'}</button>` : ''}
+          </div>
+          ${miniaturas ? `<div class="miniaturas">${miniaturas}</div>` : ''}
+          <p class="placeholder">${configurada ? 'A leitura envia a foto a um serviço de IA para sugerir os campos — você sempre confere antes de salvar.' : 'Leitura automática da foto não está ativada neste servidor: digite os dados e a foto fica anexada à despesa.'}</p>
+          ${f.aviso ? `<p class="aviso-ia">${esc(f.aviso)}</p>` : ''}
+        </div>
+        <div class="linha-form">
+          <button class="botao" data-desp="salvar">${f.id ? 'Salvar alterações' : (f.pago ? 'Registrar despesa' : 'Registrar conta a pagar')}</button>
+          <button class="botao" data-desp="cancelar">Cancelar</button>
+        </div>
+      </div>`;
+  }
+
+  function contasAPagarHtml() {
+    const ap = state.financeiroAPagar;
+    if (!ap) return '';
+    const hojeStr = ap.hoje;
+    const linhas = ap.itens.map((d) => `
+      <tr>
+        <td class="${d.vencida ? 'cor-atraso' : ''}">${esc(d.data.split('-').reverse().join('/'))}${d.vencida ? ' ⚠ vencida' : ''}</td>
+        <td>${esc(d.descricao)}${d.fornecedor ? ` <span class="placeholder">· ${esc(d.fornecedor)}</span>` : ''} <span class="tag-tipo">${esc(rotuloTipoDespesa(d.tipo))}</span></td>
+        <td>${formatarMoeda(d.valor)}</td>
+        <td style="white-space:nowrap;">
+          ${d.anexos ? `<button class="botao-ir" data-desp="anexos" data-id="${d.id}">📎 ${d.anexos}</button>` : ''}
+          <button class="botao" data-desp="pagar-hoje" data-id="${d.id}">Pago hoje</button>
+          <button class="botao-ir" data-desp="pagar-outra" data-id="${d.id}">outra data</button>
+          <button class="botao-ir" data-desp="editar" data-id="${d.id}">editar</button>
+          <button class="botao-link" data-desp="remover" data-id="${d.id}">remover</button>
+        </td>
+      </tr>`).join('');
+    return `
+      <div class="secao">
+        <h3>Contas a pagar</h3>
+        ${ap.itens.length ? `
+          <div class="cartoes-resumo">
+            <div class="cartao-resumo"><span class="cartao-resumo-label">Total a pagar</span><strong class="cartao-resumo-valor">${formatarMoeda(ap.totalAPagar)}</strong></div>
+            <div class="cartao-resumo"><span class="cartao-resumo-label">Vencidas</span><strong class="cartao-resumo-valor ${ap.totalVencido ? 'cor-atraso' : ''}">${formatarMoeda(ap.totalVencido)}</strong></div>
+          </div>
+          <div style="overflow-x:auto;"><table class="tabela-lista"><thead><tr><th>Vencimento</th><th>Conta</th><th>Valor</th><th></th></tr></thead><tbody>${linhas}</tbody></table></div>
+          <p class="placeholder">Conta a pagar ainda não saiu do caixa: só entra em "Despesas do mês" quando for marcada como paga. Hoje é ${esc(hojeStr.split('-').reverse().join('/'))}.</p>`
+          : '<p class="placeholder">Nenhuma conta a pagar. Cadastre um boleto ou conta com a situação "A pagar" (dá pra fotografar o boleto).</p>'}
+      </div>`;
+  }
+
+  function painelAnexosHtml() {
+    const p = state.despAnexos;
+    if (!p) return '';
+    const itens = p.itens.map((a, i) => `
+      <span class="miniatura">
+        <button class="botao" data-desp="ver-anexo" data-id="${a.id}">${a.mime === 'application/pdf' ? '📄 PDF' : '🖼 Foto'} ${i + 1}</button>
+        <button class="botao-link" data-desp="rm-anexo" data-id="${a.id}" title="Remover anexo">✕</button>
+      </span>`).join('');
+    return `<div class="secao painel-anexos"><strong>Anexos da despesa</strong> ${itens || '<span class="placeholder">nenhum</span>'}
+      <button class="botao-link" data-desp="fechar-anexos">fechar</button></div>`;
+  }
+
+  // Reduz foto de celular (4–8 MB) para ~1600px/JPEG antes de enviar: menos
+  // dado trafegando e guardado, e a leitura da nota continua nítida.
+  async function reduzirImagem(file) {
+    if (file.type === 'application/pdf') return { blob: file, mime: 'application/pdf' };
+    try {
+      const url = URL.createObjectURL(file);
+      const img = await new Promise((ok, erro) => { const i = new Image(); i.onload = () => ok(i); i.onerror = erro; i.src = url; });
+      const maxLado = 1600;
+      const escala = Math.min(1, maxLado / Math.max(img.naturalWidth, img.naturalHeight));
+      const c = document.createElement('canvas');
+      c.width = Math.round(img.naturalWidth * escala); c.height = Math.round(img.naturalHeight * escala);
+      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+      URL.revokeObjectURL(url);
+      const blob = await new Promise((ok) => c.toBlob(ok, 'image/jpeg', 0.82));
+      if (blob) return { blob, mime: 'image/jpeg' };
+    } catch (e) { /* cai pro arquivo original */ }
+    if (['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) return { blob: file, mime: file.type };
+    throw new Error('Formato não suportado — use foto (JPG/PNG/WEBP) ou PDF');
+  }
+
+  async function adicionarArquivosDespesa(files, autoLer) {
+    if (!files.length) return;
+    if (!state.despForm) state.despForm = novaDespForm();
+    lerDespFormDoDom();
+    const f = state.despForm;
+    for (const file of files) {
+      if (f.arquivos.length >= MAX_ARQUIVOS) { alert(`Máximo de ${MAX_ARQUIVOS} anexos por despesa.`); break; }
+      try {
+        const { blob, mime } = await reduzirImagem(file);
+        if (blob.size > 8 * 1024 * 1024) { alert(`"${file.name}" tem mais de 8 MB.`); continue; }
+        f.arquivos.push({ nome: file.name, mime, blob, url: mime === 'application/pdf' ? null : URL.createObjectURL(blob) });
+      } catch (err) { alert(err.message); }
+    }
+    render();
+    if (autoLer && state.leituraNotaConfigurada && f.arquivos.length) await lerPelaIA();
+    else if (autoLer && !state.leituraNotaConfigurada && f.arquivos.length) { f.aviso = 'Foto anexada. A leitura automática não está ativada neste servidor — preencha os campos digitando.'; render(); }
+  }
+
+  function aplicarRascunhoIA(f, r) {
+    const hoje = dataLocalStr(new Date());
+    if (r.tipo) f.tipo = r.tipo;
+    if (r.fornecedor) f.fornecedor = r.fornecedor;
+    if (r.descricao) f.descricao = r.descricao;
+    if (r.valor) f.valor = String(r.valor).replace('.', ',');
+    if (r.categoria) f.categoria = r.categoria;
+    if (r.formaPagamento) f.forma = r.formaPagamento;
+    const aPagar = !r.jaPago && (r.vencimento || r.tipo === 'boleto' || r.tipo === 'conta');
+    if (aPagar) { f.pago = false; f.data = r.vencimento || hoje; }
+    else { f.pago = true; f.data = r.dataEmissao && r.dataEmissao <= hoje ? r.dataEmissao : hoje; }
+    if (r.linhaDigitavel) f.obs = `${f.obs ? f.obs + ' · ' : ''}Linha digitável: ${r.linhaDigitavel}`;
+    f.aviso = '✨ Dados lidos pela IA a partir da foto — confira tudo antes de salvar (valor, data e vencimento principalmente).';
+  }
+
+  async function lerPelaIA() {
+    const f = state.despForm;
+    const arq = f && f.arquivos[0];
+    if (!arq) { alert('Anexe uma foto primeiro.'); return; }
+    lerDespFormDoDom();
+    f.lendo = true; f.aviso = '';
+    render();
+    try {
+      const resp = await fetch(`${API_BASE}/financeiro/despesas/ler-nota`, {
+        method: 'POST', headers: { 'Content-Type': arq.mime, Authorization: `Bearer ${state.token}` }, body: arq.blob,
+      });
+      const dado = await resp.json().catch(() => ({}));
+      if (!resp.ok) f.aviso = dado.erro || 'Não deu pra ler a foto agora. Preencha digitando.';
+      else aplicarRascunhoIA(f, dado.rascunho);
+    } catch (err) {
+      f.aviso = 'Não deu pra ler a foto agora. Preencha digitando.';
+    }
+    f.lendo = false;
+    render();
+  }
+
+  async function enviarAnexo(despesaId, arq) {
+    const resp = await fetch(`${API_BASE}/financeiro/despesas/${despesaId}/anexos`, {
+      method: 'POST', headers: { 'Content-Type': arq.mime, Authorization: `Bearer ${state.token}` }, body: arq.blob,
+    });
+    if (!resp.ok) { const d = await resp.json().catch(() => ({})); throw new Error(d.erro || 'falha ao enviar anexo'); }
+  }
+
+  async function salvarDespesa() {
+    lerDespFormDoDom();
+    const f = state.despForm;
+    const valor = parseNumero(f.valor);
+    if (!f.descricao.trim() || !f.data || !(valor > 0)) { alert('Preencha descrição, data e um valor maior que zero.'); return; }
+    if (!f.pago && f.data < dataLocalStr(new Date()) && !confirm('O vencimento já passou. Registrar mesmo assim como conta a pagar (vencida)?')) return;
+    const corpo = {
+      data: f.data, descricao: f.descricao.trim(), fornecedor: f.fornecedor.trim() || null, categoria: f.categoria.trim() || null,
+      valor, formaPagamento: f.forma || null, tipo: f.tipo, pago: f.pago, observacao: f.obs.trim() || null,
+    };
+    try {
+      const r = await api(f.id ? `/financeiro/despesas/${f.id}` : '/financeiro/despesas', { method: f.id ? 'PUT' : 'POST', body: corpo });
+      const despesaId = f.id || r.id;
+      const falhas = [];
+      for (const arq of f.arquivos) {
+        try { await enviarAnexo(despesaId, arq); } catch (err) { falhas.push(`${arq.nome}: ${err.message}`); }
+      }
+      f.arquivos.forEach((a) => a.url && URL.revokeObjectURL(a.url));
+      state.despForm = null;
+      await carregarFinanceiro();
+      render();
+      if (falhas.length) alert(`Despesa salva, mas não consegui anexar:\n${falhas.join('\n')}\nAbra a despesa e anexe de novo.`);
+    } catch (err) {
+      alert(err.message);
+    }
+  }
+
+  function dataDoPrompt(texto) {
+    const t = String(texto || '').trim();
+    let m = t.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (m) return t;
+    m = t.match(/^(\d{1,2})[/.-](\d{1,2})[/.-](\d{4})$/);
+    return m ? `${m[3]}-${m[2].padStart(2, '0')}-${m[1].padStart(2, '0')}` : null;
+  }
+
+  async function abrirAnexoDespesa(id) {
+    const resp = await fetch(`${API_BASE}/financeiro/despesas/anexo/${id}`, { headers: { Authorization: `Bearer ${state.token}` } });
+    if (!resp.ok) throw new Error('Não foi possível abrir o anexo');
+    const url = URL.createObjectURL(await resp.blob());
+    window.open(url, '_blank');
+    setTimeout(() => URL.revokeObjectURL(url), 120000);
+  }
+
+  async function acaoDesp(el) {
+    const tipo = el.dataset.desp;
+    const id = Number(el.dataset.id);
+    try {
+      if (tipo === 'nova') { state.despForm = novaDespForm(); render(); return; }
+      if (tipo === 'foto') { document.getElementById('desp-arquivo-camera').click(); return; }
+      if (tipo === 'foto-camera') { lerDespFormDoDom(); document.getElementById('desp-arquivo-camera').click(); return; }
+      if (tipo === 'anexar') { lerDespFormDoDom(); document.getElementById('desp-arquivo').click(); return; }
+      if (tipo === 'ler-ia') { await lerPelaIA(); return; }
+      if (tipo === 'rm-arquivo') {
+        lerDespFormDoDom();
+        const [tirado] = state.despForm.arquivos.splice(Number(el.dataset.i), 1);
+        if (tirado && tirado.url) URL.revokeObjectURL(tirado.url);
+        render(); return;
+      }
+      if (tipo === 'cancelar') {
+        if (state.despForm) state.despForm.arquivos.forEach((a) => a.url && URL.revokeObjectURL(a.url));
+        state.despForm = null; render(); return;
+      }
+      if (tipo === 'salvar') { await salvarDespesa(); return; }
+      if (tipo === 'editar') {
+        const d = state.financeiroDespesas.find((x) => x.id === id) || (state.financeiroAPagar && state.financeiroAPagar.itens.find((x) => x.id === id));
+        if (!d) return;
+        state.despForm = { id: d.id, tipo: d.tipo || 'compra', descricao: d.descricao, fornecedor: d.fornecedor || '', categoria: d.categoria || '',
+          valor: String(d.valor).replace('.', ','), pago: d.pago, data: d.data, forma: d.formaPagamento || '', obs: d.observacao || '', arquivos: [], aviso: '', lendo: false };
+        state.financeiroAba = 'despesas';
+        render();
+        const campo = document.getElementById('df-descricao');
+        if (campo) campo.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        return;
+      }
+      if (tipo === 'pagar-hoje') {
+        if (!confirm('Marcar como paga hoje?')) return;
+        await api(`/financeiro/despesas/${id}/pagar`, { method: 'POST', body: {} });
+      } else if (tipo === 'pagar-outra') {
+        const texto = prompt('Data do pagamento (dd/mm/aaaa):', dataLocalStr(new Date()).split('-').reverse().join('/'));
+        if (texto === null) return;
+        const data = dataDoPrompt(texto);
+        if (!data) { alert('Data inválida. Use dd/mm/aaaa.'); return; }
+        await api(`/financeiro/despesas/${id}/pagar`, { method: 'POST', body: { data } });
+      } else if (tipo === 'remover') {
+        if (!confirm('Remover essa conta? (some também a foto anexada)')) return;
+        await api(`/financeiro/despesas/${id}`, { method: 'DELETE' });
+      } else if (tipo === 'anexos') {
+        state.despAnexos = { despesaId: id, itens: await api(`/financeiro/despesas/${id}/anexos`) };
+        render(); return;
+      } else if (tipo === 'fechar-anexos') {
+        state.despAnexos = null; render(); return;
+      } else if (tipo === 'ver-anexo') {
+        await abrirAnexoDespesa(id); return;
+      } else if (tipo === 'rm-anexo') {
+        if (!confirm('Remover esse anexo?')) return;
+        await api(`/financeiro/despesas/anexo/${id}`, { method: 'DELETE' });
+        const despId = state.despAnexos.despesaId;
+        state.despAnexos = { despesaId: despId, itens: await api(`/financeiro/despesas/${despId}/anexos`) };
+        await carregarFinanceiro();
+        render(); return;
+      }
+      await carregarFinanceiro();
+      render();
+    } catch (err) {
+      alert(err.message);
+    }
+  }
+
   // ---------- fluxo de caixa ----------
   async function carregarFinanceiro() {
     const { inicio, fim } = limitesMes(state.financeiroMesRef);
     const qs = `?inicio=${inicio}&fim=${fim}`;
-    const [despesas, receitas, resumo] = await Promise.all([
+    const [despesas, receitas, resumo, aPagar, leitura] = await Promise.all([
       api(`/financeiro/despesas${qs}`),
       api(`/financeiro/receitas${qs}`),
       api(`/financeiro/resumo${qs}`),
+      api('/financeiro/despesas/a-pagar'),
+      api('/financeiro/despesas/ler-nota/status').catch(() => ({ configurada: false })),
     ]);
     state.financeiroDespesas = despesas;
     state.financeiroReceitas = receitas;
     state.financeiroResumo = resumo;
+    state.financeiroAPagar = aPagar;
+    state.leituraNotaConfigurada = !!leitura.configurada;
   }
 
   async function mudarMesFinanceiro(delta) {

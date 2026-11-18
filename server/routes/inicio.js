@@ -2,7 +2,7 @@ const express = require('express');
 const { pool } = require('../db');
 const { integracaoConfigurada } = require('../jabaDb');
 const { exigirAuth, exigirAba } = require('../auth');
-const { arrecadacaoPorMes, infoPlanilha } = require('../mensalidades');
+const { arrecadacaoPorMes, infoPlanilha, CLUBE_FINANCEIRO } = require('../mensalidades');
 const calendario = require('./calendario');
 const tarefas = require('./tarefas');
 
@@ -20,26 +20,23 @@ async function abasPermitidas(usuario) {
 }
 
 async function blocoSocios() {
+  // SÓ ATPN: dado de sócio do CEPE fica na aba Sócios, nunca no Início
   const { rows } = await pool.query(
-    `SELECT clube, status, count(*)::int AS n,
-            to_char(max(planilha_atualizada_em), 'YYYY-MM-DD') AS atualizado
-     FROM socios GROUP BY clube, status`
+    `SELECT status, count(*)::int AS n, to_char(max(planilha_atualizada_em), 'YYYY-MM-DD') AS atualizado
+     FROM socios WHERE clube = $1 GROUP BY status`,
+    [CLUBE_FINANCEIRO]
   );
-  const vazio = () => ({ total: 0, emDia: 0, atrasados: 0, seisOuMais: 0, desligados: 0 });
-  const grupos = { todos: vazio(), cepe_atpn: vazio(), cepe: vazio() };
+  const atpn = { total: 0, emDia: 0, atrasados: 0, seisOuMais: 0, desligados: 0 };
   let atualizado = null;
   for (const r of rows) {
     if (r.atualizado && (!atualizado || r.atualizado > atualizado)) atualizado = r.atualizado;
-    for (const g of [grupos.todos, grupos[r.clube]]) {
-      if (!g) continue;
-      g.total += r.n;
-      if (r.status === 'em_dia') g.emDia += r.n;
-      else if (r.status === 'desligado') g.desligados += r.n;
-      else g.atrasados += r.n;
-      if (r.status === '6_meses_ou_mais') g.seisOuMais += r.n;
-    }
+    atpn.total += r.n;
+    if (r.status === 'em_dia') atpn.emDia += r.n;
+    else if (r.status === 'desligado') atpn.desligados += r.n;
+    else atpn.atrasados += r.n;
+    if (r.status === '6_meses_ou_mais') atpn.seisOuMais += r.n;
   }
-  return { grupos, atualizadoEm: atualizado };
+  return { atpn, atualizadoEm: atualizado };
 }
 
 async function blocoTarefas(usuario) {

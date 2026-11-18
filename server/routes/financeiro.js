@@ -96,7 +96,9 @@ function criarRotasLancamento(tabela) {
   return sub;
 }
 
-router.use('/despesas', criarRotasLancamento('despesas'));
+// despesas têm rotas próprias (compra/boleto/conta, a pagar, anexos de foto,
+// leitura da nota) — ver routes/despesas.js. Receitas continuam no molde simples.
+router.use('/despesas', require('./despesas'));
 router.use('/receitas', criarRotasLancamento('receitas'));
 
 // Totais, detalhamento por categoria e tendência dos últimos meses, pra
@@ -104,8 +106,9 @@ router.use('/receitas', criarRotasLancamento('receitas'));
 // de milhares de lançamentos no navegador seria lento e duplicaria a regra).
 async function totalPorCategoria(tabela, inicio, fim) {
   const { rows } = await pool.query(
+    // despesa a pagar (pago = false) ainda não saiu do caixa: fica fora do resultado
     `SELECT COALESCE(categoria, 'Sem categoria') AS categoria, SUM(valor) AS total
-     FROM ${tabela} WHERE data BETWEEN $1 AND $2
+     FROM ${tabela} WHERE data BETWEEN $1 AND $2 ${tabela === 'despesas' ? 'AND pago = true' : ''}
      GROUP BY categoria ORDER BY total DESC`,
     [inicio, fim]
   );
@@ -121,7 +124,7 @@ async function tendenciaMensal(fimRef, nMeses, mensalidadesPorMes) {
 
   const porMes = (tabela) => pool.query(
     `SELECT to_char(data, 'YYYY-MM') AS mes, SUM(valor) AS total
-     FROM ${tabela} WHERE data BETWEEN $1 AND $2
+     FROM ${tabela} WHERE data BETWEEN $1 AND $2 ${tabela === 'despesas' ? 'AND pago = true' : ''}
      GROUP BY mes`,
     [inicioTendencia, fimTendencia]
   );
@@ -179,12 +182,23 @@ router.get('/resumo', async (req, res, next) => {
 
     const totalDespesas = categoriasDespesas.reduce((soma, c) => soma + c.total, 0);
     const totalReceitas = categoriasReceitas.reduce((soma, c) => soma + c.total, 0);
+    // contas a pagar: vencimento no período (a vencer) e vencidas até hoje (qualquer mês)
+    const hojeStr = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}-${String(new Date().getDate()).padStart(2, '0')}`;
+    const ap = (await pool.query(
+      `SELECT count(*) FILTER (WHERE data BETWEEN $1 AND $2)::int AS "nPeriodo",
+              COALESCE(sum(valor) FILTER (WHERE data BETWEEN $1 AND $2), 0)::float8 AS "totalPeriodo",
+              count(*) FILTER (WHERE data < $3)::int AS "nVencidas",
+              COALESCE(sum(valor) FILTER (WHERE data < $3), 0)::float8 AS "totalVencidas"
+       FROM despesas WHERE pago = false`, [inicio, fim, hojeStr]
+    )).rows[0];
     res.json({
+      aPagar: ap,
       totalDespesas, totalReceitas, categoriasDespesas, categoriasReceitas, tendencia,
       mensalidades: {
         total: totalMensalidades,
         parcial,
         planilhaAtualizadaEm: planilha.atualizadoEm,
+        soAtpn: true,
         // período anterior a 2026: a planilha não cobre o quadro inteiro
         semCobertura: fim.slice(0, 4) < String(ANO_INICIAL),
       },

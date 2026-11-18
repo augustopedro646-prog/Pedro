@@ -10,6 +10,7 @@ const ABAS = [
   { id: 'eventos', nome: 'Eventos' },
   { id: 'tarefas', nome: 'Tarefas' },
   { id: 'socios', nome: 'Sócios' },
+  { id: 'mensalidades', nome: 'Mensalidades' },
   { id: 'ponto', nome: 'Bater ponto' },
 ];
 

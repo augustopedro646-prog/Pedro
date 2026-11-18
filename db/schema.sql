@@ -211,3 +211,48 @@ CREATE TABLE IF NOT EXISTS reservas (
   atualizado_em TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS idx_reservas_data ON reservas(data);
+
+-- Baixa direta de mensalidade (fase 2): pagamentos registrados NA ATPN, só de
+-- sócios ATPN ativos. Tabela própria de propósito: a importação da planilha
+-- substitui socios_mensalidades, mas nunca mexe aqui. Estorno = cancelado_em
+-- (nada é apagado). Valor do mês = planilha (se > 0) senão a soma daqui.
+CREATE TABLE IF NOT EXISTS mensalidade_pagamentos (
+  id SERIAL PRIMARY KEY,
+  socio_id INTEGER NOT NULL REFERENCES socios(id),
+  ano INTEGER NOT NULL,
+  mes INTEGER NOT NULL CHECK (mes BETWEEN 1 AND 12),
+  valor NUMERIC NOT NULL CHECK (valor > 0),
+  forma_pagamento TEXT NOT NULL,
+  data_pagamento DATE NOT NULL,
+  observacao TEXT,
+  registrado_por INTEGER REFERENCES pessoas(id),
+  criado_em TIMESTAMPTZ NOT NULL DEFAULT now(),
+  cancelado_em TIMESTAMPTZ,
+  cancelado_por INTEGER REFERENCES pessoas(id),
+  motivo_cancelamento TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_mens_pag_socio ON mensalidade_pagamentos(socio_id, ano, mes);
+CREATE INDEX IF NOT EXISTS idx_mens_pag_data ON mensalidade_pagamentos(data_pagamento);
+
+-- Despesas: compra, boleto, conta, pagamento. "pago = false" é conta a pagar
+-- (data = vencimento); ao pagar, data passa a ser o dia do pagamento. Só
+-- despesa PAGA entra no resultado do mês; a pagar aparece à parte.
+ALTER TABLE despesas ADD COLUMN IF NOT EXISTS fornecedor TEXT;
+ALTER TABLE despesas ADD COLUMN IF NOT EXISTS tipo TEXT NOT NULL DEFAULT 'compra';
+ALTER TABLE despesas ADD COLUMN IF NOT EXISTS pago BOOLEAN NOT NULL DEFAULT true;
+ALTER TABLE despesas ADD COLUMN IF NOT EXISTS pago_em DATE;
+ALTER TABLE despesas ADD COLUMN IF NOT EXISTS observacao TEXT;
+CREATE INDEX IF NOT EXISTS idx_despesas_pago_data ON despesas(pago, data);
+
+-- Foto/PDF da nota, cupom ou boleto. Fica no próprio Postgres (bytea) pra
+-- entrar no backup horário junto com o resto.
+CREATE TABLE IF NOT EXISTS despesas_anexos (
+  id SERIAL PRIMARY KEY,
+  despesa_id INTEGER NOT NULL REFERENCES despesas(id) ON DELETE CASCADE,
+  mime TEXT NOT NULL,
+  tamanho INTEGER NOT NULL,
+  conteudo BYTEA NOT NULL,
+  criado_por INTEGER REFERENCES pessoas(id),
+  criado_em TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_despesas_anexos_despesa ON despesas_anexos(despesa_id);

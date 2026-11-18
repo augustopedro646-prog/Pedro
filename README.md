@@ -117,6 +117,31 @@ quando não tem matrícula, e substitui cadastro + histórico mensal). Segundo a
 a data em que essa planilha foi atualizada (`AAAA-MM-DD`); sem ele, usa a data de hoje — é o que
 alimenta o aviso dos ~10 dias na aba Sócios. O arquivo da planilha **nunca** deve ir pro
 repositório (dado real de sócio) — só rodar local, apontando pro caminho onde ele estiver.
+**Passe sempre a data da planilha** (ex.: `node scripts/importar-socios.js planilha.xlsx 2026-11-10`).
+
+Casamento de sócios: matrícula igual **e** nome parecido = mesma pessoa; matrícula igual com nome
+diferente = pessoas diferentes (família/erro de digitação), cada uma vira um sócio. Textos como
+"desligamento", "desligaod" ou "desigado" na planilha contam como desligado. Depois da importação o
+status é recalculado considerando os pagamentos registrados na aba Mensalidades.
+
+## Regras de negócio que não são óbvias
+
+- **Financeiro só da ATPN.** Relatórios, Fluxo de caixa e Início usam apenas sócios `cepe_atpn`;
+  dados de sócios do CEPE aparecem somente na aba Sócios.
+- **Mensalidade do mês (`server/mensalidades.js`)**: valor da planilha se for > 0; senão a soma dos
+  pagamentos registrados na ATPN (aba Mensalidades, tabela `mensalidade_pagamentos`, que a
+  reimportação da planilha nunca apaga); senão o que a planilha tiver. O mesmo dinheiro nunca conta
+  duas vezes. Só 2026 em diante (2024/2025 existem só para quem já saiu e dariam total falso). O
+  mês da planilha e os seguintes são parciais.
+- **Estorno** de mensalidade não apaga: marca `cancelado_em` (só Administrador).
+- **Despesas** têm tipo (compra/boleto/conta/pagamento/outro) e `pago`. Conta a pagar
+  (`pago = false`, `data` = vencimento) não entra no resultado do mês até ser paga; ao pagar, `data`
+  vira o dia do pagamento. Foto/PDF da nota fica no Postgres (`despesas_anexos`, entra no backup).
+- **Leitura de foto por IA é opcional** (`ANTHROPIC_API_KEY` própria da ATPN no `.env`); sem a
+  chave, cadastra-se digitando e a foto fica anexada. A resposta é só rascunho para conferir.
+- **Reservas** (aba Eventos): só as confirmadas entram na agenda do PDV Jabá (linha da loja ATPN).
+  Conflito de espaço é aviso, nunca bloqueio.
+- **Backup**: tarefa `ATPNBackup` (hora em hora, `scripts/backup.ps1`), só cópia local.
 
 ## Estrutura
 
