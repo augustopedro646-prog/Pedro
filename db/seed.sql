@@ -5,8 +5,3 @@ INSERT INTO cargos (nome, administrador) VALUES
   ('Diretor', false),
   ('Atendente', false)
 ON CONFLICT (nome) DO NOTHING;
-
-INSERT INTO unidades (nome) VALUES
-  ('CEPE'),
-  ('ATPN')
-ON CONFLICT (nome) DO NOTHING;

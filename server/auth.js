@@ -69,20 +69,4 @@ function exigirAba(aba) {
   };
 }
 
-// Toda rota que lê/escreve dado de uma unidade específica passa por aqui
-// pra garantir que a pessoa realmente tem acesso àquela unidade — nunca
-// confiar no unidade_id que o cliente manda solto.
-function exigirUnidade(req, res, next) {
-  const unidadeId = Number(req.params.unidadeId || req.body.unidadeId || req.query.unidadeId);
-  if (req.usuario.administrador) {
-    req.unidadeId = unidadeId || req.usuario.unidadeId;
-    return next();
-  }
-  if (!unidadeId || unidadeId !== req.usuario.unidadeId) {
-    return res.status(403).json({ erro: 'Sem acesso a essa unidade' });
-  }
-  req.unidadeId = unidadeId;
-  next();
-}
-
-module.exports = { assinarToken, exigirAuth, exigirPapel, exigirAba, exigirUnidade };
+module.exports = { assinarToken, exigirAuth, exigirPapel, exigirAba };

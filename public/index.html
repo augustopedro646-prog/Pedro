@@ -3,24 +3,25 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>CEPE / ATPN — Gestão</title>
+<title>ATPN — Gestão</title>
 <style>
-  /* Paleta neutra provisória — trocar quando tiver a identidade visual
-     real do CEPE/ATPN (logo, cores). Nunca cor hardcoded num componente,
-     sempre var(--token). */
+  /* Paleta baseada na marca da ATPN (círculo verde/dourado, "Clube Social"):
+     verde principal e dourado de apoio. Nunca cor hardcoded num componente,
+     sempre var(--token) — troca de tema (claro/escuro) mexe só aqui. */
   :root {
     color-scheme: light;
-    --fundo: #f4f5f7;
+    --fundo: #f3f6f3;
     --superficie: #ffffff;
-    --borda: #dfe3e8;
-    --texto: #1c2430;
-    --texto-fraco: #64707d;
-    --primaria: #2f6f4f;
+    --borda: #dde6de;
+    --texto: #1b241d;
+    --texto-fraco: #5f6f62;
+    --primaria: #1f7a3f;
     --primaria-texto: #ffffff;
+    --dourado: #c99a12;
     --perigo: #b3413a;
-    --sidebar-bg: #1c2430;
-    --sidebar-text: #cbd3dc;
-    --sidebar-active-bg: #2f6f4f;
+    --sidebar-bg: #112a1b;
+    --sidebar-text: #d3e6d8;
+    --sidebar-active-bg: #1f7a3f;
     --sidebar-active-text: #ffffff;
     --shadow: 0 1px 3px rgba(0,0,0,.08);
     --radius: 10px;
@@ -28,25 +29,27 @@
   @media (prefers-color-scheme: dark) {
     :root:not([data-theme="light"]) {
       color-scheme: dark;
-      --fundo: #12161c;
-      --superficie: #1b212a;
-      --borda: #2b333e;
-      --texto: #e7ebf0;
-      --texto-fraco: #97a3b0;
-      --primaria: #4c9770;
-      --primaria-texto: #0b1310;
+      --fundo: #10140f;
+      --superficie: #182019;
+      --borda: #27342a;
+      --texto: #e8efe9;
+      --texto-fraco: #9fb0a4;
+      --primaria: #3fae6a;
+      --primaria-texto: #0a160d;
+      --dourado: #e8c04a;
       --shadow: 0 1px 3px rgba(0,0,0,.4);
     }
   }
   :root[data-theme="dark"] {
     color-scheme: dark;
-    --fundo: #12161c;
-    --superficie: #1b212a;
-    --borda: #2b333e;
-    --texto: #e7ebf0;
-    --texto-fraco: #97a3b0;
-    --primaria: #4c9770;
-    --primaria-texto: #0b1310;
+    --fundo: #10140f;
+    --superficie: #182019;
+    --borda: #27342a;
+    --texto: #e8efe9;
+    --texto-fraco: #9fb0a4;
+    --primaria: #3fae6a;
+    --primaria-texto: #0a160d;
+    --dourado: #e8c04a;
     --shadow: 0 1px 3px rgba(0,0,0,.4);
   }
 
@@ -70,14 +73,17 @@
   .cartao-login {
     background: var(--superficie);
     border: 1px solid var(--borda);
+    border-top: 4px solid var(--dourado);
     border-radius: var(--radius);
     box-shadow: var(--shadow);
     padding: 28px;
     width: 100%;
     max-width: 360px;
   }
-  .cartao-login h1 { font-size: 1.1rem; margin: 0 0 4px; }
-  .cartao-login .sub { color: var(--texto-fraco); font-size: .85rem; margin: 0 0 20px; }
+  .marca-login { display: flex; flex-direction: column; align-items: center; text-align: center; margin-bottom: 18px; }
+  .marca-login svg { margin-bottom: 10px; }
+  .cartao-login h1 { font-size: 1.3rem; letter-spacing: .06em; margin: 0; color: var(--primaria); }
+  .cartao-login .sub { color: var(--texto-fraco); font-size: .82rem; margin: 2px 0 0; }
   .campo { margin-bottom: 14px; }
   .campo label { display: block; font-size: .8rem; color: var(--texto-fraco); margin-bottom: 4px; }
   .campo select, .campo input {
@@ -207,14 +213,12 @@
   .legenda-tendencia { display: flex; gap: 16px; margin-top: 10px; font-size: .8rem; color: var(--texto-fraco); }
   .legenda-cor { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 4px; vertical-align: middle; }
 
-  /* ---------- Rodapé da sidebar: tema, atualizar, trocar de unidade ---------- */
+  /* ---------- Rodapé da sidebar: tema, atualizar ---------- */
   .rodape-sidebar { padding: 10px 16px; border-top: 1px solid rgba(255,255,255,.1); display: flex; flex-direction: column; gap: 6px; }
   .rodape-sidebar button {
     background: transparent; border: 1px solid rgba(255,255,255,.2); color: var(--sidebar-text);
     border-radius: 6px; padding: 7px 10px; cursor: pointer; font-size: .82rem; text-align: left;
   }
-  .lista-trocar-unidade { display: flex; flex-direction: column; gap: 4px; padding-left: 6px; }
-  .lista-trocar-unidade button { border-style: dashed; }
 </style>
 </head>
 <body>
@@ -227,15 +231,13 @@
 
   const state = {
     token: localStorage.getItem('token') || null,
-    usuario: null,        // {pessoaId, nome, cargoId, cargoNome, administrador, unidadeId}
+    usuario: null,        // {pessoaId, nome, cargoId, cargoNome, administrador}
 
     // tela de login
     cargos: [],
     pessoasDoCargo: [],
     cargoSelecionado: null,
     pessoaSelecionada: null,
-    unidadesPendentes: null,
-    unidadeSelecionada: null,
     pin: '',
     erroLogin: '',
 
@@ -243,7 +245,6 @@
     sidebarColapsada: localStorage.getItem('sidebarColapsada') === '1',
     abas: [],
     abaAtual: null,
-    trocandoUnidade: false,
 
     // tema (claro/escuro): preferência salva neste aparelho. Sem escolha
     // salva, o CSS já reage sozinho a prefers-color-scheme (não força nada).
@@ -251,7 +252,6 @@
 
     // configurações
     configCarregado: false,
-    configUnidades: [],
     configCargos: [],
     configAbas: [],
     configMatriz: [],
@@ -316,20 +316,28 @@
     attachEvents();
   }
 
-  function viewLogin() {
-    const unidadeBloco = state.unidadesPendentes ? `
-      <div class="campo">
-        <label for="sel-unidade">Unidade</label>
-        <select id="sel-unidade" data-action="mudar-unidade">
-          ${state.unidadesPendentes.map((u) => `<option value="${u.id}" ${u.id === state.unidadeSelecionada ? 'selected' : ''}>${esc(u.nome)}</option>`).join('')}
-        </select>
-      </div>` : '';
+  // Marca da ATPN: círculo verde/dourado em dois tons (inspirado no logo
+  // real — sem o arquivo oficial ainda; se o Pedro mandar o PNG/SVG da
+  // associação, trocamos isso por ele direto).
+  function marcaAtpnSvg(tamanho) {
+    return `
+      <svg width="${tamanho}" height="${tamanho}" viewBox="0 0 100 100" aria-hidden="true">
+        <circle cx="50" cy="50" r="49" fill="var(--primaria)"/>
+        <path d="M50,1 A49,49 0 0,1 50,99 A24.5,24.5 0 0,1 50,50 A24.5,24.5 0 0,0 50,1 Z" fill="var(--dourado)"/>
+        <circle cx="50" cy="25.5" r="6" fill="var(--primaria)"/>
+        <circle cx="50" cy="74.5" r="6" fill="var(--dourado)"/>
+      </svg>`;
+  }
 
+  function viewLogin() {
     return `
       <div class="tela-login">
         <div class="cartao-login">
-          <h1>CEPE / ATPN</h1>
-          <p class="sub">Entre com seu cargo e PIN</p>
+          <div class="marca-login">
+            ${marcaAtpnSvg(56)}
+            <h1>ATPN</h1>
+            <p class="sub">Clube Social — Natal/RN</p>
+          </div>
 
           <div class="campo">
             <label for="sel-cargo">Cargo / Função</label>
@@ -343,7 +351,6 @@
               ${state.pessoasDoCargo.map((p) => `<option value="${p.id}" ${p.id === state.pessoaSelecionada ? 'selected' : ''}>${esc(p.nome)}</option>`).join('')}
             </select>
           </div>
-          ${unidadeBloco}
 
           <div class="pin-display">
             ${[0, 1, 2, 3].map((i) => `<span class="${i < state.pin.length ? 'preenchido' : ''}"></span>`).join('')}
@@ -367,10 +374,6 @@
     return window.matchMedia('(prefers-color-scheme: dark)').matches;
   }
 
-  function nomeDaUnidadeAtual() {
-    return (state.usuario.unidades || []).find((u) => u.id === state.usuario.unidadeId)?.nome || '';
-  }
-
   function sidebarHtml() {
     const itens = [...state.abas];
     if (state.usuario.administrador) itens.push({ id: 'config', nome: 'Configurações' });
@@ -382,26 +385,17 @@
       </button>`;
     }).join('');
 
-    const outrasUnidades = (state.usuario.unidades || []).filter((u) => u.id !== state.usuario.unidadeId);
-    const blocoTrocarUnidade = outrasUnidades.length ? `
-      <button data-action="toggle-trocar-unidade">🔁 Trocar de unidade</button>
-      ${state.trocandoUnidade ? `
-        <div class="lista-trocar-unidade">
-          ${outrasUnidades.map((u) => `<button data-action="trocar-unidade" data-id="${u.id}">${esc(u.nome)}</button>`).join('')}
-        </div>` : ''}` : '';
-
     return `
       <aside class="sidebar ${state.sidebarColapsada ? 'colapsada' : ''}">
         <div class="marca">
-          <strong>CEPE / ATPN</strong>
-          <span>${esc(nomeDaUnidadeAtual())}</span>
+          <strong>ATPN</strong>
+          <span>Clube Social</span>
           <button data-action="toggle-sidebar">« Esconder</button>
         </div>
         <nav class="tabs">${nav}</nav>
         <div class="rodape-sidebar">
           <button data-action="atualizar">↻ Atualizar</button>
           <button data-action="toggle-tema">${temaEscuroAgora() ? '☀️ Modo claro' : '🌙 Modo escuro'}</button>
-          ${blocoTrocarUnidade}
         </div>
         <div class="user-chip">
           <div>${esc(state.usuario.nome)}</div>
@@ -454,7 +448,7 @@
         <button class="botao" data-action="bater-ponto">Bater ponto (${proximoTipo})</button>
       </div>
       <div class="secao">
-        <h3>Últimos registros ${state.usuario.administrador ? '(toda a unidade)' : '(seus)'}</h3>
+        <h3>Últimos registros ${state.usuario.administrador ? '(de todo mundo)' : '(seus)'}</h3>
         <table class="tabela-lista">
           <thead><tr><th>Pessoa</th><th>Tipo</th><th>Quando</th>${state.usuario.administrador ? '<th></th>' : ''}</tr></thead>
           <tbody>${linhas}</tbody>
@@ -617,8 +611,6 @@
   function viewConfiguracoes() {
     if (!state.configCarregado) return '<h2>Configurações</h2><p class="placeholder">Carregando…</p>';
 
-    const linhasUnidades = state.configUnidades.map((u) => `<div>${esc(u.nome)}</div>`).join('')
-      || '<p class="placeholder">Nenhuma unidade cadastrada.</p>';
     const linhasCargos = state.configCargos.map((c) => `<div>${esc(c.nome)}${c.administrador ? ' (irrestrito)' : ''}</div>`).join('');
 
     const tabelaPermissoes = `
@@ -638,14 +630,6 @@
 
     return `
       <h2>Configurações</h2>
-      <div class="secao">
-        <h3>Unidades</h3>
-        <div>${linhasUnidades}</div>
-        <div class="linha-form">
-          <input id="nova-unidade-nome" placeholder="Nome da unidade" />
-          <button class="botao" data-action="add-unidade">Adicionar</button>
-        </div>
-      </div>
       <div class="secao">
         <h3>Cargos</h3>
         <div>${linhasCargos}</div>
@@ -673,9 +657,6 @@
     const selPessoa = document.getElementById('sel-pessoa');
     if (selPessoa) selPessoa.addEventListener('change', (e) => { state.pessoaSelecionada = Number(e.target.value); });
 
-    const selUnidade = document.getElementById('sel-unidade');
-    if (selUnidade) selUnidade.addEventListener('change', (e) => { state.unidadeSelecionada = Number(e.target.value); });
-
     document.querySelectorAll('[data-nav]').forEach((el) => {
       el.addEventListener('click', () => abrirAba(el.dataset.nav));
     });
@@ -692,19 +673,6 @@
 
     const btnToggleTema = document.querySelector('[data-action="toggle-tema"]');
     if (btnToggleTema) btnToggleTema.addEventListener('click', toggleTema);
-
-    const btnToggleTrocarUnidade = document.querySelector('[data-action="toggle-trocar-unidade"]');
-    if (btnToggleTrocarUnidade) btnToggleTrocarUnidade.addEventListener('click', () => {
-      state.trocandoUnidade = !state.trocandoUnidade;
-      render();
-    });
-
-    document.querySelectorAll('[data-action="trocar-unidade"]').forEach((el) => {
-      el.addEventListener('click', () => trocarUnidade(Number(el.dataset.id)));
-    });
-
-    const btnAddUnidade = document.querySelector('[data-action="add-unidade"]');
-    if (btnAddUnidade) btnAddUnidade.addEventListener('click', adicionarUnidade);
 
     const btnAddCargo = document.querySelector('[data-action="add-cargo"]');
     if (btnAddCargo) btnAddCargo.addEventListener('click', adicionarCargo);
@@ -782,18 +750,7 @@
     if (!state.pessoaSelecionada) { state.pin = ''; render(); return; }
     try {
       const body = { pessoaId: state.pessoaSelecionada, pin: state.pin };
-      if (state.unidadesPendentes) body.unidadeId = state.unidadeSelecionada;
-
       const resposta = await api('/auth/login', { method: 'POST', body });
-
-      if (resposta.precisaUnidade) {
-        state.unidadesPendentes = resposta.unidades;
-        state.unidadeSelecionada = resposta.unidades[0]?.id ?? null;
-        state.pin = '';
-        state.erroLogin = '';
-        render();
-        return;
-      }
 
       localStorage.setItem('token', resposta.token);
       localStorage.setItem('ultimoCargoId', String(state.cargoSelecionado));
@@ -812,9 +769,8 @@
     localStorage.removeItem('token');
     Object.assign(state, {
       token: null, usuario: null, pin: '', erroLogin: '',
-      unidadesPendentes: null, unidadeSelecionada: null,
       abas: [], abaAtual: null, configCarregado: false,
-      pontoCarregado: false, pontoRegistros: [], trocandoUnidade: false,
+      pontoCarregado: false, pontoRegistros: [],
       financeiroCarregado: false, financeiroMesRef: null, financeiroAba: 'despesas',
       financeiroDespesas: [], financeiroReceitas: [], financeiroResumo: null,
     });
@@ -834,24 +790,6 @@
     localStorage.setItem('tema', novo);
     state.tema = novo;
     render();
-  }
-
-  // Reemite o token pra outra unidade sem precisar digitar o PIN de novo
-  // (back-end confere de novo que a pessoa realmente acessa aquela unidade).
-  async function trocarUnidade(unidadeId) {
-    try {
-      const resposta = await api('/auth/trocar-unidade', { method: 'POST', body: { unidadeId } });
-      localStorage.setItem('token', resposta.token);
-      state.token = resposta.token;
-      state.usuario = resposta.usuario;
-      state.trocandoUnidade = false;
-      state.configCarregado = false;
-      state.pontoCarregado = false;
-      state.financeiroCarregado = false;
-      await entrarNoApp();
-    } catch (err) {
-      alert(err.message);
-    }
   }
 
   async function entrarNoApp() {
@@ -887,23 +825,13 @@
 
   // ---------- configurações ----------
   async function carregarConfiguracoes() {
-    const [unidades, cargos, permissoes] = await Promise.all([
-      api('/config/unidades'),
+    const [cargos, permissoes] = await Promise.all([
       api('/config/cargos'),
       api('/config/permissoes'),
     ]);
-    state.configUnidades = unidades;
     state.configCargos = cargos;
     state.configAbas = permissoes.abas;
     state.configMatriz = permissoes.matriz;
-  }
-
-  async function adicionarUnidade() {
-    const campo = document.getElementById('nova-unidade-nome');
-    if (!campo.value.trim()) return;
-    await api('/config/unidades', { method: 'POST', body: { nome: campo.value.trim() } });
-    state.configUnidades = await api('/config/unidades');
-    render();
   }
 
   async function adicionarCargo() {

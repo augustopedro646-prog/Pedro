@@ -1,5 +1,5 @@
 const express = require('express');
-const { pool, registrarHistorico } = require('../db');
+const { pool } = require('../db');
 const { exigirAuth, exigirPapel } = require('../auth');
 const { ABAS } = require('../abas');
 
@@ -75,61 +75,6 @@ router.post('/cargos', async (req, res, next) => {
   } catch (err) {
     if (err.code === '23505') return res.status(409).json({ erro: 'Cargo já existe' });
     next(err);
-  }
-});
-
-router.get('/unidades', async (req, res, next) => {
-  try {
-    const { rows } = await pool.query('SELECT id, nome, cnpj, contato FROM unidades ORDER BY nome');
-    res.json(rows);
-  } catch (err) {
-    next(err);
-  }
-});
-
-router.post('/unidades', async (req, res, next) => {
-  const { nome, cnpj, contato } = req.body;
-  if (!nome) return res.status(400).json({ erro: 'nome obrigatório' });
-  try {
-    const { rows } = await pool.query(
-      'INSERT INTO unidades (nome, cnpj, contato) VALUES ($1, $2, $3) RETURNING id, nome, cnpj, contato',
-      [nome, cnpj || null, contato || null]
-    );
-    res.status(201).json(rows[0]);
-  } catch (err) {
-    if (err.code === '23505') return res.status(409).json({ erro: 'Unidade já existe' });
-    next(err);
-  }
-});
-
-router.put('/unidades/:id', async (req, res, next) => {
-  const id = Number(req.params.id);
-  const { nome, cnpj, contato } = req.body;
-  const client = await pool.connect();
-  try {
-    await client.query('BEGIN');
-    const atual = (await client.query('SELECT * FROM unidades WHERE id = $1 FOR UPDATE', [id])).rows[0];
-    if (!atual) {
-      await client.query('ROLLBACK');
-      return res.status(404).json({ erro: 'Unidade não encontrada' });
-    }
-    await registrarHistorico(client, {
-      tabela: 'unidades',
-      registroId: id,
-      dadoAnterior: atual,
-      alteradoPor: req.usuario.pessoaId,
-    });
-    const { rows } = await client.query(
-      'UPDATE unidades SET nome = $1, cnpj = $2, contato = $3 WHERE id = $4 RETURNING id, nome, cnpj, contato',
-      [nome ?? atual.nome, cnpj ?? atual.cnpj, contato ?? atual.contato, id]
-    );
-    await client.query('COMMIT');
-    res.json(rows[0]);
-  } catch (err) {
-    await client.query('ROLLBACK');
-    next(err);
-  } finally {
-    client.release();
   }
 });
 

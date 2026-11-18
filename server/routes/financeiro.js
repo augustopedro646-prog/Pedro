@@ -29,9 +29,9 @@ function criarRotasLancamento(tabela) {
         `SELECT id, to_char(data, 'YYYY-MM-DD') AS data, descricao, categoria,
                 forma_pagamento AS "formaPagamento", valor, criado_por AS "criadoPor",
                 criado_em AS "criadoEm"
-         FROM ${tabela} WHERE unidade_id = $1 AND data BETWEEN $2 AND $3
+         FROM ${tabela} WHERE data BETWEEN $1 AND $2
          ORDER BY data DESC, criado_em DESC`,
-        [req.usuario.unidadeId, inicio, fim]
+        [inicio, fim]
       );
       res.json(rows);
     } catch (err) {
@@ -49,9 +49,9 @@ function criarRotasLancamento(tabela) {
     }
     try {
       const { rows } = await pool.query(
-        `INSERT INTO ${tabela} (unidade_id, data, descricao, categoria, forma_pagamento, valor, criado_por)
-         VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`,
-        [req.usuario.unidadeId, data, descricao.trim(), categoria || null, formaPagamento || null, valor, req.usuario.pessoaId]
+        `INSERT INTO ${tabela} (data, descricao, categoria, forma_pagamento, valor, criado_por)
+         VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
+        [data, descricao.trim(), categoria || null, formaPagamento || null, valor, req.usuario.pessoaId]
       );
       res.status(201).json({ id: rows[0].id });
     } catch (err) {
@@ -71,8 +71,8 @@ function criarRotasLancamento(tabela) {
     try {
       const { rowCount } = await pool.query(
         `UPDATE ${tabela} SET data = $1, descricao = $2, categoria = $3, forma_pagamento = $4, valor = $5
-         WHERE id = $6 AND unidade_id = $7`,
-        [data, descricao.trim(), categoria || null, formaPagamento || null, valor, id, req.usuario.unidadeId]
+         WHERE id = $6`,
+        [data, descricao.trim(), categoria || null, formaPagamento || null, valor, id]
       );
       if (!rowCount) return res.status(404).json({ erro: 'Lançamento não encontrado' });
       res.json({ ok: true });
@@ -84,10 +84,7 @@ function criarRotasLancamento(tabela) {
   sub.delete('/:id', async (req, res, next) => {
     const id = Number(req.params.id);
     try {
-      const { rowCount } = await pool.query(
-        `DELETE FROM ${tabela} WHERE id = $1 AND unidade_id = $2`,
-        [id, req.usuario.unidadeId]
-      );
+      const { rowCount } = await pool.query(`DELETE FROM ${tabela} WHERE id = $1`, [id]);
       if (!rowCount) return res.status(404).json({ erro: 'Lançamento não encontrado' });
       res.json({ ok: true });
     } catch (err) {
@@ -104,17 +101,17 @@ router.use('/receitas', criarRotasLancamento('receitas'));
 // Totais, detalhamento por categoria e tendência dos últimos meses, pra
 // alimentar os cartões e gráficos da tela — tudo calculado no banco (soma
 // de milhares de lançamentos no navegador seria lento e duplicaria a regra).
-async function totalPorCategoria(tabela, unidadeId, inicio, fim) {
+async function totalPorCategoria(tabela, inicio, fim) {
   const { rows } = await pool.query(
     `SELECT COALESCE(categoria, 'Sem categoria') AS categoria, SUM(valor) AS total
-     FROM ${tabela} WHERE unidade_id = $1 AND data BETWEEN $2 AND $3
+     FROM ${tabela} WHERE data BETWEEN $1 AND $2
      GROUP BY categoria ORDER BY total DESC`,
-    [unidadeId, inicio, fim]
+    [inicio, fim]
   );
   return rows.map((r) => ({ categoria: r.categoria, total: Number(r.total) }));
 }
 
-async function tendenciaMensal(unidadeId, fimRef, nMeses) {
+async function tendenciaMensal(fimRef, nMeses) {
   const fimDate = new Date(fimRef);
   const anoFim = fimDate.getFullYear();
   const mesFim = fimDate.getMonth();
@@ -123,9 +120,9 @@ async function tendenciaMensal(unidadeId, fimRef, nMeses) {
 
   const porMes = (tabela) => pool.query(
     `SELECT to_char(data, 'YYYY-MM') AS mes, SUM(valor) AS total
-     FROM ${tabela} WHERE unidade_id = $1 AND data BETWEEN $2 AND $3
+     FROM ${tabela} WHERE data BETWEEN $1 AND $2
      GROUP BY mes`,
-    [unidadeId, inicioTendencia, fimTendencia]
+    [inicioTendencia, fimTendencia]
   );
   const [despesas, receitas] = await Promise.all([porMes('despesas'), porMes('receitas')]);
   const mapaDespesas = new Map(despesas.rows.map((r) => [r.mes, Number(r.total)]));
@@ -147,9 +144,9 @@ router.get('/resumo', async (req, res, next) => {
   const meses = Math.min(Math.max(Number(req.query.meses) || 6, 2), 12);
   try {
     const [categoriasDespesas, categoriasReceitas, tendencia] = await Promise.all([
-      totalPorCategoria('despesas', req.usuario.unidadeId, inicio, fim),
-      totalPorCategoria('receitas', req.usuario.unidadeId, inicio, fim),
-      tendenciaMensal(req.usuario.unidadeId, fim, meses),
+      totalPorCategoria('despesas', inicio, fim),
+      totalPorCategoria('receitas', inicio, fim),
+      tendenciaMensal(fim, meses),
     ]);
     const totalDespesas = categoriasDespesas.reduce((soma, c) => soma + c.total, 0);
     const totalReceitas = categoriasReceitas.reduce((soma, c) => soma + c.total, 0);

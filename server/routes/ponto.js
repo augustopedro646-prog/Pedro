@@ -6,18 +6,18 @@ const router = express.Router();
 router.use(exigirAuth, exigirAba('ponto'));
 
 // Bate o próprio ponto — tipo alterna com o último registro da pessoa
-// nessa unidade (não depende de "que dia é hoje" pro fuso do servidor).
+// (não depende de "que dia é hoje" pro fuso do servidor).
 router.post('/', async (req, res, next) => {
   try {
     const { rows: ultimo } = await pool.query(
-      'SELECT tipo FROM pontos WHERE unidade_id = $1 AND pessoa_id = $2 ORDER BY registrado_em DESC LIMIT 1',
-      [req.usuario.unidadeId, req.usuario.pessoaId]
+      'SELECT tipo FROM pontos WHERE pessoa_id = $1 ORDER BY registrado_em DESC LIMIT 1',
+      [req.usuario.pessoaId]
     );
     const tipo = ultimo[0]?.tipo === 'entrada' ? 'saida' : 'entrada';
     const { rows } = await pool.query(
-      `INSERT INTO pontos (unidade_id, pessoa_id, tipo) VALUES ($1, $2, $3)
+      `INSERT INTO pontos (pessoa_id, tipo) VALUES ($1, $2)
        RETURNING id, tipo, registrado_em AS "registradoEm"`,
-      [req.usuario.unidadeId, req.usuario.pessoaId, tipo]
+      [req.usuario.pessoaId, tipo]
     );
     res.status(201).json(rows[0]);
   } catch (err) {
@@ -25,8 +25,8 @@ router.post('/', async (req, res, next) => {
   }
 });
 
-// Lista pontos da unidade. Administrador vê qualquer pessoa (ou filtra por
-// pessoaId); os demais só o próprio histórico, mesmo que peçam outro id.
+// Lista pontos. Administrador vê qualquer pessoa (ou filtra por pessoaId);
+// os demais só o próprio histórico, mesmo que peçam outro id.
 router.get('/', async (req, res, next) => {
   const trintaDiasAtras = () => {
     const d = new Date();
@@ -40,8 +40,8 @@ router.get('/', async (req, res, next) => {
     : req.usuario.pessoaId;
 
   try {
-    const params = [req.usuario.unidadeId, inicio, fim];
-    let where = 'p.unidade_id = $1 AND p.registrado_em::date BETWEEN $2 AND $3';
+    const params = [inicio, fim];
+    let where = 'p.registrado_em::date BETWEEN $1 AND $2';
     if (pessoaId) {
       params.push(pessoaId);
       where += ` AND p.pessoa_id = $${params.length}`;
@@ -70,8 +70,8 @@ router.put('/:id', exigirPapel(), async (req, res, next) => {
   try {
     const { rows } = await pool.query(
       `UPDATE pontos SET tipo = $1, registrado_em = $2, corrigido_por = $3, corrigido_em = now()
-       WHERE id = $4 AND unidade_id = $5 RETURNING id`,
-      [tipo, registradoEm, req.usuario.pessoaId, id, req.usuario.unidadeId]
+       WHERE id = $4 RETURNING id`,
+      [tipo, registradoEm, req.usuario.pessoaId, id]
     );
     if (!rows.length) return res.status(404).json({ erro: 'Ponto não encontrado' });
     res.json({ ok: true });
@@ -83,10 +83,7 @@ router.put('/:id', exigirPapel(), async (req, res, next) => {
 router.delete('/:id', exigirPapel(), async (req, res, next) => {
   const id = Number(req.params.id);
   try {
-    const { rowCount } = await pool.query(
-      'DELETE FROM pontos WHERE id = $1 AND unidade_id = $2',
-      [id, req.usuario.unidadeId]
-    );
+    const { rowCount } = await pool.query('DELETE FROM pontos WHERE id = $1', [id]);
     if (!rowCount) return res.status(404).json({ erro: 'Ponto não encontrado' });
     res.json({ ok: true });
   } catch (err) {

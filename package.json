@@ -1,8 +1,8 @@
 {
-  "name": "cepe-atpn-gestao",
+  "name": "atpn-gestao",
   "version": "0.1.0",
   "private": true,
-  "description": "Sistema de gestão pra associação (CEPE / ATPN)",
+  "description": "Sistema de gestão da ATPN",
   "main": "server/index.js",
   "scripts": {
     "start": "node server/index.js",
