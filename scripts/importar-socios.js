@@ -89,11 +89,18 @@ function categoriaDoNomeLegado(nome) {
 // INSS, AUSENTE...) é uma situação especial, não atraso; valor numérico
 // conta quantos meses seguidos (voltando) vieram exatamente 0 e aplica o
 // mesmo corte que a planilha já usa no resumo (até 2 / 3 a 5 / 6 ou mais).
+// A planilha é digitada à mão: "DESLIGADO", "DESLIGAMENTO - ...", e também
+// erros como "desligaod", "desigado", "desliagdo". Tudo que começa com
+// "desl"/"desig" é desligamento; sem isso essas pessoas ficavam como ativas.
+function ehDesligamento(texto) {
+  return /^(desl|desig)/i.test(String(texto || '').trim());
+}
+
 function calcularStatusAtivo(mensalidades) {
   if (!mensalidades.length) return { status: 'em_dia', situacaoEspecial: null, motivo: null };
   const ultimo = mensalidades[mensalidades.length - 1];
   const obsUltimo = (ultimo.observacao || '').trim();
-  if (/^desligad[ao]/i.test(obsUltimo)) return { status: 'desligado', situacaoEspecial: null, motivo: obsUltimo };
+  if (ehDesligamento(obsUltimo)) return { status: 'desligado', situacaoEspecial: null, motivo: obsUltimo };
   if (obsUltimo && ultimo.valor == null) return { status: 'em_dia', situacaoEspecial: obsUltimo, motivo: null };
 
   let mesesSemPagamento = 0;
@@ -113,7 +120,7 @@ function calcularStatusAtivo(mensalidades) {
 // vazio/"-" como melhor esforço.
 function motivoDesligamento(mensalidades) {
   for (const m of mensalidades) {
-    if (m.observacao && /^desligad[ao]/i.test(m.observacao.trim())) return m.observacao.trim();
+    if (m.observacao && ehDesligamento(m.observacao)) return m.observacao.trim();
   }
   for (let i = mensalidades.length - 1; i >= 0; i--) {
     const obs = (mensalidades[i].observacao || '').trim();
@@ -196,10 +203,44 @@ function lerAba(wb, sheetName, origemPlanilha) {
   return { linhas, avisos };
 }
 
+// A célula de nome às vezes traz mais de uma pessoa ("Titular\n(Outra pessoa)")
+// e a mesma matrícula aparece em linhas de pessoas DIFERENTES (família, erro de
+// digitação). Matrícula igual sozinha não prova que é a mesma pessoa: só
+// tratamos como a mesma se algum nome da célula também bate (igual, ou mesmo
+// primeiro e último nome, ignorando acento/caixa). Antes, matrícula igual
+// fundia as duas e uma pessoa sumia da lista, junto com as mensalidades dela.
+const semAcento = (s) => String(s).normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+function nomesDaCelula(valor) {
+  return String(valor).split('\n')
+    .map((n) => semAcento(n).replace(/[()]/g, ' ').replace(/\s+/g, ' ').trim())
+    .filter(Boolean);
+}
+function mesmaPessoa(a, b) {
+  const na = nomesDaCelula(a);
+  const nb = nomesDaCelula(b);
+  return na.some((x) => nb.some((y) => {
+    if (x === y) return true;
+    const px = x.split(' ');
+    const py = y.split(' ');
+    return px.length > 1 && py.length > 1 && px[0] === py[0] && px[px.length - 1] === py[py.length - 1];
+  }));
+}
+
+const duplicadasNaPlanilha = [];
+const idsDestaRodada = new Set();
+
 async function salvarSocio(client, socio, origemPlanilha, planilhaAtualizadaEm) {
-  const existente = socio.matricula
-    ? await client.query('SELECT id FROM socios WHERE matricula = $1', [socio.matricula])
-    : await client.query('SELECT id FROM socios WHERE nome = $1 AND clube = $2 AND matricula IS NULL', [socio.nome, socio.clube]);
+  let existente;
+  if (socio.matricula) {
+    const candidatos = await client.query('SELECT id, nome FROM socios WHERE matricula = $1', [socio.matricula]);
+    const mesma = candidatos.rows.find((c) => mesmaPessoa(c.nome, socio.nome));
+    existente = { rows: mesma ? [mesma] : [] };
+    // só conta como repetição se o registro foi gravado NESTA rodada (os de
+    // rodadas anteriores são a reimportação normal, não duplicata)
+    if (mesma && idsDestaRodada.has(mesma.id)) duplicadasNaPlanilha.push(`matrícula ${socio.matricula}: "${socio.nome.replace(/\n/g, ' ')}" aparece mais de uma vez (a última linha lida prevalece)`);
+  } else {
+    existente = await client.query('SELECT id FROM socios WHERE nome = $1 AND clube = $2 AND matricula IS NULL', [socio.nome, socio.clube]);
+  }
 
   const campos = [
     socio.matricula, socio.matriculaSecundaria, socio.nome, socio.cpf, socio.clube,
@@ -231,6 +272,7 @@ async function salvarSocio(client, socio, origemPlanilha, planilhaAtualizadaEm) 
     socioId = rows[0].id;
   }
 
+  idsDestaRodada.add(socioId);
   for (const m of socio.mensalidades) {
     await client.query(
       'INSERT INTO socios_mensalidades (socio_id, ano, mes, valor, observacao) VALUES ($1,$2,$3,$4,$5)',
@@ -270,6 +312,11 @@ async function main() {
     throw err;
   } finally {
     client.release();
+  }
+
+  if (duplicadasNaPlanilha.length) {
+    console.log(`\n${duplicadasNaPlanilha.length} linha(s) da planilha repetem uma pessoa já lida (mesma matrícula e nome; inclui quem aparece em DESLIGADOS e depois em ATIVO). Fica uma só:`);
+    duplicadasNaPlanilha.slice(0, 15).forEach((d) => console.log('  ', d));
   }
 
   const resumo = await pool.query(

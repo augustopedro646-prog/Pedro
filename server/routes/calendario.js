@@ -1,9 +1,26 @@
 const express = require('express');
 const { jabaPool, JABA_LOJA_ID, integracaoConfigurada } = require('../jabaDb');
+const { pool } = require('../db');
 const { exigirAuth, exigirAba, exigirPapel } = require('../auth');
 
 const router = express.Router();
-router.use(exigirAuth, exigirAba('calendario'));
+router.use(exigirAuth);
+
+// Quem tem a aba Calendário OU a aba Eventos pode ler a agenda (as duas telas
+// mostram os mesmos eventos); alterar continua exigindo a aba Calendário.
+async function exigirCalendarioOuEventos(req, res, next) {
+  if (req.usuario.administrador) return next();
+  try {
+    const { rows } = await pool.query(
+      `SELECT 1 FROM permissoes WHERE cargo_id = $1 AND aba IN ('calendario', 'eventos') AND permitido LIMIT 1`,
+      [req.usuario.cargoId]
+    );
+    if (rows[0]) return next();
+    res.status(403).json({ erro: 'Sem permissão pra essa aba' });
+  } catch (err) {
+    next(err);
+  }
+}
 
 // Lê/escreve direto em `agenda_eventos` do banco do PDV Jabá, escopado pelo
 // loja_id da ATPN — nunca mexe em linha de outra loja. Mesmo formato de
@@ -11,31 +28,55 @@ router.use(exigirAuth, exigirAba('calendario'));
 // /api/lojas/:lojaId/agenda), pra um evento criado aqui aparecer certinho
 // no calendário consolidado do admin do Jabá também.
 
-router.get('/', async (req, res, next) => {
+router.get('/', exigirCalendarioOuEventos, async (req, res, next) => {
   if (!integracaoConfigurada()) return res.json({ configurado: false, eventos: [] });
   const { inicio, fim } = req.query;
   if (!inicio || !fim) return res.status(400).json({ erro: 'inicio e fim obrigatórios' });
   try {
-    const { rows } = await jabaPool.query(
-      `SELECT id, tipo, to_char(data, 'YYYY-MM-DD') AS data, hora_inicio AS "horaInicio", hora_fim AS "horaFim",
-              titulo, usuario_nome AS "usuarioNome", observacao
-       FROM agenda_eventos WHERE loja_id = $1 AND data BETWEEN $2 AND $3
-       ORDER BY data, hora_inicio NULLS LAST`,
-      [JABA_LOJA_ID, inicio, fim]
-    );
-    res.json({ configurado: true, eventos: rows });
+    res.json({ configurado: true, eventos: await buscarEventos(inicio, fim) });
   } catch (err) {
     next(err);
   }
 });
 
+// Só LEITURA do que é do PDV Jabá: eventos (nunca escalas/equipe, que a
+// ATPN tem as suas) das outras lojas + reservas/encomendas de evento, no
+// mesmo critério do calendário consolidado do PDV. "proprio" = criado
+// pela ATPN (só esses podem ser removidos aqui). Também usada pelo Início.
+async function buscarEventos(inicio, fim) {
+  {
+    const { rows } = await jabaPool.query(
+      `SELECT * FROM (
+         SELECT a.id, 'evento'::text AS tipo, to_char(a.data, 'YYYY-MM-DD') AS data, a.hora_inicio AS "horaInicio", a.hora_fim AS "horaFim",
+                a.titulo, a.usuario_nome AS "usuarioNome", a.observacao,
+                (a.loja_id = $1) AS proprio, l.nome AS origem
+         FROM agenda_eventos a LEFT JOIN lojas l ON l.id = a.loja_id
+         WHERE a.tipo = 'evento' AND a.evento_id IS NULL AND a.data BETWEEN $2 AND $3
+         UNION ALL
+         SELECT 'enc-' || e.id AS id, 'evento'::text AS tipo, to_char(e.data_evento, 'YYYY-MM-DD') AS data,
+                e.horario AS "horaInicio", NULL::text AS "horaFim",
+                (CASE e.categoria WHEN 'reserva' THEN '🍽 ' ELSE '🎉 ' END) || e.nome
+                  || (CASE WHEN e.status IN ('novo','negociando') THEN ' (a confirmar)' ELSE '' END) AS titulo,
+                NULL::text AS "usuarioNome",
+                concat_ws(' · ', CASE WHEN e.num_convidados IS NOT NULL THEN e.num_convidados || ' pessoas' END, e.servico) AS observacao,
+                false AS proprio, l.nome AS origem
+         FROM encomendas_evento e LEFT JOIN lojas l ON l.id = e.loja_id
+         WHERE e.data_evento BETWEEN $2 AND $3 AND e.status <> 'recusado'
+           AND e.tipo_desejado IS DISTINCT FROM 'Evento do calendário'
+       ) t ORDER BY data, "horaInicio" NULLS LAST`,
+      [JABA_LOJA_ID, inicio, fim]
+    );
+    return rows;
+  }
+}
+
 // Criar/editar/remover — só Administrador (mesma regra do PDV Jabá pro
 // calendário dele: todo mundo vê, só admin mexe).
-router.post('/', exigirPapel(), async (req, res, next) => {
+router.post('/', exigirAba('calendario'), exigirPapel(), async (req, res, next) => {
   if (!integracaoConfigurada()) return res.status(409).json({ erro: 'Integração com o PDV Jabá ainda não configurada' });
   const { id, tipo, data, horaInicio, horaFim, titulo, observacao } = req.body || {};
-  if (!id || (tipo !== 'evento' && tipo !== 'escala') || !data || !String(titulo || '').trim()) {
-    return res.status(400).json({ erro: 'Campos "id", "tipo" ("evento"/"escala"), "data" e "titulo" são obrigatórios' });
+  if (!id || tipo !== 'evento' || !data || !String(titulo || '').trim()) {
+    return res.status(400).json({ erro: 'Campos "id", "tipo" ("evento"), "data" e "titulo" são obrigatórios' });
   }
   try {
     await jabaPool.query(
@@ -50,8 +91,9 @@ router.post('/', exigirPapel(), async (req, res, next) => {
   }
 });
 
-router.put('/:id', exigirPapel(), async (req, res, next) => {
+router.put('/:id', exigirAba('calendario'), exigirPapel(), async (req, res, next) => {
   if (!integracaoConfigurada()) return res.status(409).json({ erro: 'Integração com o PDV Jabá ainda não configurada' });
+  if (String(req.params.id).startsWith('atpn-res-')) return res.status(409).json({ erro: 'Esse evento vem de uma reserva — edite na aba Eventos' });
   const { data, horaInicio, horaFim, titulo, observacao } = req.body || {};
   if (!data || !String(titulo || '').trim()) return res.status(400).json({ erro: '"data" e "titulo" são obrigatórios' });
   try {
@@ -67,8 +109,9 @@ router.put('/:id', exigirPapel(), async (req, res, next) => {
   }
 });
 
-router.delete('/:id', exigirPapel(), async (req, res, next) => {
+router.delete('/:id', exigirAba('calendario'), exigirPapel(), async (req, res, next) => {
   if (!integracaoConfigurada()) return res.status(409).json({ erro: 'Integração com o PDV Jabá ainda não configurada' });
+  if (String(req.params.id).startsWith('atpn-res-')) return res.status(409).json({ erro: 'Esse evento vem de uma reserva — remova ou mude o status dela na aba Eventos' });
   try {
     const { rowCount } = await jabaPool.query(
       'DELETE FROM agenda_eventos WHERE id = $1 AND loja_id = $2',
@@ -81,4 +124,5 @@ router.delete('/:id', exigirPapel(), async (req, res, next) => {
   }
 });
 
+router.buscarEventos = buscarEventos;
 module.exports = router;

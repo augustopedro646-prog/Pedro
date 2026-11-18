@@ -39,7 +39,8 @@ router.get('/', async (req, res, next) => {
     const { rows } = await pool.query(
       `SELECT id, matricula, nome, clube, categoria, status, situacao_especial AS "situacaoEspecial",
               telefone, to_char(planilha_atualizada_em, 'YYYY-MM-DD') AS "planilhaAtualizadaEm"
-       FROM socios ${where} ORDER BY nome LIMIT $${params.length}`,
+       FROM socios ${where}
+       ORDER BY (clube = 'cepe_atpn') DESC, (status = 'desligado'), nome LIMIT $${params.length}`,
       params
     );
     res.json({ total: Number(total.rows[0].count), socios: rows });

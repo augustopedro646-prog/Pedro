@@ -34,12 +34,26 @@ function verificarToken(token) {
 // Confere o papel sempre no servidor — o token só carrega o que a pessoa
 // *tinha* na hora do login, nunca é a fonte de verdade sozinho pra ação
 // sensível nova.
-function exigirAuth(req, res, next) {
+// Além da assinatura, confere no banco que a pessoa continua ativa e usa o
+// cargo ATUAL dela (não o do login): desativar ou rebaixar alguém em
+// Configurações > Equipe vale na hora, não só quando o token de 12h vencer.
+async function exigirAuth(req, res, next) {
   const token = (req.headers.authorization || '').replace(/^Bearer /, '') || null;
   const payload = verificarToken(token);
   if (!payload) return res.status(401).json({ erro: 'Login necessário ou sessão expirada' });
-  req.usuario = payload;
-  next();
+  try {
+    const { rows } = await pool.query(
+      `SELECT p.nome, p.ativo, p.cargo_id, c.nome AS cargo_nome, c.administrador
+       FROM pessoas p JOIN cargos c ON c.id = p.cargo_id WHERE p.id = $1`,
+      [payload.pessoaId]
+    );
+    const p = rows[0];
+    if (!p || !p.ativo) return res.status(401).json({ erro: 'Login necessário ou sessão expirada' });
+    req.usuario = { ...payload, nome: p.nome, cargoId: p.cargo_id, cargoNome: p.cargo_nome, administrador: p.administrador };
+    next();
+  } catch (err) {
+    next(err);
+  }
 }
 
 function exigirPapel(...cargosPermitidos) {

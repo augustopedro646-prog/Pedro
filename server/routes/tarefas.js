@@ -189,4 +189,5 @@ router.delete('/:id', exigirPapel(), async (req, res, next) => {
   }
 });
 
+router.aplicaNaData = aplicaNaData; // usada pelo Início
 module.exports = router;

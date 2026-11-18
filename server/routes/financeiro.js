@@ -1,6 +1,7 @@
 const express = require('express');
 const { pool } = require('../db');
 const { exigirAuth, exigirAba } = require('../auth');
+const { arrecadacaoPorMes, infoPlanilha, ANO_INICIAL } = require('../mensalidades');
 
 const router = express.Router();
 router.use(exigirAuth, exigirAba('fluxo_caixa'));
@@ -111,7 +112,7 @@ async function totalPorCategoria(tabela, inicio, fim) {
   return rows.map((r) => ({ categoria: r.categoria, total: Number(r.total) }));
 }
 
-async function tendenciaMensal(fimRef, nMeses) {
+async function tendenciaMensal(fimRef, nMeses, mensalidadesPorMes) {
   const fimDate = new Date(fimRef);
   const anoFim = fimDate.getFullYear();
   const mesFim = fimDate.getMonth();
@@ -132,7 +133,11 @@ async function tendenciaMensal(fimRef, nMeses) {
   for (let i = nMeses - 1; i >= 0; i--) {
     const d = new Date(anoFim, mesFim - i, 1);
     const chave = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-    lista.push({ mes: chave, despesas: mapaDespesas.get(chave) || 0, receitas: mapaReceitas.get(chave) || 0 });
+    lista.push({
+      mes: chave,
+      despesas: mapaDespesas.get(chave) || 0,
+      receitas: (mapaReceitas.get(chave) || 0) + (mensalidadesPorMes.get(chave) || 0),
+    });
   }
   return lista;
 }
@@ -143,14 +148,47 @@ router.get('/resumo', async (req, res, next) => {
   const fim = req.query.fim || padrao.fim;
   const meses = Math.min(Math.max(Number(req.query.meses) || 6, 2), 12);
   try {
-    const [categoriasDespesas, categoriasReceitas, tendencia] = await Promise.all([
+    // Mensalidades da planilha: receita automática, pros meses da tendência
+    // (que já cobrem o período pedido).
+    const fimDate = new Date(fim);
+    const inicioTend = new Date(fimDate.getFullYear(), fimDate.getMonth() - (meses - 1), 1);
+    const dataStr = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    const [mensalidadesPorMes, planilha] = await Promise.all([
+      arrecadacaoPorMes(dataStr(inicioTend), fim),
+      infoPlanilha(),
+    ]);
+
+    const [categoriasDespesas, categoriasReceitasManuais, tendencia] = await Promise.all([
       totalPorCategoria('despesas', inicio, fim),
       totalPorCategoria('receitas', inicio, fim),
-      tendenciaMensal(fim, meses),
+      tendenciaMensal(fim, meses, mensalidadesPorMes),
     ]);
+
+    // total de mensalidades dentro do período pedido
+    let totalMensalidades = 0;
+    let parcial = false;
+    for (const [mes, valor] of mensalidadesPorMes) {
+      if (mes >= inicio.slice(0, 7) && mes <= fim.slice(0, 7)) {
+        totalMensalidades += valor;
+        if (planilha.primeiroMesParcial && mes >= planilha.primeiroMesParcial) parcial = true;
+      }
+    }
+    const categoriasReceitas = totalMensalidades > 0
+      ? [{ categoria: 'Mensalidades (planilha)', total: totalMensalidades }, ...categoriasReceitasManuais].sort((a, b) => b.total - a.total)
+      : categoriasReceitasManuais;
+
     const totalDespesas = categoriasDespesas.reduce((soma, c) => soma + c.total, 0);
     const totalReceitas = categoriasReceitas.reduce((soma, c) => soma + c.total, 0);
-    res.json({ totalDespesas, totalReceitas, categoriasDespesas, categoriasReceitas, tendencia });
+    res.json({
+      totalDespesas, totalReceitas, categoriasDespesas, categoriasReceitas, tendencia,
+      mensalidades: {
+        total: totalMensalidades,
+        parcial,
+        planilhaAtualizadaEm: planilha.atualizadoEm,
+        // período anterior a 2026: a planilha não cobre o quadro inteiro
+        semCobertura: fim.slice(0, 4) < String(ANO_INICIAL),
+      },
+    });
   } catch (err) {
     next(err);
   }

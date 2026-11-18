@@ -25,6 +25,8 @@
     --sidebar-active-text: #ffffff;
     --shadow: 0 1px 3px rgba(0,0,0,.08);
     --radius: 10px;
+    --ev-bg: #f9dca0; --ev-fg: #6b4a05;
+    --fer-bg: #f9c9dc; --fer-soft: #fde9f1; --fer-fg: #8f1d4e;
   }
   @media (prefers-color-scheme: dark) {
     :root:not([data-theme="light"]) {
@@ -38,6 +40,8 @@
       --primaria-texto: #0a160d;
       --dourado: #e8c04a;
       --shadow: 0 1px 3px rgba(0,0,0,.4);
+      --ev-bg: #54421a; --ev-fg: #f2d68a;
+      --fer-bg: #5a2038; --fer-soft: #3a1a29; --fer-fg: #f6b3cf;
     }
   }
   :root[data-theme="dark"] {
@@ -51,6 +55,8 @@
     --primaria-texto: #0a160d;
     --dourado: #e8c04a;
     --shadow: 0 1px 3px rgba(0,0,0,.4);
+    --ev-bg: #54421a; --ev-fg: #f2d68a;
+    --fer-bg: #5a2038; --fer-soft: #3a1a29; --fer-fg: #f6b3cf;
   }
 
   * { box-sizing: border-box; }
@@ -178,11 +184,71 @@
   table.tabela-lista { border-collapse: collapse; width: 100%; font-size: .88rem; }
   table.tabela-lista th, table.tabela-lista td { border-bottom: 1px solid var(--borda); padding: 8px 10px; text-align: left; }
   table.tabela-lista th { color: var(--texto-fraco); font-weight: 600; }
+  .botao-ir { background: none; border: none; color: var(--primaria); cursor: pointer; padding: 0; font-size: .85rem; font-weight: 600; }
   .botao-link { background: none; border: none; color: var(--perigo); cursor: pointer; padding: 0; font-size: .82rem; text-decoration: underline; }
   .abas-secundarias { display: flex; gap: 6px; margin-bottom: 14px; }
   .abas-secundarias button { padding: 6px 14px; border: 1px solid var(--borda); background: var(--fundo); border-radius: 999px; cursor: pointer; font-size: .85rem; }
   .abas-secundarias button.ativa { background: var(--primaria); color: var(--primaria-texto); border-color: var(--primaria); }
   .navegacao-mes { display: flex; align-items: center; gap: 12px; }
+
+  /* ---------- Eventos / Reservas ---------- */
+  .cartao-reserva { border: 1px solid var(--borda); border-left-width: 4px; border-radius: var(--radius); padding: 12px 14px; margin-bottom: 12px; background: var(--superficie); }
+  .cartao-reserva.status-novo { border-left-color: var(--dourado); }
+  .cartao-reserva.status-negociando { border-left-color: var(--dourado); }
+  .cartao-reserva.status-confirmado { border-left-color: var(--primaria); }
+  .cartao-reserva.status-recusado, .cartao-reserva.status-concluido { border-left-color: var(--borda); opacity: .85; }
+  .topo-reserva { display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+  .tag-status { align-self: flex-start; font-size: .75rem; font-weight: 700; padding: 3px 10px; border-radius: 999px; border: 1px solid var(--borda); }
+  .tag-confirmado { color: var(--primaria); border-color: var(--primaria); }
+  .tag-novo, .tag-negociando { color: var(--dourado); border-color: var(--dourado); }
+  .acoes-reserva { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 10px; }
+  .aviso-conflito { margin-top: 8px; padding: 6px 10px; border-radius: 8px; font-size: .82rem; background: var(--fer-soft); color: var(--fer-fg); }
+  .aviso-forte { background: var(--fer-bg); font-weight: 700; }
+  .aviso-incerto { background: var(--ev-bg); color: var(--ev-fg); }
+  .aviso-livre { margin-top: 8px; font-size: .82rem; color: var(--primaria); font-weight: 600; }
+
+  /* ---------- Configurações / Histórico ---------- */
+  .grade-assoc { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; margin-bottom: 8px; }
+  .campo-assoc { display: flex; flex-direction: column; gap: 4px; font-size: .82rem; color: var(--texto-fraco); }
+  .campo-assoc input, .linha-horario input[type="time"] { font-size: 16px; padding: 8px 10px; border: 1px solid var(--borda); border-radius: 8px; background: var(--fundo); }
+  .linha-horario { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; padding: 8px 0; border-bottom: 1px solid var(--borda); }
+  .linha-horario .h-dia { width: 170px; font-weight: 600; font-size: .9rem; }
+  .linha-horario .h-turno { display: inline-flex; align-items: center; gap: 6px; }
+  .item-historico { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; padding: 10px 0; border-bottom: 1px solid var(--borda); }
+
+  /* ---------- Relatórios ---------- */
+  .rel-barras { display: flex; align-items: flex-end; gap: 6px; height: 160px; margin: 12px 0 4px; }
+  .rel-barra { flex: 1; min-width: 0; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; height: 100%; }
+  .rel-barra-fill { width: 100%; background: var(--primaria); border-radius: 4px 4px 0 0; min-height: 2px; }
+  .rel-barra.parcial .rel-barra-fill { background: repeating-linear-gradient(45deg, var(--dourado), var(--dourado) 4px, transparent 4px, transparent 8px); border: 1px solid var(--dourado); }
+  .rel-barra-rot { display: flex; gap: 6px; font-size: .68rem; color: var(--texto-fraco); }
+  .rel-barra-rot span { flex: 1; text-align: center; min-width: 0; }
+  .rel-delta-pos { color: var(--primaria); font-weight: 600; }
+  .rel-delta-neg { color: var(--perigo); font-weight: 600; }
+  .rel-hbar { display: flex; align-items: center; gap: 8px; margin: 4px 0; font-size: .85rem; }
+  .rel-hbar-nome { width: 170px; flex: none; }
+  .rel-hbar-trilho { flex: 1; background: var(--borda); border-radius: 4px; height: 10px; overflow: hidden; }
+  .rel-hbar-fill { height: 100%; background: var(--primaria); }
+
+  /* ---------- Calendário (grade do mês) ---------- */
+  .cal-grid-head, .cal-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px; }
+  .cal-grid-head { margin-bottom: 6px; text-align: center; font-size: .72rem; text-transform: uppercase; color: var(--texto-fraco); }
+  .cal-cell { min-height: 84px; border: 1px solid var(--borda); border-radius: 8px; background: var(--superficie); padding: 5px; display: flex; flex-direction: column; gap: 2px; overflow: hidden; }
+  .cal-cell-vazia { border: none; background: transparent; }
+  .cal-cell-hoje { border-color: var(--primaria); border-width: 2px; }
+  .cal-cell-num { font-weight: 700; font-size: .8rem; }
+  .cal-cell-evento { background: var(--ev-bg); }
+  .cal-cell-evento .cal-cell-num { color: var(--ev-fg); }
+  .cal-cell-facultativo { background: var(--fer-soft); }
+  .cal-cell-feriado { background: var(--fer-bg); }
+  .cal-cell-feriado .cal-cell-num, .cal-cell-facultativo .cal-cell-num { color: var(--fer-fg); }
+  .cal-chip { font-size: .66rem; line-height: 1.2; overflow: hidden; text-overflow: ellipsis; }
+  .cal-chip-evento { color: var(--ev-fg); font-weight: 700; }
+  .cal-chip-feriado { color: var(--fer-fg); font-weight: 700; }
+  .cal-chip-facultativo { color: var(--fer-fg); }
+  .cal-legenda { display: flex; gap: 14px; flex-wrap: wrap; font-size: .78rem; color: var(--texto-fraco); margin-bottom: 10px; }
+  .cal-legenda i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 5px; }
+  @media (max-width: 680px) { .cal-cell { min-height: 56px; padding: 3px; } .cal-chip { font-size: .58rem; } }
 
   /* ---------- Cartões/gráficos do Fluxo de caixa ---------- */
   .cor-receita { color: var(--primaria); }
@@ -276,6 +342,25 @@
     // configurações
     configCarregado: false,
     configCargos: [],
+    configEquipe: [],
+    eventosAba: 'reservas',
+    reservas: null,
+    reservasErro: null,
+    reservasFiltro: 'abertas',
+    reservaEditando: null,
+    configAssoc: null,
+    historicoTipo: 'associacao',
+    historicoVersoes: null,
+    historicoErro: null,
+    rel: null,
+    relErro: null,
+    relAba: 'mensalidades',
+    relPeriodo: '3m',
+    relInadClube: 'cepe_atpn',
+    relInadFaixa: 'todas',
+    inicio: null,
+    inicioCarregado: false,
+    inicioErro: null,
     configAbas: [],
     configMatriz: [],
 
@@ -304,6 +389,8 @@
     calendarioConfigurado: true,
     calendarioMesRef: null,
     calendarioEventos: [],
+    eventosProximos: [],
+    eventosCarregado: false,
 
     // sócios (importado de planilha — ver scripts/importar-socios.js)
     sociosCarregado: false,
@@ -351,7 +438,11 @@
       body: opts.body ? JSON.stringify(opts.body) : undefined,
     });
     const dado = await resp.json().catch(() => ({}));
-    if (!resp.ok) throw new Error(dado.erro || 'Erro na requisição');
+    if (!resp.ok) {
+      const erro = new Error(dado.erro || 'Erro na requisição');
+      if (dado.conflitos) erro.conflitos = dado.conflitos; // reservas: conflito de espaço (409)
+      throw erro;
+    }
     return dado;
   }
 
@@ -424,7 +515,10 @@
 
   function sidebarHtml() {
     const itens = [...state.abas];
-    if (state.usuario.administrador) itens.push({ id: 'config', nome: 'Configurações' });
+    if (state.usuario.administrador) {
+      itens.push({ id: 'config', nome: 'Configurações' });
+      itens.push({ id: 'historico', nome: 'Histórico' });
+    }
 
     const nav = itens.map((a) => {
       const n = badgeDaAba(a.id);
@@ -471,6 +565,10 @@
     if (state.abaAtual === 'tarefas') return viewTarefas();
     if (state.abaAtual === 'calendario') return viewCalendario();
     if (state.abaAtual === 'socios') return viewSocios();
+    if (state.abaAtual === 'eventos') return viewEventos();
+    if (state.abaAtual === 'inicio') return viewInicio();
+    if (state.abaAtual === 'relatorios') return viewRelatorios();
+    if (state.abaAtual === 'historico') return viewHistorico();
     const nomeAba = (state.abas.find((a) => a.id === state.abaAtual) || {}).nome || '';
     return `
       <h2>${esc(nomeAba)}</h2>
@@ -514,7 +612,7 @@
   }
 
   function limitesMes(ref) {
-    const fmt = (d) => d.toISOString().slice(0, 10);
+    const fmt = (d) => dataLocalStr(d);
     return {
       inicio: fmt(new Date(ref.ano, ref.mes, 1)),
       fim: fmt(new Date(ref.ano, ref.mes + 1, 0)),
@@ -527,7 +625,7 @@
   }
 
   function formatarMoeda(valor) {
-    return `R$ ${Number(valor).toFixed(2).replace('.', ',')}`;
+    return `R$ ${Number(valor).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   }
 
   function cartoesResumoFinanceiro(resumo) {
@@ -617,6 +715,11 @@
       </div>
 
       ${cartoesResumoFinanceiro(resumo)}
+      ${resumo.mensalidades && resumo.mensalidades.total > 0 ? `
+        <p class="placeholder">As receitas incluem <strong>${formatarMoeda(resumo.mensalidades.total)}</strong> de mensalidades vindas da planilha dos sócios
+        (atualizada em ${esc(formatarDataExibicao(resumo.mensalidades.planilhaAtualizadaEm))}). Entram sozinhas — não aparecem na lista de lançamentos abaixo.
+        ${resumo.mensalidades.parcial ? '<strong>Mês parcial:</strong> a planilha ainda não cobre o mês inteiro, o valor sobe quando ela for atualizada.' : ''}</p>`
+        : resumo.mensalidades && resumo.mensalidades.semCobertura ? '<p class="placeholder">Antes de 2026 a planilha não cobre o quadro inteiro de sócios, então não há receita de mensalidade nesse período.</p>' : ''}
 
       <div class="secao">
         <h3>Tendência (últimos 6 meses)</h3>
@@ -772,6 +875,731 @@
       ${state.usuario.administrador ? viewCadastroTarefas() : ''}`;
   }
 
+  // ---------- feriados ----------
+  // Mesma regra do PDV Jabá (calculados por ano, nada gravado): nacionais, RN e
+  // Natal — a ATPN fica em Natal, então os de Parnamirim não entram. Páscoa pelo
+  // cálculo gregoriano; Carnaval, Cinzas, Sexta-feira Santa e Corpus Christi
+  // derivam dela.
+  const ROTULO_FERIADO = { nacional: 'Feriado nacional', estadual: 'Feriado estadual (RN)', municipal: 'Feriado municipal (Natal)', facultativo: 'Ponto facultativo' };
+  const _feriadosCache = {};
+  function pascoaDoAno(ano) {
+    const a = ano % 19, b = Math.floor(ano / 100), c = ano % 100, d = Math.floor(b / 4), e = b % 4, f = Math.floor((b + 8) / 25),
+      g = Math.floor((b - f + 1) / 3), h = (19 * a + b - d - g + 15) % 30, i = Math.floor(c / 4), k = c % 4, l = (32 + 2 * e + 2 * i - h - k) % 7,
+      m = Math.floor((a + 11 * h + 22 * l) / 451), mes = Math.floor((h + l - 7 * m + 114) / 31), dia = ((h + l - 7 * m + 114) % 31) + 1;
+    return new Date(ano, mes - 1, dia);
+  }
+  function dataLocalStr(d) {
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  }
+  function feriadosDoAno(ano) {
+    if (_feriadosCache[ano]) return _feriadosCache[ano];
+    const out = {};
+    const add = (data, nome, tipo) => { (out[data] = out[data] || []).push({ nome, tipo }); };
+    const fixo = (mm, dd, nome, tipo) => add(`${ano}-${mm}-${dd}`, nome, tipo);
+    const rel = (dias, nome, tipo) => { const p = pascoaDoAno(ano); p.setDate(p.getDate() + dias); add(dataLocalStr(p), nome, tipo); };
+    fixo('01', '01', 'Confraternização Universal', 'nacional');
+    fixo('01', '06', 'Santos Reis (Natal)', 'municipal');
+    rel(-48, 'Carnaval', 'facultativo'); rel(-47, 'Carnaval', 'facultativo'); rel(-46, 'Quarta-feira de Cinzas (até 14h)', 'facultativo');
+    rel(-2, 'Sexta-feira Santa', 'nacional');
+    fixo('04', '21', 'Tiradentes', 'nacional');
+    fixo('05', '01', 'Dia do Trabalho', 'nacional');
+    rel(60, 'Corpus Christi', 'facultativo');
+    fixo('09', '07', 'Independência do Brasil', 'nacional');
+    fixo('10', '03', 'Mártires de Cunhaú e Uruaçu (RN)', 'estadual');
+    fixo('10', '12', 'Nossa Senhora Aparecida', 'nacional');
+    fixo('11', '02', 'Finados', 'nacional');
+    fixo('11', '15', 'Proclamação da República', 'nacional');
+    fixo('11', '20', 'Consciência Negra', 'nacional');
+    fixo('11', '21', 'N. Sra. da Apresentação (Natal)', 'municipal');
+    fixo('12', '24', 'Véspera de Natal (tarde)', 'facultativo');
+    fixo('12', '25', 'Natal', 'nacional');
+    fixo('12', '31', 'Véspera de Ano-Novo (tarde)', 'facultativo');
+    return (_feriadosCache[ano] = out);
+  }
+  function feriadosDoDia(dataStr) { return feriadosDoAno(Number(dataStr.slice(0, 4)))[dataStr] || []; }
+
+  // ---------- relatórios ----------
+  const REL_CLUBE = { cepe_atpn: 'ATPN', cepe: 'CEPE' };
+  const REL_STATUS = { em_dia: 'Em dia', ate_2_meses: 'Até 2 meses', '3_a_5_meses': '3 a 5 meses', '6_meses_ou_mais': '6 meses ou mais', desligado: 'Desligado' };
+  const REL_CATEGORIA = { efetivo: 'Efetivo', contribuinte: 'Contribuinte', nao_identificada: 'Não identificada' };
+  const NOMES_MES_CURTO = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
+  const idxMes = (ano, mes) => ano * 12 + (mes - 1);
+
+  // Meses da série e quais já "fecharam": a planilha é um retrato de uma data
+  // (ex.: 10/11), então o mês dela e os seguintes são PARCIAIS, e o mês logo
+  // antes ainda pode estar em cobrança. Totais e comparações só usam meses
+  // anteriores ao mês da planilha.
+  function relMeses() {
+    const m = state.rel.mensal;
+    const ref = new Date(`${m.planilhaAtualizadaEm}T12:00:00`);
+    const idxRef = idxMes(ref.getFullYear(), ref.getMonth() + 1);
+    const vistos = new Map();
+    m.serie.forEach((r) => {
+      const k = idxMes(r.ano, r.mes);
+      if (!vistos.has(k)) vistos.set(k, { ano: r.ano, mes: r.mes, idx: k, arrecadado: 0, pagantes: 0, naoPagaram: 0, especiais: 0, porClube: {} });
+      const v = vistos.get(k);
+      v.arrecadado += r.arrecadado; v.pagantes += r.pagantes; v.naoPagaram += r.naoPagaram; v.especiais += r.especiais;
+      v.porClube[r.clube] = { arrecadado: r.arrecadado, pagantes: r.pagantes, naoPagaram: r.naoPagaram };
+    });
+    const todos = [...vistos.values()].sort((a, b) => a.idx - b.idx).map((v) => ({ ...v, parcial: v.idx >= idxRef, emCobranca: v.idx === idxRef - 1 }));
+    return { todos, fechados: todos.filter((v) => !v.parcial) };
+  }
+
+  function relSoma(meses) {
+    const s = { arrecadado: 0, pagantes: 0, naoPagaram: 0, n: meses.length, porClube: { cepe_atpn: { arrecadado: 0, pagantes: 0, naoPagaram: 0 }, cepe: { arrecadado: 0, pagantes: 0, naoPagaram: 0 } } };
+    meses.forEach((m) => {
+      s.arrecadado += m.arrecadado; s.pagantes += m.pagantes; s.naoPagaram += m.naoPagaram;
+      Object.entries(m.porClube).forEach(([c, v]) => { const x = s.porClube[c]; if (x) { x.arrecadado += v.arrecadado; x.pagantes += v.pagantes; x.naoPagaram += v.naoPagaram; } });
+    });
+    s.ticket = s.pagantes ? s.arrecadado / s.pagantes : 0;
+    s.taxaInad = (s.pagantes + s.naoPagaram) ? s.naoPagaram / (s.pagantes + s.naoPagaram) * 100 : 0;
+    return s;
+  }
+
+  function relDelta(atual, anterior, inverso) {
+    if (anterior == null || !anterior) return '';
+    const pct = (atual - anterior) / anterior * 100;
+    if (Math.abs(pct) < 0.05) return '<span class="placeholder">= igual ao período anterior</span>';
+    const bom = inverso ? pct < 0 : pct > 0;
+    return `<span class="${bom ? 'rel-delta-pos' : 'rel-delta-neg'}">${pct > 0 ? '▲' : '▼'} ${Math.abs(pct).toFixed(1).replace('.', ',')}%</span> <span class="placeholder">vs. período anterior</span>`;
+  }
+
+  function relPeriodo(meses) {
+    const fech = meses.fechados;
+    const preset = state.relPeriodo;
+    let atual;
+    if (preset === 'ano') atual = fech;
+    else if (preset === '3m') atual = fech.slice(-3);
+    else atual = fech.slice(-1);
+    let anterior = null;
+    if (preset !== 'ano' && atual.length) {
+      const ini = atual[0].idx;
+      const ant = fech.filter((m) => m.idx >= ini - atual.length && m.idx < ini);
+      if (ant.length === atual.length) anterior = ant;
+    }
+    return { atual, anterior };
+  }
+
+  function relRotuloPeriodo(lista) {
+    if (!lista.length) return '—';
+    const f = (m) => `${NOMES_MES_CURTO[m.mes - 1]}/${String(m.ano).slice(2)}`;
+    return lista.length === 1 ? f(lista[0]) : `${f(lista[0])} a ${f(lista[lista.length - 1])}`;
+  }
+
+  function relAbaMensalidades() {
+    const meses = relMeses();
+    if (!meses.fechados.length) return '<p class="placeholder">Ainda não há mês fechado na planilha.</p>';
+    const { atual, anterior } = relPeriodo(meses);
+    const S = relSoma(atual);
+    const P = anterior ? relSoma(anterior) : null;
+    const cartao = (rotulo, valor, sub, classe) => `<div class="cartao-resumo"><span class="cartao-resumo-label">${rotulo}</span><strong class="cartao-resumo-valor ${classe || ''}">${valor}</strong><span class="cartao-resumo-label">${sub || ''}</span></div>`;
+    const mediaPag = S.n ? Math.round(S.pagantes / S.n) : 0;
+    const maxArr = Math.max(...meses.todos.map((m) => m.arrecadado), 1);
+    const barras = meses.todos.map((m) => `
+      <div class="rel-barra ${m.parcial ? 'parcial' : ''}" title="${NOMES_MES_CURTO[m.mes - 1]}/${m.ano}: ${formatarMoeda(m.arrecadado)} · ${m.pagantes} pagantes${m.parcial ? ' · mês parcial (planilha de ' + state.rel.mensal.planilhaAtualizadaEm.split('-').reverse().join('/') + ')' : m.emCobranca ? ' · ainda em cobrança' : ''}">
+        <div class="rel-barra-fill" style="height:${(m.arrecadado / maxArr * 100).toFixed(1)}%"></div>
+      </div>`).join('');
+    const rotulos = meses.todos.map((m) => `<span>${NOMES_MES_CURTO[m.mes - 1]}${m.emCobranca ? '*' : ''}</span>`).join('');
+    const linhaClube = (c) => {
+      const x = S.porClube[c];
+      const t = x.pagantes ? x.arrecadado / x.pagantes : 0;
+      const p = (x.pagantes + x.naoPagaram) ? x.naoPagaram / (x.pagantes + x.naoPagaram) * 100 : 0;
+      return `<tr><td>${REL_CLUBE[c]}</td><td>${formatarMoeda(x.arrecadado)}</td><td>${S.arrecadado ? (x.arrecadado / S.arrecadado * 100).toFixed(0) : 0}%</td><td>${S.n ? Math.round(x.pagantes / S.n) : 0}</td><td>${formatarMoeda(t)}</td><td>${p.toFixed(1).replace('.', ',')}%</td></tr>`;
+    };
+    const presetBtn = (id, rot) => `<button class="${state.relPeriodo === id ? 'ativa' : ''}" data-rel="periodo" data-valor="${id}">${rot}</button>`;
+    return `
+      <div class="abas-secundarias">${presetBtn('ultimo', 'Último mês')}${presetBtn('3m', 'Últimos 3 meses')}${presetBtn('ano', 'Ano 2026')}</div>
+      <p class="placeholder">Período: <strong>${esc(relRotuloPeriodo(atual))}</strong>${anterior ? ` · comparado com ${esc(relRotuloPeriodo(anterior))}` : ''}${atual.some((m) => m.emCobranca) ? ' · <strong>inclui um mês ainda em cobrança</strong> (pagamentos podem subir e a inadimplência cair)' : ''}</p>
+      <div class="cartoes-resumo">
+        ${cartao('Arrecadado (planilha)', formatarMoeda(S.arrecadado), relDelta(S.arrecadado, P && P.arrecadado), 'cor-receita')}
+        ${cartao('Pagantes por mês (média)', mediaPag, P ? relDelta(S.pagantes / S.n, P.pagantes / P.n) : '')}
+        ${cartao('Ticket médio', formatarMoeda(S.ticket), P ? relDelta(S.ticket, P.ticket) : '')}
+        ${cartao('Inadimplência', S.taxaInad.toFixed(1).replace('.', ',') + '%', P ? relDelta(S.taxaInad, P.taxaInad, true) : 'não pagaram ÷ (pagaram + não pagaram)', S.taxaInad > 8 ? 'cor-atraso' : '')}
+      </div>
+      <div style="overflow-x:auto;"><table class="tabela-lista">
+        <thead><tr><th>Clube</th><th>Arrecadado</th><th>% do total</th><th>Pagantes/mês</th><th>Ticket</th><th>Inadimplência</th></tr></thead>
+        <tbody>${linhaClube('cepe_atpn')}${linhaClube('cepe')}</tbody>
+      </table></div>
+      <h3>Arrecadação mês a mês — 2026</h3>
+      <div class="rel-barras">${barras}</div>
+      <div class="rel-barra-rot">${rotulos}</div>
+      <p class="placeholder">Barras listradas = mês parcial (a planilha é de ${esc(state.rel.mensal.planilhaAtualizadaEm.split('-').reverse().join('/'))}). * = mês ainda em cobrança, pode subir. Passe o mouse para ver os valores.</p>
+      <p class="placeholder">Os valores são os lançados na planilha dos sócios, não o caixa conferido. Linhas repetidas na planilha (mesma matrícula e nome) entram uma vez, então o total pode ficar uns 0,6% abaixo do total do rodapé da planilha. Só 2026: os meses de 2024/2025 existem apenas para quem já saiu e dariam um total falso.</p>`;
+  }
+
+  function relBarraH(rotulo, n, max) {
+    return `<div class="rel-hbar"><span class="rel-hbar-nome">${esc(rotulo)}</span><div class="rel-hbar-trilho"><div class="rel-hbar-fill" style="width:${max ? (n / max * 100).toFixed(1) : 0}%"></div></div><strong>${n}</strong></div>`;
+  }
+
+  function relAbaSocios() {
+    const d = state.rel.socios;
+    const n = (clube, status) => (d.porStatus.find((r) => r.clube === clube && r.status === status) || { n: 0 }).n;
+    const linha = (clube) => {
+      const ativos = ['em_dia', 'ate_2_meses', '3_a_5_meses', '6_meses_ou_mais'].reduce((s, st) => s + n(clube, st), 0);
+      return `<tr><td>${REL_CLUBE[clube]}</td><td>${ativos}</td><td class="cor-receita">${n(clube, 'em_dia')}</td><td>${n(clube, 'ate_2_meses')}</td><td>${n(clube, '3_a_5_meses')}</td><td class="cor-atraso">${n(clube, '6_meses_ou_mais')}</td><td>${n(clube, 'desligado')}</td></tr>`;
+    };
+    const cat = (clube, c) => (d.porCategoria.find((r) => r.clube === clube && r.categoria === c) || { n: 0 }).n;
+    const maxMot = Math.max(...d.motivosDesligamento.map((m) => m.n), 1);
+    const maxEsp = Math.max(...d.situacoesEspeciais.map((m) => m.n), 1);
+    return `
+      <p class="placeholder">Retrato da planilha de ${esc(d.atualizadoEm.split('-').reverse().join('/'))}.</p>
+      <h3>Situação dos sócios</h3>
+      <div style="overflow-x:auto;"><table class="tabela-lista">
+        <thead><tr><th>Clube</th><th>Ativos</th><th>Em dia</th><th>Até 2 meses</th><th>3 a 5 meses</th><th>6+ meses</th><th>Desligados</th></tr></thead>
+        <tbody>${linha('cepe_atpn')}${linha('cepe')}</tbody>
+      </table></div>
+      <h3>Ativos por categoria</h3>
+      <div style="overflow-x:auto;"><table class="tabela-lista">
+        <thead><tr><th>Clube</th>${Object.values(REL_CATEGORIA).map((c) => `<th>${c}</th>`).join('')}</tr></thead>
+        <tbody>${['cepe_atpn', 'cepe'].map((cl) => `<tr><td>${REL_CLUBE[cl]}</td>${Object.keys(REL_CATEGORIA).map((c) => `<td>${cat(cl, c)}</td>`).join('')}</tr>`).join('')}</tbody>
+      </table></div>
+      <p class="placeholder">"Não identificada" = categoria da planilha que não é efetivo nem contribuinte (alunos, funcionários, convidados etc.).</p>
+      ${d.situacoesEspeciais.length ? `<h3>Situações especiais (ativos)</h3>${d.situacoesEspeciais.map((s) => relBarraH(s.situacao, s.n, maxEsp)).join('')}` : ''}
+      <h3>Por que saíram (desligados)</h3>
+      ${d.motivosDesligamento.map((m) => relBarraH(m.motivo, m.n, maxMot)).join('')}`;
+  }
+
+  function relAbaInadimplentes() {
+    const l = state.rel.inad;
+    const clubeBtn = (v, r) => `<button class="${state.relInadClube === v ? 'ativa' : ''}" data-rel="inad-clube" data-valor="${v}">${r}</button>`;
+    const faixaBtn = (v, r) => `<button class="${state.relInadFaixa === v ? 'ativa' : ''}" data-rel="inad-faixa" data-valor="${v}">${r}</button>`;
+    const linhas = l.socios.map((s) => `
+      <tr>
+        <td>${esc(s.nome)}</td><td>${esc(s.matricula || '—')}</td><td>${REL_CLUBE[s.clube]}</td>
+        <td><strong class="cor-atraso">${s.mesesEmAberto}</strong> <span class="placeholder">(${esc(REL_STATUS[s.status])})</span></td>
+        <td>${s.ultimoPagamento ? `${esc(s.ultimoPagamento)} · ${formatarMoeda(s.ultimoValor)}` : '<span class="placeholder">nenhum em 2026</span>'}</td>
+        <td>${esc(s.telefone || '—')}</td>
+      </tr>`).join('') || '<tr><td colspan="6" class="placeholder">Nenhum sócio nessa seleção.</td></tr>';
+    return `
+      <div class="abas-secundarias">${clubeBtn('cepe_atpn', 'ATPN')}${clubeBtn('cepe', 'CEPE')}${clubeBtn('todos', 'Todos')}</div>
+      <div class="abas-secundarias">${faixaBtn('todas', 'Qualquer atraso')}${faixaBtn('ate_2_meses', 'Até 2 meses')}${faixaBtn('3_a_5_meses', '3 a 5 meses')}${faixaBtn('6_meses_ou_mais', '6 meses ou mais')}</div>
+      <p><strong>${l.total}</strong> sócio${l.total === 1 ? '' : 's'} em atraso${l.total > l.socios.length ? ` (mostrando ${l.socios.length})` : ''}.
+        <button class="botao" data-rel="csv">Baixar CSV</button></p>
+      <div style="overflow-x:auto;"><table class="tabela-lista">
+        <thead><tr><th>Nome</th><th>Matrícula</th><th>Clube</th><th>Meses em aberto</th><th>Último pagamento</th><th>Telefone</th></tr></thead>
+        <tbody>${linhas}</tbody>
+      </table></div>
+      <p class="placeholder">Meses em aberto = meses seguidos com valor zero, contando de trás pra frente (mesma regra da planilha). Quem tem "sem margem", INSS, abonado etc. não entra como atraso.</p>`;
+  }
+
+  function viewRelatorios() {
+    const cab = '<h2>Relatórios</h2>';
+    if (state.relErro) return `${cab}<div class="secao"><p>Não foi possível carregar (${esc(state.relErro)}). Isso é falha de carregamento, não "zero". <button class="botao" data-rel="recarregar">Tentar de novo</button></p></div>`;
+    if (!state.rel) return `${cab}<p class="placeholder">Carregando…</p>`;
+    const abaBtn = (id, r) => `<button class="${state.relAba === id ? 'ativa' : ''}" data-rel="aba" data-valor="${id}">${r}</button>`;
+    const corpo = state.relAba === 'socios' ? relAbaSocios() : state.relAba === 'inadimplentes' ? relAbaInadimplentes() : relAbaMensalidades();
+    return `${cab}<div class="abas-secundarias">${abaBtn('mensalidades', 'Mensalidades')}${abaBtn('socios', 'Sócios')}${abaBtn('inadimplentes', 'Inadimplentes')}</div><div class="secao">${corpo}</div>`;
+  }
+
+  async function carregarInadimplentes() {
+    const p = new URLSearchParams();
+    if (state.relInadClube !== 'todos') p.set('clube', state.relInadClube);
+    if (state.relInadFaixa !== 'todas') p.set('status', state.relInadFaixa);
+    state.rel.inad = await api(`/relatorios/inadimplentes?${p.toString()}`);
+  }
+
+  async function carregarRelatorios() {
+    state.relErro = null;
+    try {
+      const [socios, mensal] = await Promise.all([api('/relatorios/socios'), api('/relatorios/mensalidades')]);
+      state.rel = { socios, mensal, inad: { total: 0, socios: [] } };
+      await carregarInadimplentes();
+    } catch (err) {
+      state.rel = null;
+      state.relErro = err.message;
+    }
+  }
+
+  async function baixarInadimplentesCsv() {
+    const p = new URLSearchParams();
+    if (state.relInadClube !== 'todos') p.set('clube', state.relInadClube);
+    if (state.relInadFaixa !== 'todas') p.set('status', state.relInadFaixa);
+    try {
+      const resp = await fetch(`${API_BASE}/relatorios/inadimplentes.csv?${p.toString()}`, { headers: { Authorization: `Bearer ${state.token}` } });
+      if (!resp.ok) throw new Error('Não foi possível gerar o CSV');
+      const url = URL.createObjectURL(await resp.blob());
+      const a = document.createElement('a');
+      a.href = url; a.download = 'inadimplentes-atpn.csv';
+      document.body.appendChild(a); a.click(); a.remove();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      alert(err.message);
+    }
+  }
+
+  async function acaoRelatorio(el) {
+    const tipo = el.dataset.rel;
+    const v = el.dataset.valor;
+    if (tipo === 'aba') state.relAba = v;
+    else if (tipo === 'periodo') state.relPeriodo = v;
+    else if (tipo === 'inad-clube') { state.relInadClube = v; await carregarInadimplentes(); }
+    else if (tipo === 'inad-faixa') { state.relInadFaixa = v; await carregarInadimplentes(); }
+    else if (tipo === 'csv') { await baixarInadimplentesCsv(); return; }
+    else if (tipo === 'recarregar') { state.rel = null; render(); await carregarRelatorios(); }
+    render();
+  }
+
+  // ---------- dados da associação e horário ----------
+  const NOMES_DIA_LONGO = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
+
+  function secaoAssociacaoHtml() {
+    const a = state.configAssoc;
+    if (!a) return '<div class="secao"><h3>Dados da associação</h3><p>Não foi possível carregar os dados da associação. Isso é falha de carregamento, não "vazio" — recarregue a página antes de salvar.</p></div>';
+    const v = a.valor;
+    const campo = (id, rotulo, valor, extra) => `<label class="campo-assoc"><span>${rotulo}</span><input id="${id}" value="${esc(valor)}" ${extra || ''} /></label>`;
+    const horas = (i, t) => {
+      const x = (v.horario.dias[i].turnos || [])[t] || { abre: '', fecha: '' };
+      const dis = v.horario.dias[i].fechado ? 'disabled' : '';
+      return `<span class="h-turno">
+          <input type="time" class="as-h" data-dia="${i}" data-turno="${t}" data-campo="abre" value="${esc(x.abre)}" ${dis} aria-label="Abre ${t + 1}" />
+          <span>às</span>
+          <input type="time" class="as-h" data-dia="${i}" data-turno="${t}" data-campo="fecha" value="${esc(x.fecha)}" ${dis} aria-label="Fecha ${t + 1}" />
+        </span>`;
+    };
+    const linhasHorario = NOMES_DIA_LONGO.map((nome, i) => `
+      <div class="linha-horario">
+        <label class="h-dia"><input type="checkbox" class="as-h-fechado" data-dia="${i}" ${v.horario.dias[i].fechado ? 'checked' : ''} /> ${nome} — fechado</label>
+        ${horas(i, 0)}${horas(i, 1)}
+      </div>`).join('');
+    return `
+      <div class="secao">
+        <h3>Dados da associação</h3>
+        <p class="placeholder">${a.configurado ? `Última alteração em ${esc(new Date(a.atualizadoEm).toLocaleString('pt-BR'))}. Versões anteriores ficam no Histórico.` : 'Ainda não preenchido — os campos abaixo são só o ponto de partida.'}</p>
+        <div class="grade-assoc">
+          ${campo('as-nome', 'Nome da associação', v.nome, 'maxlength="120"')}
+          ${campo('as-telefone', 'Telefone', v.telefone, 'maxlength="30" inputmode="tel"')}
+          ${campo('as-whatsapp', 'WhatsApp (só números, com DDI+DDD)', v.whatsapp, 'maxlength="20" inputmode="numeric" placeholder="5584999999999"')}
+          ${campo('as-email', 'E-mail', v.email, 'maxlength="120" inputmode="email"')}
+          ${campo('as-instagram', 'Instagram (link completo)', v.instagram, 'maxlength="200" placeholder="https://www.instagram.com/..."')}
+          ${campo('as-endereco', 'Endereço', v.endereco, 'maxlength="250"')}
+        </div>
+        <h3>Horário de funcionamento</h3>
+        <p class="placeholder">Até dois turnos por dia (por exemplo, manhã e noite). Deixe o segundo em branco se só tem um.</p>
+        ${linhasHorario}
+        <div class="linha-form"><button class="botao" data-assoc="salvar">Salvar dados e horário</button></div>
+      </div>`;
+  }
+
+  function lerAssociacaoDaTela() {
+    const val = (id) => document.getElementById(id).value;
+    const dias = NOMES_DIA_LONGO.map((_, i) => {
+      const fechado = document.querySelector(`.as-h-fechado[data-dia="${i}"]`).checked;
+      const turnos = [0, 1].map((t) => ({
+        abre: document.querySelector(`.as-h[data-dia="${i}"][data-turno="${t}"][data-campo="abre"]`).value,
+        fecha: document.querySelector(`.as-h[data-dia="${i}"][data-turno="${t}"][data-campo="fecha"]`).value,
+      }));
+      return { fechado, turnos };
+    });
+    return {
+      nome: val('as-nome'), telefone: val('as-telefone'), whatsapp: val('as-whatsapp'),
+      email: val('as-email'), instagram: val('as-instagram'), endereco: val('as-endereco'),
+      horario: { dias },
+    };
+  }
+
+  async function salvarAssociacaoTela() {
+    try {
+      state.configAssoc = await api('/config/associacao', { method: 'PUT', body: lerAssociacaoDaTela() });
+      state.historicoVersoes = null;
+      render();
+      alert('Dados e horário salvos.');
+    } catch (err) {
+      alert(err.message);
+    }
+  }
+
+  // ---------- histórico de versões (só Administrador) ----------
+  const HIST_TIPOS = [
+    { id: 'associacao', rotulo: 'Dados da associação' },
+    { id: 'permissoes', rotulo: 'Permissões por cargo' },
+    { id: 'pessoas', rotulo: 'Equipe' },
+  ];
+
+  async function carregarHistorico() {
+    state.historicoErro = null;
+    try {
+      state.historicoVersoes = await api(`/historico?tipo=${state.historicoTipo}`);
+    } catch (err) {
+      state.historicoVersoes = null;
+      state.historicoErro = err.message;
+    }
+    render();
+  }
+
+  function viewHistorico() {
+    const chips = HIST_TIPOS.map((t) => `<button class="${state.historicoTipo === t.id ? 'ativa' : ''}" data-hist="tipo" data-valor="${t.id}">${t.rotulo}</button>`).join('');
+    let corpo;
+    if (state.historicoErro) corpo = `<p>Não foi possível carregar (${esc(state.historicoErro)}). Isso é falha de carregamento, não "sem versões". <button class="botao" data-hist="recarregar">Tentar de novo</button></p>`;
+    else if (!state.historicoVersoes) corpo = '<p class="placeholder">Carregando…</p>';
+    else if (!state.historicoVersoes.length) corpo = '<p class="placeholder">Nenhuma versão guardada ainda. Toda vez que isso for alterado, a versão anterior aparece aqui.</p>';
+    else {
+      corpo = state.historicoVersoes.map((v, i) => `
+        <div class="item-historico">
+          <div>
+            <strong>${esc(new Date(v.alteradoEm).toLocaleString('pt-BR'))}</strong> <span class="placeholder">por ${esc(v.alteradoPor)}${i === 0 ? ' · alteração mais recente' : ''}</span>
+            <div class="placeholder">${esc(v.resumo)}</div>
+          </div>
+          <button class="botao" data-hist="restaurar" data-valor="${v.id}">Restaurar esta versão</button>
+        </div>`).join('');
+    }
+    return `
+      <h2>Histórico de versões</h2>
+      <div class="secao">
+        <p class="placeholder">Guarda as últimas 50 versões anteriores. "Restaurar" volta ao estado que a pessoa tinha <em>antes</em> daquela alteração, e o estado de agora também fica guardado — dá pra desfazer a restauração. PIN nunca é guardado.</p>
+        <div class="abas-secundarias">${chips}</div>
+        ${corpo}
+      </div>`;
+  }
+
+  async function acaoHistorico(el) {
+    const tipo = el.dataset.hist;
+    if (tipo === 'tipo') {
+      state.historicoTipo = el.dataset.valor;
+      state.historicoVersoes = null;
+      render();
+      await carregarHistorico();
+    } else if (tipo === 'recarregar') {
+      state.historicoVersoes = null;
+      render();
+      await carregarHistorico();
+    } else if (tipo === 'restaurar') {
+      if (!confirm('Restaurar esta versão? O estado de agora fica guardado no histórico.')) return;
+      try {
+        await api(`/historico/${el.dataset.valor}/restaurar`, { method: 'POST' });
+        // o que foi restaurado pode mudar a tela de Configurações e as abas do menu
+        state.configCarregado = false;
+        state.configAssoc = null;
+        state.abas = await api('/auth/me/abas');
+        await carregarHistorico();
+        alert('Versão restaurada.');
+      } catch (err) {
+        alert(err.message);
+      }
+    }
+  }
+
+  // ---------- início ----------
+  const ETAPA_LABEL = { abertura: 'Abertura', durante_dia: 'Durante o dia', fechamento: 'Fechamento' };
+
+  function viewInicio() {
+    const nome = (state.usuario.nome || '').split(' ')[0];
+    const cab = `<h2>Início</h2><p class="placeholder">Olá, ${esc(nome)} — ${esc(new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' }))}</p>`;
+    if (!state.inicioCarregado) return `${cab}<p class="placeholder">Carregando…</p>`;
+    if (state.inicioErro || !state.inicio) {
+      return `${cab}<div class="secao"><p>Não foi possível carregar o resumo (${esc(state.inicioErro || 'erro')}). Os números abaixo <strong>não</strong> são zero — é falha de carregamento. Tente de novo.</p>
+        <button class="botao" data-nav="inicio">Tentar de novo</button></div>`;
+    }
+    const d = state.inicio;
+    const blocos = [];
+    const cartao = (rotulo, valor, classe) => `<div class="cartao-resumo"><span class="cartao-resumo-label">${rotulo}</span><strong class="cartao-resumo-valor ${classe || ''}">${valor}</strong></div>`;
+    const ver = (aba, texto) => (state.abas.some((a) => a.id === aba) ? `<p><button class="botao-ir" data-nav="${aba}">${texto} →</button></p>` : '');
+
+    if (d.socios) {
+      const g = d.socios.grupos;
+      const linha = (nomeGrupo, x) => `<tr><td>${nomeGrupo}</td><td>${x.total - x.desligados}</td><td class="cor-receita">${x.emDia}</td><td class="cor-atraso">${x.atrasados}</td><td>${x.seisOuMais}</td><td>${x.desligados}</td></tr>`;
+      blocos.push(`
+        <div class="secao">
+          <h3>Sócios</h3>
+          <div class="cartoes-resumo">
+            ${cartao('Sócios ativos', g.todos.total - g.todos.desligados)}
+            ${cartao('Em dia', g.todos.emDia, 'cor-receita')}
+            ${cartao('Com atraso', g.todos.atrasados, 'cor-atraso')}
+            ${cartao('6 meses ou mais', g.todos.seisOuMais, g.todos.seisOuMais ? 'cor-atraso' : '')}
+          </div>
+          <div style="overflow-x:auto;"><table class="tabela-lista">
+            <thead><tr><th></th><th>Ativos</th><th>Em dia</th><th>Atraso</th><th>6+ meses</th><th>Desligados</th></tr></thead>
+            <tbody>${linha('ATPN', g.cepe_atpn)}${linha('CEPE', g.cepe)}</tbody>
+          </table></div>
+          ${d.socios.atualizadoEm ? `<p class="placeholder">Planilha atualizada em ${esc(formatarDataExibicao(d.socios.atualizadoEm))}.</p>` : ''}
+          ${ver('socios', 'Ver sócios')}
+        </div>`);
+    }
+
+    if (d.caixa) {
+      blocos.push(`
+        <div class="secao">
+          <h3>Caixa do mês</h3>
+          <div class="cartoes-resumo">
+            ${cartao('Receitas', formatarMoeda(d.caixa.receitas), 'cor-receita')}
+            ${cartao('Despesas', formatarMoeda(d.caixa.despesas), 'cor-atraso')}
+            ${cartao('Saldo', formatarMoeda(d.caixa.saldo), d.caixa.saldo >= 0 ? 'cor-receita' : 'cor-atraso')}
+          </div>
+          ${d.caixa.mensalidades > 0 ? `<p class="placeholder">Receitas incluem ${formatarMoeda(d.caixa.mensalidades)} de mensalidades da planilha${d.caixa.mensalidadesParcial ? ' (mês parcial: a planilha ainda não cobre o mês todo)' : ''}.</p>` : ''}
+          ${ver('fluxo_caixa', 'Abrir fluxo de caixa')}
+        </div>`);
+    }
+
+    if (d.tarefas) {
+      const t = d.tarefas;
+      blocos.push(`
+        <div class="secao">
+          <h3>Tarefas de hoje</h3>
+          ${t.total === 0 ? '<p class="placeholder">Nenhuma tarefa para hoje.</p>' : `
+            <div class="cartoes-resumo">
+              ${cartao('Concluídas', `${t.concluidas}/${t.total}`, t.pendentesTotal === 0 ? 'cor-receita' : '')}
+              ${cartao('Pendentes', t.pendentesTotal, t.pendentesTotal ? 'cor-atraso' : '')}
+            </div>
+            ${t.pendentes.map((p) => `<div>• ${esc(p.titulo)} <span class="placeholder">(${esc(ETAPA_LABEL[p.etapa] || p.etapa)}${state.usuario.administrador ? ' · ' + esc(p.cargoNome) : ''})</span></div>`).join('')}
+            ${t.pendentesTotal > t.pendentes.length ? `<p class="placeholder">e mais ${t.pendentesTotal - t.pendentes.length}…</p>` : ''}`}
+          ${ver('tarefas', 'Abrir tarefas')}
+        </div>`);
+    }
+
+    if (d.eventos) {
+      const hojeStr = dataLocalStr(new Date());
+      const fers = [];
+      for (let i = 0; i <= 14; i++) {
+        const dia = new Date(); dia.setDate(dia.getDate() + i);
+        const s = dataLocalStr(dia);
+        feriadosDoDia(s).forEach((f) => fers.push({ data: s, ...f }));
+      }
+      blocos.push(`
+        <div class="secao">
+          <h3>Próximos 7 dias</h3>
+          ${d.eventos.configurado === false ? '<p class="placeholder">Integração com o PDV Jabá não configurada.</p>'
+            : d.eventos.erro ? '<p>Não foi possível ler a agenda do PDV Jabá agora (isso não significa que não há eventos).</p>'
+            : (d.eventos.eventos.length ? `<table class="tabela-lista"><tbody>${d.eventos.eventos.map((e) => `
+                <tr><td>${e.data === hojeStr ? '<strong>Hoje</strong>' : esc(e.data.split('-').reverse().slice(0, 2).join('/'))}</td>
+                <td>${e.horaInicio ? esc(e.horaInicio) : '—'}</td><td>${esc(e.titulo)}</td><td>${esc(e.origem || '')}</td></tr>`).join('')}</tbody></table>`
+              : '<p class="placeholder">Nenhum evento nos próximos 7 dias.</p>')}
+          ${fers.length ? `<p class="placeholder">Feriados nos próximos 14 dias: ${fers.map((f) => `${esc(f.data.split('-').reverse().slice(0, 2).join('/'))} ${esc(f.nome)}`).join(' · ')}</p>` : ''}
+          ${ver(state.abas.some((a) => a.id === 'calendario') ? 'calendario' : 'eventos', 'Abrir agenda')}
+        </div>`);
+    }
+
+    if (d.ponto) {
+      const u = d.ponto.meuUltimo;
+      const hora = (iso) => new Date(iso).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+      blocos.push(`
+        <div class="secao">
+          <h3>Ponto</h3>
+          <p>${u ? `Seu último registro: <strong>${u.tipo === 'entrada' ? 'entrada' : 'saída'}</strong> em ${esc(hora(u.registradoEm))}.` : 'Você ainda não bateu ponto.'}</p>
+          ${d.ponto.presentes ? `<p><strong>Na casa agora (${d.ponto.presentes.length}):</strong> ${d.ponto.presentes.length ? d.ponto.presentes.map((p) => esc(p.nome)).join(', ') : '<span class="placeholder">ninguém com entrada registrada hoje</span>'}</p>` : ''}
+          ${ver('ponto', 'Bater ponto')}
+        </div>`);
+    }
+
+    return `${cab}${blocos.length ? blocos.join('') : '<div class="secao"><p class="placeholder">Seu cargo ainda não tem nenhuma aba liberada além do Início. Peça ao administrador em Configurações.</p></div>'}`;
+  }
+
+  // ---------- eventos (próximos 90 dias, só leitura, mesma agenda) ----------
+  function viewAgenda90() {
+    if (!state.eventosCarregado) return '<p class="placeholder">Carregando…</p>';
+    const linhas = state.eventosProximos.map((e) => `
+      <tr>
+        <td>${esc(e.data.split('-').reverse().join('/'))}</td>
+        <td>${e.horaInicio ? esc(e.horaInicio) + (e.horaFim ? '–' + esc(e.horaFim) : '') : '—'}</td>
+        <td>${esc(e.titulo)}</td>
+        <td>${esc(e.observacao || '—')}</td>
+        <td>${esc(e.origem || '—')}</td>
+      </tr>`).join('') || '<tr><td colspan="5" class="placeholder">Nenhum evento nos próximos 90 dias.</td></tr>';
+    return `
+      <div class="secao">
+        <p class="placeholder">Próximos 90 dias — eventos e reservas do espaço (agenda compartilhada com o PDV Jabá) e os da ATPN. Reservas da ATPN só aparecem aqui depois de confirmadas.</p>
+        <table class="tabela-lista">
+          <thead><tr><th>Data</th><th>Horário</th><th>Evento</th><th>Detalhes</th><th>Origem</th></tr></thead>
+          <tbody>${linhas}</tbody>
+        </table>
+      </div>`;
+  }
+
+  // ---------- eventos / reservas da ATPN (funil + conflito de espaço) ----------
+  const STATUS_RESERVA = { novo: 'Novo', negociando: 'Em negociação', confirmado: 'Confirmado', recusado: 'Recusado', concluido: 'Concluído' };
+  const FILTROS_RESERVA = [['abertas', 'Em aberto'], ['confirmadas', 'Confirmadas'], ['encerradas', 'Recusadas / concluídas'], ['todas', 'Todas']];
+  // próximos passos de cada status: [status destino, rótulo]
+  const ACOES_RESERVA = {
+    novo: [['negociando', 'Negociar'], ['confirmado', 'Confirmar'], ['recusado', 'Recusar']],
+    negociando: [['confirmado', 'Confirmar'], ['recusado', 'Recusar'], ['novo', 'Voltar p/ novo']],
+    confirmado: [['concluido', 'Concluir'], ['negociando', 'Voltar p/ negociação'], ['recusado', 'Recusar']],
+    recusado: [['novo', 'Reabrir']],
+    concluido: [['confirmado', 'Reabrir como confirmado']],
+  };
+
+  function textoConflito(c) {
+    const quando = c.horaInicio ? `${c.horaInicio}${c.horaFim ? '–' + c.horaFim : ''}` : 'sem horário';
+    const rotulo = c.motivo === 'sobrepoe' ? 'Horário sobreposto' : 'Mesmo dia, sem horário pra comparar';
+    return `${rotulo}: ${c.titulo} (${c.origem || '?'}, ${quando})`;
+  }
+
+  function cartaoReservaHtml(r, ehAdmin) {
+    const data = new Date(`${r.data}T12:00:00`);
+    const dia = data.toLocaleDateString('pt-BR', { weekday: 'short', day: '2-digit', month: '2-digit', year: 'numeric' });
+    const passou = ['novo', 'negociando', 'confirmado'].includes(r.status) && r.data < dataLocalStr(new Date());
+    const aberta = r.status === 'novo' || r.status === 'negociando';
+    let conflito = '';
+    if (aberta) {
+      if (r.conflitos === null) conflito = '<div class="aviso-conflito aviso-incerto">Não foi possível checar conflitos agora (agenda do PDV indisponível) — isso não significa que está livre.</div>';
+      else if (state.reservas && state.reservas.configurado === false) conflito = '<div class="aviso-conflito aviso-incerto">Integração com o PDV Jabá não configurada: conflitos não são checados.</div>';
+      else if (r.conflitos && r.conflitos.length) conflito = r.conflitos.map((c) => `<div class="aviso-conflito ${c.motivo === 'sobrepoe' ? 'aviso-forte' : ''}">⚠ ${esc(textoConflito(c))}</div>`).join('');
+      else conflito = '<div class="aviso-livre">✓ Nenhum conflito de espaço nesse dia.</div>';
+    }
+    const acoes = ehAdmin ? `
+      <div class="acoes-reserva">
+        ${(ACOES_RESERVA[r.status] || []).map(([s, rot]) => `<button class="botao" data-rv="status" data-id="${r.id}" data-valor="${s}">${rot}</button>`).join('')}
+        <button class="botao-link" data-rv="editar" data-id="${r.id}">editar</button>
+        <button class="botao-link" data-rv="excluir" data-id="${r.id}">excluir</button>
+      </div>` : '';
+    return `
+      <div class="cartao-reserva status-${esc(r.status)}">
+        <div class="topo-reserva">
+          <div><strong>${esc(r.titulo)}</strong>
+            <div class="placeholder">📅 ${esc(dia)}${r.horaInicio ? ` · ${esc(r.horaInicio)}${r.horaFim ? '–' + esc(r.horaFim) : ''}` : ' · sem horário'}${r.numConvidados ? ` · 👥 ${r.numConvidados} pessoas` : ''}</div>
+            ${r.solicitante || r.telefone ? `<div class="placeholder">${esc(r.solicitante || '')}${r.telefone ? ' · ' + esc(r.telefone) : ''}</div>` : ''}
+            ${r.observacao ? `<div class="placeholder">${esc(r.observacao)}</div>` : ''}
+          </div>
+          <span class="tag-status tag-${esc(r.status)}">${esc(STATUS_RESERVA[r.status])}</span>
+        </div>
+        ${passou ? '<div class="aviso-conflito">⚠ A data já passou — conclua, edite ou exclua.</div>' : ''}
+        ${conflito}
+        ${acoes}
+      </div>`;
+  }
+
+  function formReservaHtml() {
+    const e = state.reservaEditando; // null = nova
+    const v = (k) => esc(e ? (e[k] ?? '') : '');
+    return `
+      <div class="secao">
+        <h3>${e && e.id ? 'Editar reserva' : 'Nova reserva'}</h3>
+        <div class="grade-assoc">
+          <label class="campo-assoc"><span>Título (obrigatório)</span><input id="rv-titulo" maxlength="120" value="${v('titulo')}" placeholder="Ex.: Formatura Turma 2026" /></label>
+          <label class="campo-assoc"><span>Solicitante</span><input id="rv-solicitante" maxlength="100" value="${v('solicitante')}" /></label>
+          <label class="campo-assoc"><span>Telefone</span><input id="rv-telefone" maxlength="30" inputmode="tel" value="${v('telefone')}" /></label>
+          <label class="campo-assoc"><span>Data</span><input id="rv-data" type="date" value="${e ? esc(e.data) : ''}" /></label>
+          <label class="campo-assoc"><span>Início</span><input id="rv-inicio" type="time" value="${v('horaInicio')}" /></label>
+          <label class="campo-assoc"><span>Fim</span><input id="rv-fim" type="time" value="${v('horaFim')}" /></label>
+          <label class="campo-assoc"><span>Convidados</span><input id="rv-convidados" inputmode="numeric" maxlength="6" value="${v('numConvidados')}" /></label>
+          <label class="campo-assoc"><span>Observação</span><input id="rv-obs" maxlength="500" value="${v('observacao')}" /></label>
+        </div>
+        <div id="rv-conflito-previa" class="placeholder">Escolha a data (e o horário) pra ver se o espaço está livre.</div>
+        <div class="linha-form">
+          <button class="botao" data-rv="salvar">${e && e.id ? 'Salvar alterações' : 'Adicionar reserva'}</button>
+          ${e ? '<button class="botao" data-rv="cancelar-form">Cancelar</button>' : ''}
+        </div>
+      </div>`;
+  }
+
+  function viewEventos() {
+    const ehAdmin = state.usuario.administrador;
+    const abaBtn = (id, r) => `<button class="${state.eventosAba === id ? 'ativa' : ''}" data-rv="aba" data-valor="${id}">${r}</button>`;
+    let corpo;
+    if (state.eventosAba === 'agenda') {
+      corpo = viewAgenda90();
+    } else if (state.reservasErro) {
+      corpo = `<div class="secao"><p>Não foi possível carregar as reservas (${esc(state.reservasErro)}). Isso é falha de carregamento, não "nenhuma reserva". <button class="botao" data-rv="recarregar">Tentar de novo</button></p></div>`;
+    } else if (!state.reservas) {
+      corpo = '<p class="placeholder">Carregando…</p>';
+    } else {
+      const filtros = FILTROS_RESERVA.map(([id, r]) => `<button class="${state.reservasFiltro === id ? 'ativa' : ''}" data-rv="filtro" data-valor="${id}">${r}</button>`).join('');
+      const cartoes = state.reservas.reservas.map((r) => cartaoReservaHtml(r, ehAdmin)).join('')
+        || '<p class="placeholder">Nenhuma reserva nessa seleção.</p>';
+      corpo = `
+        ${ehAdmin ? formReservaHtml() : ''}
+        <div class="secao">
+          <p class="placeholder">Reservas e pedidos de evento no espaço da ATPN. <strong>Só as confirmadas entram na agenda compartilhada com o restaurante</strong> (e saem dela se voltarem pra negociação, forem recusadas ou excluídas). Antes de confirmar, o sistema avisa se já há algo marcado no mesmo dia — quem decide é o administrador.</p>
+          <div class="abas-secundarias">${filtros}</div>
+          ${cartoes}
+        </div>`;
+    }
+    return `<h2>Eventos</h2><div class="abas-secundarias">${abaBtn('reservas', 'Reservas da ATPN')}${abaBtn('agenda', 'Agenda (90 dias)')}</div>${corpo}`;
+  }
+
+  async function carregarReservas() {
+    state.reservasErro = null;
+    try {
+      state.reservas = await api(`/reservas?filtro=${state.reservasFiltro}`);
+    } catch (err) {
+      state.reservas = null;
+      state.reservasErro = err.message;
+    }
+  }
+
+  function lerFormReserva() {
+    const val = (id) => document.getElementById(id).value.trim();
+    return {
+      titulo: val('rv-titulo'), solicitante: val('rv-solicitante'), telefone: val('rv-telefone'),
+      data: val('rv-data'), horaInicio: val('rv-inicio'), horaFim: val('rv-fim'),
+      numConvidados: val('rv-convidados'), observacao: val('rv-obs'),
+    };
+  }
+
+  const listaConflitosTexto = (lista) => lista.map((c) => `• ${textoConflito(c)}`).join('\n');
+
+  // pré-visualização no formulário: mostra se o espaço está livre assim que a data/horário muda
+  async function previaConflitoForm() {
+    const alvo = document.getElementById('rv-conflito-previa');
+    if (!alvo) return;
+    const f = lerFormReserva();
+    if (!f.data) { alvo.className = 'placeholder'; alvo.textContent = 'Escolha a data (e o horário) pra ver se o espaço está livre.'; return; }
+    try {
+      const p = new URLSearchParams({ data: f.data, horaInicio: f.horaInicio, horaFim: f.horaFim });
+      if (state.reservaEditando && state.reservaEditando.id) p.set('ignorarId', state.reservaEditando.id);
+      const r = await api(`/reservas/conflitos?${p.toString()}`);
+      if (!r.configurado) { alvo.className = 'aviso-conflito aviso-incerto'; alvo.textContent = 'Integração com o PDV Jabá não configurada: conflitos não são checados.'; }
+      else if (r.conflitos.length) { alvo.className = ''; alvo.innerHTML = r.conflitos.map((c) => `<div class="aviso-conflito ${c.motivo === 'sobrepoe' ? 'aviso-forte' : ''}">⚠ ${esc(textoConflito(c))}</div>`).join(''); }
+      else { alvo.className = 'aviso-livre'; alvo.textContent = '✓ Nenhum conflito de espaço nesse dia.'; }
+    } catch (err) {
+      alvo.className = 'aviso-conflito aviso-incerto';
+      alvo.textContent = 'Não foi possível checar conflitos agora — isso não significa que está livre.';
+    }
+  }
+
+  async function acaoReserva(el) {
+    const tipo = el.dataset.rv;
+    const id = Number(el.dataset.id);
+    try {
+      if (tipo === 'aba') { state.eventosAba = el.dataset.valor; render(); return; }
+      if (tipo === 'filtro') { state.reservasFiltro = el.dataset.valor; await carregarReservas(); render(); return; }
+      if (tipo === 'recarregar') { state.reservas = null; render(); await carregarReservas(); render(); return; }
+      if (tipo === 'editar') { state.reservaEditando = state.reservas.reservas.find((r) => r.id === id) || null; render(); previaConflitoForm(); window.scrollTo({ top: 0, behavior: 'smooth' }); return; }
+      if (tipo === 'cancelar-form') { state.reservaEditando = null; render(); return; }
+      if (tipo === 'excluir') {
+        if (!confirm('Excluir essa reserva? Se estiver confirmada, ela também sai da agenda do restaurante.')) return;
+        await api(`/reservas/${id}`, { method: 'DELETE' });
+      } else if (tipo === 'status') {
+        try {
+          await api(`/reservas/${id}/status`, { method: 'POST', body: { status: el.dataset.valor } });
+        } catch (err) {
+          if (!err.conflitos) throw err;
+          if (!confirm(`Conflito de espaço:\n\n${listaConflitosTexto(err.conflitos)}\n\nConfirmar mesmo assim?`)) return;
+          await api(`/reservas/${id}/status`, { method: 'POST', body: { status: el.dataset.valor, forcar: true } });
+        }
+      } else if (tipo === 'salvar') {
+        const corpo = lerFormReserva();
+        const editando = state.reservaEditando && state.reservaEditando.id;
+        const chamar = (extra) => api(editando ? `/reservas/${editando}` : '/reservas', { method: editando ? 'PUT' : 'POST', body: { ...corpo, ...extra } });
+        try {
+          await chamar({});
+        } catch (err) {
+          if (!err.conflitos) throw err;
+          if (!confirm(`Conflito de espaço:\n\n${listaConflitosTexto(err.conflitos)}\n\nSalvar mesmo assim?`)) return;
+          await chamar({ forcar: true });
+        }
+        state.reservaEditando = null;
+      }
+      await carregarReservas();
+      state.eventosCarregado = false; // a agenda de 90 dias mudou (confirmadas entram/saem)
+      render();
+      carregarAgenda90();
+    } catch (err) {
+      alert(err.message);
+    }
+  }
+
+  async function carregarAgenda90() {
+    try {
+      const hoje = new Date();
+      const fim = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate() + 90);
+      const resposta = await api(`/calendario?inicio=${dataLocalStr(hoje)}&fim=${dataLocalStr(fim)}`);
+      state.eventosProximos = resposta.eventos;
+      state.eventosCarregado = true;
+    } catch (err) {
+      state.eventosProximos = [];
+      state.eventosCarregado = true;
+    }
+    if (state.abaAtual === 'eventos') render();
+  }
+
   // ---------- calendário (agenda compartilhada com o PDV Jabá) ----------
   function viewCalendario() {
     if (!state.calendarioCarregado) return '<h2>Calendário</h2><p class="placeholder">Carregando…</p>';
@@ -787,15 +1615,48 @@
         </div>`;
     }
 
+    const { ano, mes } = state.calendarioMesRef;
+    const hojeStr = dataLocalStr(new Date());
+    const diasNoMes = new Date(ano, mes + 1, 0).getDate();
+    const vaziasAntes = new Date(ano, mes, 1).getDay();
+    let celulas = '<div class="cal-cell cal-cell-vazia"></div>'.repeat(vaziasAntes);
+    for (let dia = 1; dia <= diasNoMes; dia++) {
+      const dataStr = `${ano}-${String(mes + 1).padStart(2, '0')}-${String(dia).padStart(2, '0')}`;
+      const evs = state.calendarioEventos.filter((e) => e.data === dataStr);
+      const fers = feriadosDoDia(dataStr);
+      const ehFeriado = fers.some((f) => f.tipo !== 'facultativo');
+      const classe = [
+        'cal-cell',
+        dataStr === hojeStr ? 'cal-cell-hoje' : '',
+        evs.length ? 'cal-cell-evento' : '',
+        ehFeriado ? 'cal-cell-feriado' : (fers.length ? 'cal-cell-facultativo' : ''),
+      ].join(' ');
+      celulas += `
+        <div class="${classe}">
+          <span class="cal-cell-num">${dia}</span>
+          ${fers.map((f) => `<div class="cal-chip ${f.tipo === 'facultativo' ? 'cal-chip-facultativo' : 'cal-chip-feriado'}" title="${esc(ROTULO_FERIADO[f.tipo])}">${esc(f.nome)}</div>`).join('')}
+          ${evs.map((e) => `<div class="cal-chip cal-chip-evento" title="${esc(e.titulo)}">${esc(e.titulo)}</div>`).join('')}
+        </div>`;
+    }
+
+    const feriadosDoMes = [];
+    for (let dia = 1; dia <= diasNoMes; dia++) {
+      const dataStr = `${ano}-${String(mes + 1).padStart(2, '0')}-${String(dia).padStart(2, '0')}`;
+      feriadosDoDia(dataStr).forEach((f) => feriadosDoMes.push({ data: dataStr, ...f }));
+    }
+
     const linhas = state.calendarioEventos.map((e) => `
       <tr>
         <td>${esc(e.data.split('-').reverse().join('/'))}</td>
         <td>${e.horaInicio ? esc(e.horaInicio) + (e.horaFim ? '–' + esc(e.horaFim) : '') : '—'}</td>
-        <td>${e.tipo === 'escala' ? 'Escala' : 'Evento'}</td>
-        <td>${esc(e.titulo)}${e.usuarioNome ? ` <span class="placeholder">(${esc(e.usuarioNome)})</span>` : ''}</td>
+        <td>${esc(e.titulo)}</td>
         <td>${esc(e.observacao || '—')}</td>
-        ${state.usuario.administrador ? `<td><button class="botao-link" data-action="remover-evento" data-id="${e.id}">remover</button></td>` : ''}
+        <td>${esc(e.origem || '—')}</td>
+        ${state.usuario.administrador ? `<td>${e.proprio ? `<button class="botao-link" data-action="remover-evento" data-id="${e.id}">remover</button>` : ''}</td>` : ''}
       </tr>`).join('') || `<tr><td colspan="${state.usuario.administrador ? 6 : 5}" class="placeholder">Nenhum evento no mês.</td></tr>`;
+
+    const linhasFeriados = feriadosDoMes.map((f) => `
+      <tr><td>${esc(f.data.split('-').reverse().join('/'))}</td><td>${esc(f.nome)}</td><td>${esc(ROTULO_FERIADO[f.tipo])}</td></tr>`).join('');
 
     return `
       <h2>Calendário</h2>
@@ -807,19 +1668,26 @@
         </div>
       </div>
       <div class="secao">
+        <div class="cal-legenda">
+          <span><i style="background:var(--ev-bg)"></i>Evento</span>
+          <span><i style="background:var(--fer-bg)"></i>Feriado</span>
+          <span><i style="background:var(--fer-soft)"></i>Ponto facultativo</span>
+        </div>
+        <div class="cal-grid-head">${['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb'].map((d) => `<div>${d}</div>`).join('')}</div>
+        <div class="cal-grid">${celulas}</div>
+      </div>
+      <div class="secao">
+        <h3>Eventos do mês</h3>
         <table class="tabela-lista">
-          <thead><tr><th>Data</th><th>Horário</th><th>Tipo</th><th>Título</th><th>Observação</th>${state.usuario.administrador ? '<th></th>' : ''}</tr></thead>
+          <thead><tr><th>Data</th><th>Horário</th><th>Evento</th><th>Detalhes</th><th>Origem</th>${state.usuario.administrador ? '<th></th>' : ''}</tr></thead>
           <tbody>${linhas}</tbody>
         </table>
+        ${linhasFeriados ? `<h3>Feriados do mês</h3><table class="tabela-lista"><tbody>${linhasFeriados}</tbody></table>` : ''}
         ${state.usuario.administrador ? `
           <div class="linha-form">
             <input type="date" id="novo-evento-data" value="${new Date().toISOString().slice(0, 10)}" />
             <input type="text" id="novo-evento-hora-inicio" placeholder="Hora início (opcional)" />
             <input type="text" id="novo-evento-hora-fim" placeholder="Hora fim (opcional)" />
-            <select id="novo-evento-tipo">
-              <option value="evento">Evento</option>
-              <option value="escala">Escala</option>
-            </select>
           </div>
           <div class="linha-form">
             <input type="text" id="novo-evento-titulo" placeholder="Título" />
@@ -885,14 +1753,17 @@
   function viewSocios() {
     if (!state.sociosCarregado) return '<h2>Sócios</h2><p class="placeholder">Carregando…</p>';
 
-    const soma = resumoAgregadoSocios(state.sociosResumo);
+    const resumoDoFiltro = state.sociosFiltroClube === 'todos'
+      ? state.sociosResumo
+      : state.sociosResumo.filter((r) => r.clube === state.sociosFiltroClube);
+    const soma = resumoAgregadoSocios(resumoDoFiltro);
     const planilhaData = state.sociosLista[0]?.planilhaAtualizadaEm;
 
     const linhas = state.sociosLista.map((s) => `
       <tr class="linha-socio" data-action="toggle-socio" data-id="${s.id}">
         <td>${esc(s.nome)}</td>
         <td>${esc(s.matricula || '—')}</td>
-        <td>${s.clube === 'cepe_atpn' ? 'CEPE-ATPN' : 'CEPE'}</td>
+        <td>${s.clube === 'cepe_atpn' ? 'ATPN' : 'CEPE'}</td>
         <td>${s.categoria ? (s.categoria === 'efetivo' ? 'Efetivo' : 'Contribuinte') : '—'}</td>
         <td><strong class="${STATUS_SOCIO_CLASSE[s.status]}">${STATUS_SOCIO_LABEL[s.status]}</strong>${s.situacaoEspecial ? ` <span class="placeholder">(${esc(s.situacaoEspecial)})</span>` : ''}</td>
         <td>${esc(s.telefone || '—')}</td>
@@ -931,9 +1802,9 @@
 
       <div class="secao">
         <div class="abas-secundarias">
-          ${filtroClubeBtn('todos', 'Todos')}
+          ${filtroClubeBtn('cepe_atpn', 'ATPN')}
           ${filtroClubeBtn('cepe', 'CEPE')}
-          ${filtroClubeBtn('cepe_atpn', 'CEPE-ATPN')}
+          ${filtroClubeBtn('todos', 'Todos')}
         </div>
         <div class="abas-secundarias">
           ${filtroStatusBtn('todos', 'Qualquer situação')}
@@ -971,8 +1842,41 @@
       </table>
       <div class="linha-form"><button class="botao" data-action="salvar-permissoes">Salvar permissões</button></div>`;
 
+    const opcoesCargo = (sel) => state.configCargos.map((c) => `<option value="${c.id}" ${c.id === sel ? 'selected' : ''}>${esc(c.nome)}</option>`).join('');
+    const linhasEquipe = state.configEquipe.map((p) => `
+      <tr data-pessoa="${p.id}" style="${p.ativo ? '' : 'opacity:.55;'}">
+        <td><input class="eq-nome" value="${esc(p.nome)}" maxlength="80" /></td>
+        <td><select class="eq-cargo">${opcoesCargo(p.cargoId)}</select></td>
+        <td>${p.ativo ? 'Ativo' : 'Desativado'}</td>
+        <td style="white-space:nowrap;">
+          <button class="botao" data-equipe="salvar" data-id="${p.id}">Salvar</button>
+          <button class="botao" data-equipe="ativo" data-id="${p.id}" data-ativo="${p.ativo ? '0' : '1'}">${p.ativo ? 'Desativar' : 'Reativar'}</button>
+        </td>
+        <td style="white-space:nowrap;">
+          <input class="eq-pin" type="password" inputmode="numeric" maxlength="4" placeholder="novo PIN" autocomplete="new-password" style="width:90px;" />
+          <button class="botao" data-equipe="pin" data-id="${p.id}">Trocar PIN</button>
+        </td>
+      </tr>`).join('');
+
     return `
       <h2>Configurações</h2>
+      ${secaoAssociacaoHtml()}
+      <div class="secao">
+        <h3>Equipe</h3>
+        <p class="placeholder">Quem entra no sistema. O PIN tem 4 números e nunca aparece depois de salvo. Desativar não apaga: o histórico de ponto e tarefas continua. Mudança de cargo ou desativação vale na hora, mesmo pra quem já está logado.</p>
+        <div style="overflow-x:auto;">
+          <table class="tabela-lista">
+            <thead><tr><th>Nome</th><th>Cargo</th><th>Situação</th><th></th><th>PIN</th></tr></thead>
+            <tbody>${linhasEquipe}</tbody>
+          </table>
+        </div>
+        <div class="linha-form">
+          <input id="eq-novo-nome" placeholder="Nome da pessoa" maxlength="80" />
+          <select id="eq-novo-cargo">${opcoesCargo(null)}</select>
+          <input id="eq-novo-pin" type="password" inputmode="numeric" maxlength="4" placeholder="PIN (4 números)" autocomplete="new-password" />
+          <button class="botao" data-equipe="novo">Adicionar pessoa</button>
+        </div>
+      </div>
       <div class="secao">
         <h3>Cargos</h3>
         <div>${linhasCargos}</div>
@@ -1026,6 +1930,36 @@
         const aba = linha?.abas.find((a) => a.aba === el.dataset.aba);
         if (aba) aba.permitido = el.checked;
       });
+    });
+
+    document.querySelectorAll('[data-rel]').forEach((el) => {
+      el.addEventListener('click', () => acaoRelatorio(el));
+    });
+
+    document.querySelectorAll('[data-rv]').forEach((el) => {
+      el.addEventListener('click', () => acaoReserva(el));
+    });
+    ['rv-data', 'rv-inicio', 'rv-fim'].forEach((id) => {
+      const campo = document.getElementById(id);
+      if (campo) campo.addEventListener('change', previaConflitoForm);
+    });
+
+    document.querySelectorAll('[data-hist]').forEach((el) => {
+      el.addEventListener('click', () => acaoHistorico(el));
+    });
+
+    document.querySelectorAll('[data-assoc="salvar"]').forEach((el) => {
+      el.addEventListener('click', salvarAssociacaoTela);
+    });
+    // "fechado" liga/desliga os campos de hora do dia, sem recarregar a tela
+    document.querySelectorAll('.as-h-fechado').forEach((el) => {
+      el.addEventListener('change', () => {
+        document.querySelectorAll(`.as-h[data-dia="${el.dataset.dia}"]`).forEach((h) => { h.disabled = el.checked; });
+      });
+    });
+
+    document.querySelectorAll('[data-equipe]').forEach((el) => {
+      el.addEventListener('click', () => acaoEquipe(el));
     });
 
     const btnSalvarPermissoes = document.querySelector('[data-action="salvar-permissoes"]');
@@ -1180,12 +2114,16 @@
     Object.assign(state, {
       token: null, usuario: null, pin: '', erroLogin: '',
       abas: [], abaAtual: null, configCarregado: false,
+      rel: null, relErro: null, inicio: null, inicioCarregado: false, inicioErro: null,
+      configAssoc: null, historicoVersoes: null, historicoErro: null,
+      reservas: null, reservasErro: null, reservaEditando: null, eventosAba: 'reservas',
       pontoCarregado: false, pontoRegistros: [],
       financeiroCarregado: false, financeiroMesRef: null, financeiroAba: 'despesas',
       financeiroDespesas: [], financeiroReceitas: [], financeiroResumo: null,
       tarefasCarregado: false, tarefasData: null, tarefasLista: [],
       tarefasCadastroCarregado: false, tarefasCadastro: [], novaTarefaFrequencia: 'diaria',
       calendarioCarregado: false, calendarioConfigurado: true, calendarioMesRef: null, calendarioEventos: [],
+      eventosProximos: [], eventosCarregado: false,
       sociosCarregado: false, sociosBusca: '', sociosFiltroClube: 'todos', sociosFiltroStatus: 'todos',
       sociosLista: [], sociosTotal: 0, sociosResumo: [], sociosExpandidoId: null, sociosDetalhe: null,
     });
@@ -1219,6 +2157,25 @@
   async function abrirAba(id) {
     if (!id) return;
     state.abaAtual = id;
+    if (id === 'inicio') {
+      // sempre recarrega: o Início é o retrato do momento
+      state.inicioErro = null;
+      render();
+      try { state.inicio = await api('/inicio'); } catch (err) { state.inicio = null; state.inicioErro = err.message; }
+      state.inicioCarregado = true;
+    }
+    if (id === 'historico') {
+      state.historicoVersoes = null;
+      state.historicoErro = null;
+      render();
+      await carregarHistorico();
+    }
+    if (id === 'relatorios') {
+      // sempre recarrega: relatório é o retrato do momento
+      state.rel = null;
+      render();
+      await carregarRelatorios();
+    }
     if (id === 'config' && !state.configCarregado) {
       render();
       await carregarConfiguracoes();
@@ -1250,6 +2207,13 @@
       await carregarCalendario();
       state.calendarioCarregado = true;
     }
+    if (id === 'eventos') {
+      state.reservas = null;
+      state.reservaEditando = null;
+      state.eventosCarregado = false;
+      render();
+      await Promise.all([carregarReservas(), carregarAgenda90()]);
+    }
     if (id === 'socios' && !state.sociosCarregado) {
       render();
       await Promise.all([carregarSocios(), carregarResumoSocios()]);
@@ -1263,11 +2227,48 @@
   }
 
   // ---------- configurações ----------
+  async function acaoEquipe(btn) {
+    const tipo = btn.dataset.equipe;
+    const linha = btn.closest('tr');
+    try {
+      if (tipo === 'novo') {
+        const nome = document.getElementById('eq-novo-nome').value.trim();
+        const cargoId = Number(document.getElementById('eq-novo-cargo').value);
+        const pin = document.getElementById('eq-novo-pin').value;
+        if (!nome) { alert('Digite o nome.'); return; }
+        if (!/^\d{4}$/.test(pin)) { alert('O PIN precisa ter exatamente 4 números.'); return; }
+        await api('/config/equipe', { method: 'POST', body: { nome, cargoId, pin } });
+      } else if (tipo === 'salvar') {
+        await api(`/config/equipe/${btn.dataset.id}`, { method: 'PUT', body: {
+          nome: linha.querySelector('.eq-nome').value.trim(),
+          cargoId: Number(linha.querySelector('.eq-cargo').value),
+        } });
+      } else if (tipo === 'ativo') {
+        const desativando = btn.dataset.ativo === '0';
+        if (desativando && !confirm('Desativar essa pessoa? Ela perde o acesso na hora (o histórico fica).')) return;
+        await api(`/config/equipe/${btn.dataset.id}`, { method: 'PUT', body: { ativo: !desativando } });
+      } else if (tipo === 'pin') {
+        const pin = linha.querySelector('.eq-pin').value;
+        if (!/^\d{4}$/.test(pin)) { alert('O PIN precisa ter exatamente 4 números.'); return; }
+        await api(`/config/equipe/${btn.dataset.id}/pin`, { method: 'PUT', body: { pin } });
+        alert('PIN trocado.');
+      }
+      state.configEquipe = await api('/config/equipe');
+      render();
+    } catch (err) {
+      alert(err.message);
+    }
+  }
+
   async function carregarConfiguracoes() {
-    const [cargos, permissoes] = await Promise.all([
+    const [cargos, permissoes, equipe, assoc] = await Promise.all([
       api('/config/cargos'),
       api('/config/permissoes'),
+      api('/config/equipe'),
+      api('/config/associacao').catch(() => null), // falha NÃO vira formulário vazio: a tela avisa e não deixa salvar
     ]);
+    state.configAssoc = assoc;
+    state.configEquipe = equipe;
     state.configCargos = cargos;
     state.configAbas = permissoes.abas;
     state.configMatriz = permissoes.matriz;
@@ -1459,7 +2460,7 @@
     const data = document.getElementById('novo-evento-data').value;
     const horaInicio = document.getElementById('novo-evento-hora-inicio').value.trim();
     const horaFim = document.getElementById('novo-evento-hora-fim').value.trim();
-    const tipo = document.getElementById('novo-evento-tipo').value;
+    const tipo = 'evento'; // a ATPN tem equipe/escala própria — aqui só eventos
     const titulo = document.getElementById('novo-evento-titulo').value.trim();
     const observacao = document.getElementById('novo-evento-observacao').value.trim();
     if (!data || !titulo) { alert('Preencha pelo menos data e título.'); return; }

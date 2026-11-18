@@ -24,6 +24,10 @@ app.use('/api/financeiro', financeiroRoutes);
 app.use('/api/tarefas', tarefasRoutes);
 app.use('/api/calendario', calendarioRoutes);
 app.use('/api/socios', sociosRoutes);
+app.use('/api/inicio', require('./routes/inicio'));
+app.use('/api/relatorios', require('./routes/relatorios'));
+app.use('/api/historico', require('./routes/historico'));
+app.use('/api/reservas', require('./routes/reservas'));
 
 app.use((err, req, res, next) => {
   console.error(err);

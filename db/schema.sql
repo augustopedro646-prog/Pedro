@@ -178,3 +178,36 @@ CREATE TABLE IF NOT EXISTS socios_mensalidades (
   UNIQUE (socio_id, ano, mes)
 );
 CREATE INDEX IF NOT EXISTS idx_socios_mensalidades_socio ON socios_mensalidades(socio_id);
+
+-- Configurações editáveis da associação (nome, contato, endereço, horário de
+-- funcionamento). Uma linha por chave, valor em JSON; versões anteriores vão
+-- pra app_dados_historico (tabela = 'configuracoes', registro_id = id daqui).
+CREATE TABLE IF NOT EXISTS configuracoes (
+  id SERIAL PRIMARY KEY,
+  chave TEXT NOT NULL UNIQUE,
+  valor JSONB NOT NULL,
+  atualizado_por INTEGER REFERENCES pessoas(id),
+  atualizado_em TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- Reservas/eventos do espaço da ATPN (aba Eventos). Funil: novo -> negociando
+-- -> confirmado | recusado (-> concluido depois da data). Só as CONFIRMADAS
+-- viram linha na agenda compartilhada do PDV Jabá (agenda_eventos, loja da
+-- ATPN); agenda_id guarda o id dessa linha pra poder editar/remover.
+CREATE TABLE IF NOT EXISTS reservas (
+  id SERIAL PRIMARY KEY,
+  titulo TEXT NOT NULL,
+  solicitante TEXT,
+  telefone TEXT,
+  data DATE NOT NULL,
+  hora_inicio TEXT,
+  hora_fim TEXT,
+  num_convidados INTEGER,
+  observacao TEXT,
+  status TEXT NOT NULL DEFAULT 'novo' CHECK (status IN ('novo', 'negociando', 'confirmado', 'recusado', 'concluido')),
+  agenda_id TEXT,
+  criado_por INTEGER REFERENCES pessoas(id),
+  criado_em TIMESTAMPTZ NOT NULL DEFAULT now(),
+  atualizado_em TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_reservas_data ON reservas(data);
