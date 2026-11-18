@@ -287,6 +287,12 @@
     tarefasCadastroCarregado: false,
     tarefasCadastro: [],
     novaTarefaFrequencia: 'diaria',
+
+    // calendário (agenda compartilhada com o PDV Jabá)
+    calendarioCarregado: false,
+    calendarioConfigurado: true,
+    calendarioMesRef: null,
+    calendarioEventos: [],
   };
 
   // Aplica o tema salvo antes do primeiro render (senão a tela nasce no
@@ -441,6 +447,7 @@
     if (state.abaAtual === 'ponto') return viewPonto();
     if (state.abaAtual === 'fluxo_caixa') return viewFluxoCaixa();
     if (state.abaAtual === 'tarefas') return viewTarefas();
+    if (state.abaAtual === 'calendario') return viewCalendario();
     const nomeAba = (state.abas.find((a) => a.id === state.abaAtual) || {}).nome || '';
     return `
       <h2>${esc(nomeAba)}</h2>
@@ -742,6 +749,63 @@
       ${state.usuario.administrador ? viewCadastroTarefas() : ''}`;
   }
 
+  // ---------- calendário (agenda compartilhada com o PDV Jabá) ----------
+  function viewCalendario() {
+    if (!state.calendarioCarregado) return '<h2>Calendário</h2><p class="placeholder">Carregando…</p>';
+
+    if (!state.calendarioConfigurado) {
+      return `
+        <h2>Calendário</h2>
+        <div class="secao">
+          <p class="placeholder">A integração com o PDV Jabá ainda não foi configurada nesse servidor
+          (falta rodar <code>scripts/configurar-integracao-jaba.js</code> uma vez e preencher
+          <code>JABA_DATABASE_URL</code>/<code>JABA_LOJA_ID</code> no <code>.env</code>). Sem isso essa
+          aba não tem onde guardar os eventos — reservas e eventos são a mesma agenda do PDV Jabá.</p>
+        </div>`;
+    }
+
+    const linhas = state.calendarioEventos.map((e) => `
+      <tr>
+        <td>${esc(e.data.split('-').reverse().join('/'))}</td>
+        <td>${e.horaInicio ? esc(e.horaInicio) + (e.horaFim ? '–' + esc(e.horaFim) : '') : '—'}</td>
+        <td>${e.tipo === 'escala' ? 'Escala' : 'Evento'}</td>
+        <td>${esc(e.titulo)}${e.usuarioNome ? ` <span class="placeholder">(${esc(e.usuarioNome)})</span>` : ''}</td>
+        <td>${esc(e.observacao || '—')}</td>
+        ${state.usuario.administrador ? `<td><button class="botao-link" data-action="remover-evento" data-id="${e.id}">remover</button></td>` : ''}
+      </tr>`).join('') || `<tr><td colspan="${state.usuario.administrador ? 6 : 5}" class="placeholder">Nenhum evento no mês.</td></tr>`;
+
+    return `
+      <h2>Calendário</h2>
+      <div class="secao">
+        <div class="navegacao-mes">
+          <button class="botao" data-action="calendario-mes-anterior">‹</button>
+          <strong>${nomeMes(state.calendarioMesRef)}</strong>
+          <button class="botao" data-action="calendario-mes-seguinte">›</button>
+        </div>
+      </div>
+      <div class="secao">
+        <table class="tabela-lista">
+          <thead><tr><th>Data</th><th>Horário</th><th>Tipo</th><th>Título</th><th>Observação</th>${state.usuario.administrador ? '<th></th>' : ''}</tr></thead>
+          <tbody>${linhas}</tbody>
+        </table>
+        ${state.usuario.administrador ? `
+          <div class="linha-form">
+            <input type="date" id="novo-evento-data" value="${new Date().toISOString().slice(0, 10)}" />
+            <input type="text" id="novo-evento-hora-inicio" placeholder="Hora início (opcional)" />
+            <input type="text" id="novo-evento-hora-fim" placeholder="Hora fim (opcional)" />
+            <select id="novo-evento-tipo">
+              <option value="evento">Evento</option>
+              <option value="escala">Escala</option>
+            </select>
+          </div>
+          <div class="linha-form">
+            <input type="text" id="novo-evento-titulo" placeholder="Título" />
+            <input type="text" id="novo-evento-observacao" placeholder="Observação (opcional)" />
+            <button class="botao" data-action="add-evento">Adicionar</button>
+          </div>` : ''}
+      </div>`;
+  }
+
   function viewConfiguracoes() {
     if (!state.configCarregado) return '<h2>Configurações</h2><p class="placeholder">Carregando…</p>';
 
@@ -874,6 +938,19 @@
     document.querySelectorAll('[data-action="remover-tarefa"]').forEach((el) => {
       el.addEventListener('click', () => removerTarefa(Number(el.dataset.id)));
     });
+
+    const btnCalendarioMesAnterior = document.querySelector('[data-action="calendario-mes-anterior"]');
+    if (btnCalendarioMesAnterior) btnCalendarioMesAnterior.addEventListener('click', () => mudarMesCalendario(-1));
+
+    const btnCalendarioMesSeguinte = document.querySelector('[data-action="calendario-mes-seguinte"]');
+    if (btnCalendarioMesSeguinte) btnCalendarioMesSeguinte.addEventListener('click', () => mudarMesCalendario(1));
+
+    const btnAddEvento = document.querySelector('[data-action="add-evento"]');
+    if (btnAddEvento) btnAddEvento.addEventListener('click', adicionarEvento);
+
+    document.querySelectorAll('[data-action="remover-evento"]').forEach((el) => {
+      el.addEventListener('click', () => removerEvento(el.dataset.id));
+    });
   }
 
   // ---------- login ----------
@@ -938,6 +1015,7 @@
       financeiroDespesas: [], financeiroReceitas: [], financeiroResumo: null,
       tarefasCarregado: false, tarefasData: null, tarefasLista: [],
       tarefasCadastroCarregado: false, tarefasCadastro: [], novaTarefaFrequencia: 'diaria',
+      calendarioCarregado: false, calendarioConfigurado: true, calendarioMesRef: null, calendarioEventos: [],
     });
     carregarCargos().then(render);
   }
@@ -993,6 +1071,12 @@
       await Promise.all(pendentes);
       state.tarefasCarregado = true;
       if (state.usuario.administrador) state.tarefasCadastroCarregado = true;
+    }
+    if (id === 'calendario' && !state.calendarioCarregado) {
+      render();
+      if (!state.calendarioMesRef) state.calendarioMesRef = refMesAtual();
+      await carregarCalendario();
+      state.calendarioCarregado = true;
     }
     render();
   }
@@ -1168,6 +1252,52 @@
     if (!confirm('Remover essa tarefa? O histórico de conclusões dela também será apagado.')) return;
     await api(`/tarefas/${id}`, { method: 'DELETE' });
     await Promise.all([carregarTarefas(), carregarTarefasCadastro()]);
+    render();
+  }
+
+  // ---------- calendário ----------
+  function uid() { return Math.random().toString(36).slice(2, 9); } // mesmo padrão de id do PDV Jabá
+
+  async function carregarCalendario() {
+    const { inicio, fim } = limitesMes(state.calendarioMesRef);
+    const resposta = await api(`/calendario?inicio=${inicio}&fim=${fim}`);
+    state.calendarioConfigurado = resposta.configurado;
+    state.calendarioEventos = resposta.eventos;
+  }
+
+  async function mudarMesCalendario(delta) {
+    let { ano, mes } = state.calendarioMesRef;
+    mes += delta;
+    if (mes < 0) { mes = 11; ano -= 1; } else if (mes > 11) { mes = 0; ano += 1; }
+    state.calendarioMesRef = { ano, mes };
+    await carregarCalendario();
+    render();
+  }
+
+  async function adicionarEvento() {
+    const data = document.getElementById('novo-evento-data').value;
+    const horaInicio = document.getElementById('novo-evento-hora-inicio').value.trim();
+    const horaFim = document.getElementById('novo-evento-hora-fim').value.trim();
+    const tipo = document.getElementById('novo-evento-tipo').value;
+    const titulo = document.getElementById('novo-evento-titulo').value.trim();
+    const observacao = document.getElementById('novo-evento-observacao').value.trim();
+    if (!data || !titulo) { alert('Preencha pelo menos data e título.'); return; }
+    try {
+      await api('/calendario', {
+        method: 'POST',
+        body: { id: uid(), tipo, data, horaInicio: horaInicio || null, horaFim: horaFim || null, titulo, observacao: observacao || null },
+      });
+      await carregarCalendario();
+      render();
+    } catch (err) {
+      alert(err.message);
+    }
+  }
+
+  async function removerEvento(id) {
+    if (!confirm('Remover esse evento?')) return;
+    await api(`/calendario/${id}`, { method: 'DELETE' });
+    await carregarCalendario();
     render();
   }
 
