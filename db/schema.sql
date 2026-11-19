@@ -293,3 +293,16 @@ CREATE TABLE IF NOT EXISTS ponto_aparelhos (
 );
 ALTER TABLE pontos ADD COLUMN IF NOT EXISTS registrado_por INTEGER REFERENCES pessoas(id);
 ALTER TABLE pontos ADD COLUMN IF NOT EXISTS origem TEXT NOT NULL DEFAULT 'proprio';
+
+-- Presença de sócios (quem frequentou): a recepção busca o sócio na tela Início e
+-- registra a presença do dia. Uma presença por sócio por dia (clicar de novo não
+-- duplica). O "dia" é o de Natal (America/Fortaleza), não o do servidor.
+CREATE TABLE IF NOT EXISTS presencas (
+  id SERIAL PRIMARY KEY,
+  socio_id INTEGER NOT NULL REFERENCES socios(id),
+  data DATE NOT NULL,
+  registrado_por INTEGER REFERENCES pessoas(id),
+  criado_em TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE (socio_id, data)
+);
+CREATE INDEX IF NOT EXISTS idx_presencas_data ON presencas(data);

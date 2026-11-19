@@ -166,6 +166,13 @@
     .sidebar-backdrop { display: block; position: fixed; inset: 0; background: rgba(0,0,0,.4); z-index: 9; }
   }
 
+  /* Teclado no celular: campo com fonte menor que 16px faz o iPhone dar zoom ao tocar nele
+     (e a tela não volta sozinha). Todo campo fica em 16px no celular. */
+  @media (max-width: 820px) { input, select, textarea { font-size: 16px !important; } }
+  .busca-socios-grande { -webkit-appearance: none; appearance: none; }
+  /* altura que desconta o teclado aberto (dvh) — o modal não fica escondido atrás dele */
+  .modal { max-height: calc(100dvh - 32px); }
+  @media (max-width: 560px) { .modal { max-height: 94dvh; } }
   .conteudo { padding: 28px; }
   /* em tela estreita o botão ☰ fica por cima do canto: dá espaço no topo (mesmo jeito do PDV) */
   @media (max-width: 820px) { .conteudo { padding: 64px 16px 28px; } }
@@ -473,6 +480,9 @@
     inicio: null,
     inicioCarregado: false,
     inicioErro: null,
+    iniBusca: '',
+    iniResultados: [],
+    iniMsg: null,
     configAbas: [],
     configMatriz: [],
 
@@ -1796,7 +1806,7 @@
       ${cabecalho('Mensalidades', 'Recepção da ATPN: receber, imprimir o comprovante e conferir o que está em aberto')}
       <div class="secao">
         <p class="placeholder">Recepção da ATPN: procure o sócio, confira o que está em aberto e registre o recebimento. Só sócios da <strong>ATPN</strong> (os do CEPE ficam apenas na aba Sócios). O valor entra no fluxo de caixa e no relatório, e a reimportação da planilha não apaga o que foi registrado aqui.</p>
-        <input type="text" id="mens-busca" class="busca-socios-grande" placeholder="Nome, matrícula, telefone ou CPF do sócio…" value="${esc(state.mensBusca)}" autocomplete="off" />
+        <input type="text" id="mens-busca" class="busca-socios-grande" placeholder="Nome, matrícula, telefone ou CPF do sócio…" value="${esc(state.mensBusca)}" autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false" enterkeyhint="search" />
         ${state.mensBusca.trim().length >= 2 ? (state.mensResultados.length
           ? `<div style="overflow-x:auto;"><table class="tabela-lista"><thead><tr><th>Nome</th><th>Matrícula</th><th>Situação</th><th>Telefone</th></tr></thead><tbody>${res}</tbody></table></div>`
           : '<p class="placeholder">Nenhum sócio ATPN ativo encontrado.</p>') : ''}
@@ -1909,104 +1919,101 @@
     }
   }
 
-  // ---------- início ----------
-  const ETAPA_LABEL = { abertura: 'Abertura', durante_dia: 'Durante o dia', fechamento: 'Fechamento' };
+  // ---------- início: busca de sócio + quem frequentou ----------
+  // Só isso: a recepção procura o sócio, registra a presença do dia, e os números
+  // mostram quantos sócios frequentaram hoje, na semana e no mês (só ATPN).
+  function resultadosInicioHtml() {
+    if (state.iniBusca.trim().length < 2) return '';
+    if (!state.iniResultados.length) return '<p class="placeholder" style="margin-top:12px;">Nenhum sócio ATPN ativo encontrado.</p>';
+    return `<div style="margin-top:8px;">${state.iniResultados.map((s) => `
+      <div class="linha-item">
+        <div><div class="nome">${esc(s.nome)}</div>
+          <div class="desc">Matrícula ${esc(s.matricula || '—')} · ${esc(REL_STATUS[s.status] || s.status)}${s.telefone ? ' · ' + esc(s.telefone) : ''} · ${s.visitasMes} ${s.visitasMes === 1 ? 'vez' : 'vezes'} no mês</div></div>
+        ${s.presenteHoje ? '<span class="tag-tipo" style="font-size:.8rem;">✓ Presente hoje</span>'
+          : `<button class="botao" data-ini="presenca" data-id="${s.id}">Registrar presença</button>`}
+      </div>`).join('')}</div>`;
+  }
 
   function viewInicio() {
-    const nome = (state.usuario.nome || '').split(' ')[0];
-    const cab = cabecalho('Início', `Olá, ${nome} — ${new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })}`);
+    const cab = cabecalho('Início', 'Procure um sócio e registre a presença de hoje');
+    if (state.inicioErro || (state.inicioCarregado && !state.inicio)) {
+      return `${cab}<div class="secao"><p>Não foi possível carregar (${esc(state.inicioErro || 'erro')}). Os números <strong>não</strong> são zero — é falha de carregamento. <button class="botao" data-ini="recarregar">Tentar de novo</button></p></div>`;
+    }
     if (!state.inicioCarregado) return `${cab}<p class="placeholder">Carregando…</p>`;
-    if (state.inicioErro || !state.inicio) {
-      return `${cab}<div class="secao"><p>Não foi possível carregar o resumo (${esc(state.inicioErro || 'erro')}). Os números abaixo <strong>não</strong> são zero — é falha de carregamento. Tente de novo.</p>
-        <button class="botao" data-nav="inicio">Tentar de novo</button></div>`;
-    }
-    const d = state.inicio;
-    const blocos = [];
-    const cartao = (rotulo, valor, classe) => `<div class="cartao-resumo"><span class="cartao-resumo-label">${rotulo}</span><strong class="cartao-resumo-valor ${classe || ''}">${valor}</strong></div>`;
-    const ver = (aba, texto) => (state.abas.some((a) => a.id === aba) ? `<p><button class="botao-ir" data-nav="${aba}">${texto} →</button></p>` : '');
+    const r = state.inicio;
+    const cartao = (rot, p) => `
+      <div class="cartao-resumo"><span class="cartao-resumo-label">${rot}</span>
+        <strong class="cartao-resumo-valor">${p.pessoas}</strong>
+        <span class="cartao-resumo-label" style="margin:2px 0 0;text-transform:none;">${p.visitas} ${p.visitas === 1 ? 'visita' : 'visitas'}</span></div>`;
+    const ehAdmin = state.usuario.administrador;
+    const lista = r.hoje.map((p) => `
+      <div class="linha-item"><div><div class="nome">${esc(p.nome)}</div><div class="desc">chegou às ${esc(p.hora)}${p.categoria ? ' · ' + esc(p.categoria) : ''}</div></div>
+        ${ehAdmin ? `<button class="botao botao-perigo botao-pq" data-ini="desfazer" data-id="${p.id}" title="Desfazer esse registro">✕</button>` : ''}</div>`).join('')
+      || '<p class="placeholder">Ninguém registrado hoje ainda.</p>';
+    return `
+      ${cab}
+      <div class="secao">
+        ${state.iniMsg ? `<p class="aviso-livre" style="margin:0 0 10px;">${esc(state.iniMsg)}</p>` : ''}
+        <input type="search" id="ini-busca" class="busca-socios-grande" placeholder="Buscar sócio (nome, matrícula…)" value="${esc(state.iniBusca)}"
+          autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false" enterkeyhint="search" />
+        <div id="ini-resultados">${resultadosInicioHtml()}</div>
+      </div>
+      <h3>Quem frequentou</h3>
+      <div class="cartoes-resumo">${cartao('Hoje', r.dia)}${cartao('Esta semana', r.semana)}${cartao('Este mês', r.mes)}</div>
+      <p class="placeholder">"Pessoas" são sócios diferentes; "visitas" somam cada dia em que vieram. A semana começa na segunda-feira. Só sócios da ATPN.</p>
+      <div class="secao"><h3>Quem veio hoje (${r.hoje.length})</h3>${lista}</div>`;
+  }
 
-    if (d.socios) {
-      // só ATPN: sócios do CEPE aparecem apenas na aba Sócios
-      const g = d.socios.atpn;
-      blocos.push(`
-        <div class="secao">
-          <h3>Sócios ATPN</h3>
-          <div class="cartoes-resumo">
-            ${cartao('Sócios ativos', g.total - g.desligados)}
-            ${cartao('Em dia', g.emDia, 'cor-receita')}
-            ${cartao('Com atraso', g.atrasados, 'cor-atraso')}
-            ${cartao('6 meses ou mais', g.seisOuMais, g.seisOuMais ? 'cor-atraso' : '')}
-          </div>
-          ${d.socios.atualizadoEm ? `<p class="placeholder">Planilha atualizada em ${esc(formatarDataExibicao(d.socios.atualizadoEm))}.</p>` : ''}
-          ${ver('socios', 'Ver sócios')}
-        </div>`);
-    }
+  async function carregarInicio() {
+    state.inicioErro = null;
+    try { state.inicio = await api('/presencas/resumo'); } catch (err) { state.inicio = null; state.inicioErro = err.message; }
+    state.inicioCarregado = true;
+  }
 
-    if (d.caixa) {
-      blocos.push(`
-        <div class="secao">
-          <h3>Caixa do mês</h3>
-          <div class="cartoes-resumo">
-            ${cartao('Receitas', formatarMoeda(d.caixa.receitas), 'cor-receita')}
-            ${cartao('Despesas', formatarMoeda(d.caixa.despesas), 'cor-atraso')}
-            ${cartao('Saldo', formatarMoeda(d.caixa.saldo), d.caixa.saldo >= 0 ? 'cor-receita' : 'cor-atraso')}
-          </div>
-          ${d.caixa.mensalidades > 0 ? `<p class="placeholder">Receitas incluem ${formatarMoeda(d.caixa.mensalidades)} de mensalidades de sócios ATPN${d.caixa.mensalidadesParcial ? ' (mês parcial: a planilha ainda não cobre o mês todo)' : ''}.</p>` : ''}
-          ${ver('fluxo_caixa', 'Abrir fluxo de caixa')}
-        </div>`);
-    }
+  let timerBuscaInicio = null;
+  // A busca atualiza SÓ a área de resultados (a tela não é refeita a cada letra), pra o
+  // teclado do celular não fechar e o cursor não pular.
+  function ligarBuscaInicio() {
+    const campo = document.getElementById('ini-busca');
+    if (!campo) return;
+    campo.addEventListener('input', (e) => {
+      state.iniBusca = e.target.value;
+      clearTimeout(timerBuscaInicio);
+      timerBuscaInicio = setTimeout(async () => {
+        try {
+          state.iniResultados = state.iniBusca.trim().length >= 2 ? await api(`/presencas/buscar?q=${encodeURIComponent(state.iniBusca.trim())}`) : [];
+        } catch (err) { state.iniResultados = []; avisar(err.message); }
+        const alvo = document.getElementById('ini-resultados');
+        if (!alvo) return;
+        alvo.innerHTML = resultadosInicioHtml();
+        alvo.querySelectorAll('[data-ini]').forEach((el) => el.addEventListener('click', () => acaoInicio(el)));
+      }, 250);
+    });
+    campo.addEventListener('keydown', (e) => { if (e.key === 'Enter') e.target.blur(); }); // Enter/Buscar recolhe o teclado e deixa ver os resultados
+  }
 
-    if (d.tarefas) {
-      const t = d.tarefas;
-      blocos.push(`
-        <div class="secao">
-          <h3>Tarefas de hoje</h3>
-          ${t.total === 0 ? '<p class="placeholder">Nenhuma tarefa para hoje.</p>' : `
-            <div class="cartoes-resumo">
-              ${cartao('Concluídas', `${t.concluidas}/${t.total}`, t.pendentesTotal === 0 ? 'cor-receita' : '')}
-              ${cartao('Pendentes', t.pendentesTotal, t.pendentesTotal ? 'cor-atraso' : '')}
-            </div>
-            ${t.pendentes.map((p) => `<div>• ${esc(p.titulo)} <span class="placeholder">(${esc(ETAPA_LABEL[p.etapa] || p.etapa)}${state.usuario.administrador ? ' · ' + esc(p.cargoNome) : ''})</span></div>`).join('')}
-            ${t.pendentesTotal > t.pendentes.length ? `<p class="placeholder">e mais ${t.pendentesTotal - t.pendentes.length}…</p>` : ''}`}
-          ${ver('tarefas', 'Abrir tarefas')}
-        </div>`);
-    }
-
-    if (d.eventos) {
-      const hojeStr = dataLocalStr(new Date());
-      const fers = [];
-      for (let i = 0; i <= 14; i++) {
-        const dia = new Date(); dia.setDate(dia.getDate() + i);
-        const s = dataLocalStr(dia);
-        feriadosDoDia(s).forEach((f) => fers.push({ data: s, ...f }));
+  async function acaoInicio(el) {
+    const a = el.dataset.ini;
+    const id = Number(el.dataset.id);
+    try {
+      if (a === 'recarregar') { state.inicioCarregado = false; render(); await carregarInicio(); render(); return; }
+      if (a === 'presenca') {
+        const nome = (state.iniResultados.find((s) => s.id === id) || {}).nome || 'Sócio';
+        const r = await api('/presencas', { method: 'POST', body: { socioId: id } });
+        state.iniMsg = r.jaRegistrado ? `${nome} já estava registrado(a) hoje.` : `✓ Presença de ${nome} registrada.`;
+        state.iniBusca = ''; state.iniResultados = [];
+      } else if (a === 'desfazer') {
+        if (!await confirma('Desfazer esse registro de presença?', { ok: 'Desfazer', perigo: true })) return;
+        await api(`/presencas/${id}`, { method: 'DELETE' });
+        state.iniMsg = null;
       }
-      blocos.push(`
-        <div class="secao">
-          <h3>Próximos 7 dias</h3>
-          ${d.eventos.configurado === false ? '<p class="placeholder">Integração com o PDV Jabá não configurada.</p>'
-            : d.eventos.erro ? '<p>Não foi possível ler a agenda do PDV Jabá agora (isso não significa que não há eventos).</p>'
-            : (d.eventos.eventos.length ? `<table class="tabela-lista"><tbody>${d.eventos.eventos.map((e) => `
-                <tr><td>${e.data === hojeStr ? '<strong>Hoje</strong>' : esc(e.data.split('-').reverse().slice(0, 2).join('/'))}</td>
-                <td>${e.horaInicio ? esc(e.horaInicio) : '—'}</td><td>${esc(e.titulo)}</td><td>${esc(e.origem || '')}</td></tr>`).join('')}</tbody></table>`
-              : '<p class="placeholder">Nenhum evento nos próximos 7 dias.</p>')}
-          ${fers.length ? `<p class="placeholder">Feriados nos próximos 14 dias: ${fers.map((f) => `${esc(f.data.split('-').reverse().slice(0, 2).join('/'))} ${esc(f.nome)}`).join(' · ')}</p>` : ''}
-          ${ver(state.abas.some((a) => a.id === 'calendario') ? 'calendario' : 'eventos', 'Abrir agenda')}
-        </div>`);
+      await carregarInicio();
+      render();
+      const campo = document.getElementById('ini-busca');
+      if (campo && a === 'presenca') campo.focus(); // pronto pra próxima pessoa na fila
+    } catch (err) {
+      avisar(err.message);
     }
-
-    if (d.ponto) {
-      const u = d.ponto.meuUltimo;
-      const hora = (iso) => new Date(iso).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
-      blocos.push(`
-        <div class="secao">
-          <h3>Ponto</h3>
-          <p>${u ? `Seu último registro: <strong>${u.tipo === 'entrada' ? 'entrada' : 'saída'}</strong> em ${esc(hora(u.registradoEm))}.` : 'Você ainda não bateu ponto.'}</p>
-          ${d.ponto.presentes ? `<p><strong>Na casa agora (${d.ponto.presentes.length}):</strong> ${d.ponto.presentes.length ? d.ponto.presentes.map((p) => esc(p.nome)).join(', ') : '<span class="placeholder">ninguém com entrada registrada hoje</span>'}</p>` : ''}
-          ${ver('ponto', 'Bater ponto')}
-        </div>`);
-    }
-
-    return `${cab}${blocos.length ? blocos.join('') : '<div class="secao"><p class="placeholder">Seu cargo ainda não tem nenhuma aba liberada além do Início. Peça ao administrador em Configurações.</p></div>'}`;
   }
 
   // ---------- eventos (próximos 90 dias, só leitura, mesma agenda) ----------
@@ -2748,7 +2755,7 @@
     return `
       ${cabecalho('Sócios', 'Quadro completo (CEPE e ATPN): busca, situação de pagamento e histórico mensal')}
       <div class="secao">
-        <input type="text" id="busca-socios" class="busca-socios-grande" placeholder="Buscar sócio por nome…" value="${esc(state.sociosBusca)}" autocomplete="off" />
+        <input type="text" id="busca-socios" class="busca-socios-grande" placeholder="Buscar sócio por nome…" value="${esc(state.sociosBusca)}" autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false" enterkeyhint="search" />
       </div>
       ${planilhaData ? `<p class="placeholder">Dados da planilha atualizada em ${esc(formatarDataExibicao(planilhaData))} — um desligamento recente pode levar alguns dias pra aparecer aqui (a associação atualiza a planilha antes de vetar o acesso físico).</p>` : ''}
 
@@ -2906,6 +2913,11 @@
     document.querySelectorAll('[data-rel]').forEach((el) => {
       el.addEventListener('click', () => acaoRelatorio(el));
     });
+
+    document.querySelectorAll('[data-ini]').forEach((el) => {
+      el.addEventListener('click', () => acaoInicio(el));
+    });
+    ligarBuscaInicio();
 
     document.querySelectorAll('[data-desp]').forEach((el) => {
       el.addEventListener('click', () => acaoDesp(el));
@@ -3112,7 +3124,7 @@
     Object.assign(state, {
       token: null, usuario: null, pin: '', erroLogin: '',
       abas: [], abaAtual: null, configCarregado: false,
-      rel: null, relErro: null, inicio: null, inicioCarregado: false, inicioErro: null,
+      rel: null, relErro: null, inicio: null, inicioCarregado: false, inicioErro: null, iniBusca: '', iniResultados: [], iniMsg: null,
       configAssoc: null, historicoVersoes: null, historicoErro: null,
       reservas: null, reservasErro: null, eventosAba: 'abertas', eventosMesesAbertos: {},
       mensBusca: '', mensResultados: [], mensFicha: null, mensForm: null, mensHoje: null, mensErro: null,
@@ -3165,9 +3177,9 @@
     if (id === 'inicio') {
       // sempre recarrega: o Início é o retrato do momento
       state.inicioErro = null;
+      state.iniMsg = null;
       render();
-      try { state.inicio = await api('/inicio'); } catch (err) { state.inicio = null; state.inicioErro = err.message; }
-      state.inicioCarregado = true;
+      await carregarInicio();
     }
     if (id === 'mensalidades') {
       state.mensHoje = null;
@@ -3776,13 +3788,32 @@
     render();
   }
 
-  // teclado físico só ativo enquanto não logado
+  // teclado físico só ativo enquanto não logado. preventDefault: com o foco numa lista
+  // (Cargo/Pessoa) o dígito não pode também pular de opção, e Backspace não pode voltar a página.
   document.onkeydown = (e) => {
     if (state.usuario) return;
-    if (e.key >= '0' && e.key <= '9') pressLoginKey(e.key);
-    else if (e.key === 'Backspace') pressLoginKey('back');
-    else if (e.key === 'Escape') pressLoginKey('clear');
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+    if (e.key.length === 1 && e.key >= '0' && e.key <= '9') { e.preventDefault(); pressLoginKey(e.key); }
+    else if (e.key === 'Backspace') { e.preventDefault(); pressLoginKey('back'); }
+    else if (e.key === 'Escape' || e.key === 'Delete') { e.preventDefault(); pressLoginKey('clear'); }
   };
+
+  // Celular: com o teclado aberto, o campo em foco precisa ficar visível (o teclado cobre
+  // metade da tela). Espera o teclado subir e rola o campo para o meio.
+  document.addEventListener('focusin', (e) => {
+    const c = e.target;
+    if (!c || !/^(INPUT|TEXTAREA|SELECT)$/.test(c.tagName) || !ehMobile()) return;
+    setTimeout(() => { try { c.scrollIntoView({ block: 'center', behavior: 'smooth' }); } catch (err) { /* ignora */ } }, 320);
+  });
+
+  // Enter num campo de um formulário em modal confirma (igual ao botão principal).
+  document.getElementById('modal-raiz').addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter' || e.shiftKey || e.isComposing) return;
+    const alvo = e.target;
+    if (!alvo || alvo.tagName !== 'INPUT' || alvo.type === 'button') return;
+    const principal = document.querySelector('#modal-raiz [data-m="salvar"]');
+    if (principal) { e.preventDefault(); principal.click(); }
+  });
 
   window.addEventListener('resize', () => {
     if (state.usuario) render();

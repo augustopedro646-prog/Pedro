@@ -31,6 +31,7 @@ app.use('/api/reservas', require('./routes/reservas'));
 app.use('/api/mensalidades', require('./routes/mensalidades'));
 app.use('/api/escalas', require('./routes/escalas'));
 app.use('/api/badges', require('./routes/badges'));
+app.use('/api/presencas', require('./routes/presencas'));
 
 app.use((err, req, res, next) => {
   console.error(err);
