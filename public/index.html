@@ -250,6 +250,7 @@
   /* ---------- Bater ponto / Fluxo de caixa ---------- */
   table.tabela-lista { border-collapse: collapse; width: 100%; font-size: .88rem; }
   table.tabela-lista th, table.tabela-lista td { border-bottom: 1px solid var(--borda); padding: 8px 10px; text-align: left; }
+  @media (max-width: 680px) { .col-sec { display: none; } }
   table.tabela-lista th { color: var(--texto-fraco); font-weight: 600; }
   .botao-ir { background: none; border: none; color: var(--primaria); cursor: pointer; padding: 0; font-size: .85rem; font-weight: 600; }
   .botao-link { background: none; border: none; color: var(--perigo); cursor: pointer; padding: 0; font-size: .82rem; text-decoration: underline; }
@@ -2792,13 +2793,18 @@
   function resumoAgregadoSocios(resumo) {
     // Total = aba ATIVO GERAL (é o que a planilha conta: 403 na ATPN, com os desativados/rosa dentro).
     // Quem está na aba DESLIGADOS já saiu e vem separado.
-    const soma = { total: 0, emDia: 0, atrasados: 0, desligados: 0, saiu: 0 };
+    const soma = { total: 0, emDia: 0, atrasados: 0, desligados: 0, saiu: 0, ate2: 0, de3a5: 0, seis: 0 };
     resumo.forEach((r) => {
       if (r.origem === 'desligados') { soma.saiu += r.total; return; }
       soma.total += r.total;
       if (r.status === 'em_dia') soma.emDia += r.total;
       else if (r.status === 'desligado') soma.desligados += r.total;
-      else soma.atrasados += r.total;
+      else {
+        soma.atrasados += r.total;
+        if (r.status === 'ate_2_meses') soma.ate2 += r.total;
+        else if (r.status === '3_a_5_meses') soma.de3a5 += r.total;
+        else if (r.status === '6_meses_ou_mais') soma.seis += r.total;
+      }
     });
     return soma;
   }
@@ -2815,6 +2821,7 @@
     return `
       <div style="padding: 4px 0 12px;">
         <div class="linha-form" style="margin-top:0;">
+          <div>Clube: ${d.clube === 'cepe_atpn' ? 'ATPN' : 'CEPE'} · ${d.categoria === 'efetivo' ? 'Efetivo' : d.categoria ? 'Contribuinte' : 'sem categoria'}</div>
           <div>CPF: ${esc(d.cpf || '—')}</div>
           <div>Matrícula: ${esc(d.matricula || '—')}${d.matriculaSecundaria ? ` (sistema anterior: ${esc(d.matriculaSecundaria)})` : ''}</div>
           <div>Vencimento: dia ${d.diaVencimento ?? '—'}</div>
@@ -2845,13 +2852,12 @@
       <tr class="linha-socio" data-action="toggle-socio" data-id="${s.id}">
         <td>${esc(s.nome)}${s.qtdDependentes ? ` <span class="st-pill st-dep" title="Dependentes ligados a este sócio">+${s.qtdDependentes} dep.</span>` : ''}${tagDobro(s)}</td>
         <td>${esc(s.matricula || '—')}</td>
-        <td>${s.clube === 'cepe_atpn' ? 'ATPN' : 'CEPE'}</td>
-        <td>${s.categoria ? (s.categoria === 'efetivo' ? 'Efetivo' : 'Contribuinte') : '—'}</td>
+        <td class="col-sec">${s.clube === 'cepe_atpn' ? 'ATPN' : 'CEPE'}</td>
+        <td class="col-sec">${s.categoria ? (s.categoria === 'efetivo' ? 'Efetivo' : 'Contribuinte') : '—'}</td>
         <td>${pilulaStatus(s.status)}${s.mesesEmAberto ? ` <span class="placeholder">(${s.mesesEmAberto} em aberto)</span>` : ''}${s.situacaoEspecial ? ` <span class="placeholder">(${esc(s.situacaoEspecial)})</span>` : ''}</td>
-        <td>${esc(s.telefone || '—')}</td>
       </tr>
-      ${state.sociosExpandidoId === s.id ? `<tr><td colspan="6">${viewDetalheSocio()}</td></tr>` : ''}
-    `).join('') || `<tr><td colspan="6" class="placeholder">Nenhum sócio encontrado.</td></tr>`;
+      ${state.sociosExpandidoId === s.id ? `<tr><td colspan="5">${viewDetalheSocio()}</td></tr>` : ''}
+    `).join('') || `<tr><td colspan="5" class="placeholder">Nenhum sócio encontrado.</td></tr>`;
 
     const filtroClubeBtn = (valor, rotulo) => `<button class="${state.sociosFiltroClube === valor ? 'ativa' : ''}" data-action="filtro-socio-clube" data-clube="${valor}">${esc(rotulo)}</button>`;
     const filtroStatusBtn = (valor, rotulo) => `<button class="${state.sociosFiltroStatus === valor ? 'ativa' : ''}" data-action="filtro-socio-status" data-status="${valor}">${esc(rotulo)}</button>`;
@@ -2872,9 +2878,17 @@
           <span class="cartao-resumo-label">Em dia</span>
           <strong class="cartao-resumo-valor cor-receita">${soma.emDia}</strong>
         </div>
-        <div class="cartao-resumo">
-          <span class="cartao-resumo-label">Com atraso</span>
-          <strong class="cartao-resumo-valor cor-atraso">${soma.atrasados}</strong>
+        <div class="cartao-resumo faixa-ate_2_meses">
+          <span class="cartao-resumo-label">1 a 2 meses</span>
+          <strong class="cartao-resumo-valor">${soma.ate2}</strong>
+        </div>
+        <div class="cartao-resumo faixa-3_a_5_meses">
+          <span class="cartao-resumo-label">3 a 5 meses</span>
+          <strong class="cartao-resumo-valor">${soma.de3a5}</strong>
+        </div>
+        <div class="cartao-resumo faixa-6_meses_ou_mais">
+          <span class="cartao-resumo-label">6 meses ou mais</span>
+          <strong class="cartao-resumo-valor cor-atraso">${soma.seis}</strong>
         </div>
         <div class="cartao-resumo">
           <span class="cartao-resumo-label">Desativados (rosa)</span>
@@ -2900,10 +2914,10 @@
           ${filtroStatusBtn('6_meses_ou_mais', '6 meses ou mais')}
           ${filtroStatusBtn('desligado', 'Desativados')}
         </div>
-        <table class="tabela-lista">
-          <thead><tr><th>Nome</th><th>Matrícula</th><th>Clube</th><th>Categoria</th><th>Situação</th><th>Telefone</th></tr></thead>
+        <div style="overflow-x:auto;"><table class="tabela-lista">
+          <thead><tr><th>Nome</th><th>Matrícula</th><th class="col-sec">Clube</th><th class="col-sec">Categoria</th><th>Situação</th></tr></thead>
           <tbody>${linhas}</tbody>
-        </table>
+        </table></div>
         <p class="placeholder">Mostrando ${state.sociosLista.length} de ${state.sociosTotal}${state.sociosTotal > state.sociosLista.length ? ' — refine a busca pra achar mais rápido' : ''}.</p>
       </div>`;
   }
