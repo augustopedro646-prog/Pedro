@@ -1,0 +1,24 @@
+{
+  "name": "petrobras-aulas",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Controle de professores, turmas e chamada — clube da Petrobras",
+  "main": "server/index.js",
+  "scripts": {
+    "start": "node server/index.js",
+    "dev": "nodemon server/index.js",
+    "db:schema": "psql \"$DATABASE_URL\" -f db/schema.sql",
+    "db:seed": "psql \"$DATABASE_URL\" -f db/seed.sql",
+    "db:seed-diretoria": "node scripts/seed-diretoria.js"
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "express-rate-limit": "^8.7.0",
+    "pg": "^8.12.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.4"
+  }
+}
