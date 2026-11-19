@@ -88,6 +88,7 @@ function categoriaDoNomeLegado(nome) {
 // server/statusSocio.js porque a baixa direta de mensalidade (recepção) usa a
 // MESMA regra pra recalcular o status quando um pagamento é registrado.
 const { ehDesligamento, calcularStatusAtivo, recalcularStatusSocio } = require('../server/statusSocio');
+const { criarLeitor, separarNomes, classificarCorLinha, STATUS_DA_COR } = require('./lib/xlsx-extras');
 
 // Motivo de quem já está na aba DESLIGADOS: o primeiro "DESLIGADO..." no
 // histórico (ordem cronológica) é o evento real; o resto depois disso é só
@@ -104,9 +105,10 @@ function motivoDesligamento(mensalidades) {
   return null;
 }
 
-function lerAba(wb, sheetName, origemPlanilha) {
+function lerAba(wb, sheetName, origemPlanilha, extras) {
   const ws = wb.Sheets[sheetName];
   if (!ws) throw new Error(`Aba "${sheetName}" não encontrada na planilha`);
+  const xml = extras.lerAba(sheetName); // cores e texto colorido (linha do XML = linha do SheetJS + 1)
   const range = XLSX.utils.decode_range(ws['!ref']);
   const linhaCabecalhoMeses = 4; // linha 5 (0-based)
   const linhaInicioDados = 6; // linha 7 (0-based)
@@ -127,6 +129,8 @@ function lerAba(wb, sheetName, origemPlanilha) {
     if (matriculaRaw != null && String(matriculaRaw).trim().toUpperCase() === 'TOTAIS') break;
     if (!nome || !String(nome).trim()) continue;
 
+    const x = xml.get(r + 1) || {};
+    const nomes = separarNomes(x.C && x.C.trechos, nome); // titular em cima; nomes em azul = dependentes
     const [matricula, matriculaSecundaria] = primeiraSegunda(matriculaRaw);
     const cpfRaw = getCell(3);
     const clubeRaw = getCell(4);
@@ -152,22 +156,36 @@ function lerAba(wb, sheetName, origemPlanilha) {
     const mensalidades = [];
     for (const mc of mesesCols) {
       const v = getCell(mc.col);
-      if (v == null || v === '') continue;
-      if (typeof v === 'number') mensalidades.push({ ano: mc.ano, mes: mc.mes, valor: v, observacao: null });
-      else mensalidades.push({ ano: mc.ano, mes: mc.mes, valor: null, observacao: String(v).trim() });
+      const celula = x[XLSX.utils.encode_col(mc.col)];
+      const emAberto = !!(celula && /rgb="FFFF0000"/i.test(celula.fill)); // célula do mês pintada de vermelho = atraso
+      if ((v == null || v === '') && !emAberto) continue;
+      if (typeof v === 'number') mensalidades.push({ ano: mc.ano, mes: mc.mes, valor: v, observacao: null, emAberto });
+      else mensalidades.push({ ano: mc.ano, mes: mc.mes, valor: null, observacao: v == null || v === '' ? null : String(v).trim(), emAberto });
     }
 
-    let status; let situacaoEspecial; let motivo;
+    // Situação = COR da coluna A (legenda da planilha). Sem cor reconhecida, cai na regra antiga e avisa.
+    let status; let situacaoEspecial = null; let motivo = null;
+    const corLinha = classificarCorLinha(x.A && x.A.fill);
     if (origemPlanilha === 'desligados') {
       status = 'desligado';
-      situacaoEspecial = null;
       motivo = motivoDesligamento(mensalidades);
+    } else if (corLinha) {
+      status = STATUS_DA_COR[corLinha];
+      if (status === 'desligado') motivo = motivoDesligamento(mensalidades);
     } else {
       ({ status, situacaoEspecial, motivo } = calcularStatusAtivo(mensalidades));
+      avisos.push(`${origemPlanilha} linha ${r + 1} (${nomes.titular}): linha sem cor de situação reconhecida — usei a regra por valores`);
     }
+    const ultima = mensalidades[mensalidades.length - 1];
+    if (status !== 'desligado' && ultima && !ultima.emAberto && ultima.valor == null && ultima.observacao
+        && !ehDesligamento(ultima.observacao) && /isent|abonad|inss|ausent/i.test(ultima.observacao)) {
+      situacaoEspecial = ultima.observacao; // isento/abonado/INSS/ausente: informação, não atraso
+    }
+    const mesesEmAberto = mensalidades.filter((m) => m.emAberto).length;
 
     linhas.push({
-      matricula, matriculaSecundaria, nome: String(nome).trim(),
+      matricula, matriculaSecundaria, nome: nomes.titular || String(nome).trim(),
+      dependentes: nomes.dependentes, nomeNota: nomes.notas.join(' · ') || null, mesesEmAberto, possivelDuplicado: false,
       cpf: cpfRaw ? String(cpfRaw).trim() : null,
       clube, categoria, categoriaOriginal,
       diaVencimento: typeof vencimentoRaw === 'number' ? vencimentoRaw : null,
@@ -214,14 +232,17 @@ async function salvarSocio(client, socio, origemPlanilha, planilhaAtualizadaEm) 
     // rodadas anteriores são a reimportação normal, não duplicata)
     if (mesma && idsDestaRodada.has(mesma.id)) duplicadasNaPlanilha.push(`matrícula ${socio.matricula}: "${socio.nome.replace(/\n/g, ' ')}" aparece mais de uma vez (a última linha lida prevalece)`);
   } else {
-    existente = await client.query('SELECT id FROM socios WHERE nome = $1 AND clube = $2 AND matricula IS NULL', [socio.nome, socio.clube]);
+    // sem matrícula: casa por nome dentro do clube (o cadastro antigo pode ter os dois nomes na célula)
+    const candidatos = await client.query('SELECT id, nome FROM socios WHERE matricula IS NULL AND clube = $1', [socio.clube]);
+    const mesma = candidatos.rows.find((c) => mesmaPessoa(c.nome, socio.nome));
+    existente = { rows: mesma ? [mesma] : [] };
   }
 
   const campos = [
     socio.matricula, socio.matriculaSecundaria, socio.nome, socio.cpf, socio.clube,
     socio.categoria, socio.categoriaOriginal, socio.diaVencimento, socio.telefone,
     socio.telefoneSecundario, socio.status, socio.situacaoEspecial, socio.motivoDesligamento,
-    origemPlanilha, planilhaAtualizadaEm,
+    origemPlanilha, planilhaAtualizadaEm, socio.mesesEmAberto, socio.nomeNota, socio.possivelDuplicado,
   ];
 
   let socioId;
@@ -231,8 +252,8 @@ async function salvarSocio(client, socio, origemPlanilha, planilhaAtualizadaEm) 
       `UPDATE socios SET matricula=$1, matricula_secundaria=$2, nome=$3, cpf=$4, clube=$5, categoria=$6,
               categoria_original=$7, dia_vencimento=$8, telefone=$9, telefone_secundario=$10, status=$11,
               situacao_especial=$12, motivo_desligamento=$13, origem_planilha=$14, planilha_atualizada_em=$15,
-              importado_em = now()
-       WHERE id = $16`,
+              meses_em_aberto=$16, nome_nota=$17, possivel_duplicado=$18, importado_em = now()
+       WHERE id = $19`,
       [...campos, socioId]
     );
     await client.query('DELETE FROM socios_mensalidades WHERE socio_id = $1', [socioId]);
@@ -240,8 +261,8 @@ async function salvarSocio(client, socio, origemPlanilha, planilhaAtualizadaEm) 
     const { rows } = await client.query(
       `INSERT INTO socios (matricula, matricula_secundaria, nome, cpf, clube, categoria, categoria_original,
               dia_vencimento, telefone, telefone_secundario, status, situacao_especial, motivo_desligamento,
-              origem_planilha, planilha_atualizada_em)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15) RETURNING id`,
+              origem_planilha, planilha_atualizada_em, meses_em_aberto, nome_nota, possivel_duplicado)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18) RETURNING id`,
       campos
     );
     socioId = rows[0].id;
@@ -250,10 +271,40 @@ async function salvarSocio(client, socio, origemPlanilha, planilhaAtualizadaEm) 
   idsDestaRodada.add(socioId);
   for (const m of socio.mensalidades) {
     await client.query(
-      'INSERT INTO socios_mensalidades (socio_id, ano, mes, valor, observacao) VALUES ($1,$2,$3,$4,$5)',
-      [socioId, m.ano, m.mes, m.valor, m.observacao]
+      'INSERT INTO socios_mensalidades (socio_id, ano, mes, valor, observacao, em_aberto) VALUES ($1,$2,$3,$4,$5,$6)',
+      [socioId, m.ano, m.mes, m.valor, m.observacao, !!m.emAberto]
     );
   }
+
+  // dependentes (nomes em azul): mantém os que já existem (presença registrada aponta pra eles),
+  // cria os novos e tira só quem saiu da planilha E nunca teve presença registrada
+  const atuais = (await client.query('SELECT id, nome FROM dependentes WHERE socio_id = $1', [socioId])).rows;
+  const nomesNovos = new Set(socio.dependentes.map((n) => semAcento(n)));
+  for (const d of atuais) {
+    if (!nomesNovos.has(semAcento(d.nome))) {
+      const usado = (await client.query('SELECT 1 FROM presencas WHERE dependente_id = $1 LIMIT 1', [d.id])).rowCount;
+      if (!usado) await client.query('DELETE FROM dependentes WHERE id = $1', [d.id]);
+    }
+  }
+  const jaTem = new Set(atuais.map((d) => semAcento(d.nome)));
+  for (const nome of socio.dependentes) {
+    if (!jaTem.has(semAcento(nome))) await client.query('INSERT INTO dependentes (socio_id, nome) VALUES ($1, $2)', [socioId, nome]);
+  }
+}
+
+// Possível contagem em dobro: a mesma matrícula em pessoas DIFERENTES (ex.: o dependente
+// tem linha própria além de aparecer em azul na linha do titular). Fica sinalizado.
+function marcarPossiveisDuplicados(todas) {
+  const porMatricula = new Map();
+  todas.forEach((s) => { if (s.matricula) { if (!porMatricula.has(s.matricula)) porMatricula.set(s.matricula, []); porMatricula.get(s.matricula).push(s); } });
+  let n = 0;
+  for (const grupo of porMatricula.values()) {
+    if (grupo.length < 2) continue;
+    grupo.forEach((a) => {
+      if (grupo.some((b) => b !== a && !mesmaPessoa(a.nome, b.nome))) { a.possivelDuplicado = true; n++; }
+    });
+  }
+  return n;
 }
 
 async function main() {
@@ -266,12 +317,17 @@ async function main() {
   }
   const planilhaAtualizadaEm = process.argv[3] || new Date().toISOString().slice(0, 10);
 
-  const wb = XLSX.readFile(caminho, { cellDates: true });
-  const { linhas: ativos, avisos: avisosAtivos } = lerAba(wb, 'ATIVO GERAL', 'ativo_geral');
-  const { linhas: desligados, avisos: avisosDesligados } = lerAba(wb, 'DESLIGADOS', 'desligados');
+  // bookFiles: o SheetJS guarda os XMLs internos, de onde saem as cores e o texto em azul
+  const wb = XLSX.readFile(caminho, { cellDates: true, bookFiles: true });
+  const extras = criarLeitor(wb);
+  const { linhas: ativos, avisos: avisosAtivos } = lerAba(wb, 'ATIVO GERAL', 'ativo_geral', extras);
+  const { linhas: desligados, avisos: avisosDesligados } = lerAba(wb, 'DESLIGADOS', 'desligados', extras);
 
   console.log(`Lidos: ${ativos.length} em ATIVO GERAL, ${desligados.length} em DESLIGADOS.`);
   [...avisosAtivos, ...avisosDesligados].forEach((a) => console.warn('  aviso:', a));
+  const nDup = marcarPossiveisDuplicados([...ativos, ...desligados]);
+  console.log(`Possível contagem em dobro (mesma matrícula em pessoas diferentes): ${nDup} linha(s) sinalizada(s).`);
+  console.log(`Dependentes encontrados (nomes em azul): ${[...ativos, ...desligados].reduce((s, x) => s + x.dependentes.length, 0)}.`);
 
   const client = await pool.connect();
   try {
@@ -281,6 +337,23 @@ async function main() {
     // sinal mais forte de que a pessoa está mesmo frequentando hoje.
     for (const s of desligados) await salvarSocio(client, s, 'desligados', planilhaAtualizadaEm);
     for (const s of ativos) await salvarSocio(client, s, 'ativo_geral', planilhaAtualizadaEm);
+    // sobras de importações antigas (linhas que esta rodada não tocou): só some quem não tem
+    // presença nem pagamento registrado ligados — o resto fica, e é avisado
+    const ids = [...idsDestaRodada];
+    const sobras = (await client.query('SELECT id FROM socios WHERE NOT (id = ANY($1))', [ids])).rows.map((r) => r.id);
+    let removidas = 0; let mantidas = 0;
+    for (const id of sobras) {
+      const ligado = (await client.query(
+        `SELECT (SELECT count(*) FROM presencas WHERE socio_id = $1) + (SELECT count(*) FROM mensalidade_pagamentos WHERE socio_id = $1) AS n`, [id]
+      )).rows[0].n;
+      if (Number(ligado) > 0) { mantidas++; continue; }
+      await client.query('DELETE FROM dependentes WHERE socio_id = $1', [id]);
+      await client.query('DELETE FROM socios_mensalidades WHERE socio_id = $1', [id]);
+      await client.query('DELETE FROM socios WHERE id = $1', [id]);
+      removidas++;
+    }
+    if (sobras.length) console.log(`\nLinhas antigas que não estão mais na planilha: ${removidas} removida(s), ${mantidas} mantida(s) (têm presença/pagamento registrado).`);
+
     // pagamentos registrados na ATPN (baixa direta) valem por cima da planilha:
     // recalcula o status de quem tem pagamento, dentro da mesma transação
     const { rows: comPagamento } = await client.query(

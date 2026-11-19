@@ -24,11 +24,16 @@ router.get('/buscar', async (req, res, next) => {
     }
     const { rows } = await pool.query(
       `SELECT s.id, s.nome, s.matricula, s.categoria, s.status, s.telefone,
-              EXISTS (SELECT 1 FROM presencas p WHERE p.socio_id = s.id AND p.data = ${HOJE}) AS "presenteHoje",
-              (SELECT count(*)::int FROM presencas p WHERE p.socio_id = s.id AND p.data >= date_trunc('month', ${HOJE})::date) AS "visitasMes"
+              s.nome_nota AS "nomeNota", s.possivel_duplicado AS "possivelDuplicado",
+              EXISTS (SELECT 1 FROM presencas p WHERE p.socio_id = s.id AND p.dependente_id IS NULL AND p.data = ${HOJE}) AS "presenteHoje",
+              (SELECT count(*)::int FROM presencas p WHERE p.socio_id = s.id AND p.dependente_id IS NULL AND p.data >= date_trunc('month', ${HOJE})::date) AS "visitasMes",
+              COALESCE((SELECT json_agg(json_build_object('id', d.id, 'nome', d.nome,
+                  'presenteHoje', EXISTS (SELECT 1 FROM presencas p WHERE p.dependente_id = d.id AND p.data = ${HOJE})) ORDER BY d.nome)
+                FROM dependentes d WHERE d.socio_id = s.id), '[]'::json) AS dependentes
        FROM socios s
        WHERE s.clube = $1 AND s.origem_planilha = 'ativo_geral' AND s.status <> 'desligado'
-         AND (s.nome ILIKE $2 OR s.matricula ILIKE $2${extra})
+         AND (s.nome ILIKE $2 OR s.matricula ILIKE $2${extra}
+              OR EXISTS (SELECT 1 FROM dependentes d WHERE d.socio_id = s.id AND d.nome ILIKE $2))
        ORDER BY s.nome LIMIT 15`,
       params
     );
@@ -42,17 +47,26 @@ router.get('/buscar', async (req, res, next) => {
 router.post('/', async (req, res, next) => {
   const socioId = Number(req.body?.socioId);
   if (!Number.isInteger(socioId)) return res.status(400).json({ erro: 'Escolha o sócio' });
+  const dependenteId = req.body?.dependenteId == null ? null : Number(req.body.dependenteId);
+  if (dependenteId !== null && !Number.isInteger(dependenteId)) return res.status(400).json({ erro: 'Dependente inválido' });
   try {
     const s = (await pool.query(
       `SELECT id, nome, status FROM socios WHERE id = $1 AND clube = $2 AND origem_planilha = 'ativo_geral'`, [socioId, CLUBE_FINANCEIRO]
     )).rows[0];
     if (!s) return res.status(404).json({ erro: 'Sócio ATPN não encontrado' });
     if (s.status === 'desligado') return res.status(409).json({ erro: 'Esse sócio está desligado' });
+    let nome = s.nome;
+    if (dependenteId !== null) {
+      const d = (await pool.query('SELECT nome FROM dependentes WHERE id = $1 AND socio_id = $2', [dependenteId, socioId])).rows[0];
+      if (!d) return res.status(404).json({ erro: 'Dependente não encontrado' });
+      nome = d.nome;
+    }
     const r = await pool.query(
-      `INSERT INTO presencas (socio_id, data, registrado_por) VALUES ($1, ${HOJE}, $2) ON CONFLICT (socio_id, data) DO NOTHING RETURNING id`,
-      [socioId, req.usuario.pessoaId]
+      `INSERT INTO presencas (socio_id, dependente_id, data, registrado_por) VALUES ($1, $2, ${HOJE}, $3)
+       ON CONFLICT (socio_id, COALESCE(dependente_id, 0), data) DO NOTHING RETURNING id`,
+      [socioId, dependenteId, req.usuario.pessoaId]
     );
-    res.status(r.rowCount ? 201 : 200).json({ ok: true, jaRegistrado: !r.rowCount, nome: s.nome });
+    res.status(r.rowCount ? 201 : 200).json({ ok: true, jaRegistrado: !r.rowCount, nome, dependente: dependenteId !== null });
   } catch (err) {
     next(err);
   }
@@ -74,7 +88,7 @@ router.delete('/:id', exigirPapel(), async (req, res, next) => {
 router.get('/resumo', async (req, res, next) => {
   try {
     const periodo = async (desde) => (await pool.query(
-      `SELECT count(DISTINCT p.socio_id)::int AS pessoas, count(*)::int AS visitas
+      `SELECT count(DISTINCT (p.socio_id, COALESCE(p.dependente_id, 0)))::int AS pessoas, count(*)::int AS visitas
        FROM presencas p JOIN socios s ON s.id = p.socio_id
        WHERE s.clube = $1 AND p.data >= ${desde} AND p.data <= ${HOJE}`, [CLUBE_FINANCEIRO]
     )).rows[0];
@@ -83,8 +97,9 @@ router.get('/resumo', async (req, res, next) => {
       periodo(`date_trunc('week', ${HOJE})::date`),
       periodo(`date_trunc('month', ${HOJE})::date`),
       pool.query(
-        `SELECT p.id, s.id AS "socioId", s.nome, s.categoria, to_char(p.criado_em AT TIME ZONE 'America/Fortaleza', 'HH24:MI') AS hora
-         FROM presencas p JOIN socios s ON s.id = p.socio_id
+        `SELECT p.id, s.id AS "socioId", COALESCE(d.nome, s.nome) AS nome, (d.id IS NOT NULL) AS dependente, s.categoria,
+                to_char(p.criado_em AT TIME ZONE 'America/Fortaleza', 'HH24:MI') AS hora
+         FROM presencas p JOIN socios s ON s.id = p.socio_id LEFT JOIN dependentes d ON d.id = p.dependente_id
          WHERE s.clube = $1 AND p.data = ${HOJE} ORDER BY p.criado_em DESC LIMIT 50`, [CLUBE_FINANCEIRO]
       ),
       pool.query(`SELECT to_char(${HOJE}, 'YYYY-MM-DD') AS hoje, to_char(date_trunc('week', ${HOJE}), 'YYYY-MM-DD') AS semana, to_char(date_trunc('month', ${HOJE}), 'YYYY-MM-DD') AS mes`),

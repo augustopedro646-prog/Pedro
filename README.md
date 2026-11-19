@@ -124,6 +124,24 @@ diferente = pessoas diferentes (família/erro de digitação), cada uma vira um 
 "desligamento", "desligaod" ou "desigado" na planilha contam como desligado. Depois da importação o
 status é recalculado considerando os pagamentos registrados na aba Mensalidades.
 
+### Legenda da planilha (importação por cor)
+
+A importação lê as **cores** da planilha (`scripts/lib/xlsx-extras.js`), porque é assim que a
+associação a usa: cor da coluna A = situação do sócio — verde **em dia**, ciano **1 a 2 meses**,
+laranja **3 a 5 meses**, vermelho **6 meses ou mais**, rosa **desativado**. Célula de mês pintada de
+vermelho = mês em atraso (inclusive "Sem margem"); mês pago na aba Mensalidades deixa de contar.
+"Deve nenhum mês" = em dia. Hoje: 403 na aba ATIVO GERAL, 303 em dia.
+
+**Dependentes**: quando há dois nomes na mesma célula, o de cima (preto) é o titular e os em azul
+são dependentes (tabela `dependentes`, ligada ao titular; não entram na contagem do quadro). Na
+Início, a busca acha o titular e os dependentes, cada um com seu "Registrar presença".
+**Possível contagem dobrada** (`socios.possivel_duplicado`): mesma matrícula/nome em mais de uma
+linha — só sinaliza, nada é apagado.
+
+Quem é só da ATPN (sem a parceria com o CEPE) fica em **outra planilha/controle**: ainda não
+importado. Quando chegar, exige um novo valor de `clube` (hoje `CHECK` aceita só `cepe` e
+`cepe_atpn`).
+
 ## Regras de negócio que não são óbvias
 
 - **Financeiro só da ATPN.** Relatórios, Fluxo de caixa e Início usam apenas sócios `cepe_atpn`;

@@ -2,7 +2,7 @@ const express = require('express');
 const { pool } = require('../db');
 const { exigirAuth, exigirAba } = require('../auth');
 const { serieMensal, infoPlanilha, ANO_INICIAL, CLUBE_FINANCEIRO } = require('../mensalidades');
-const { sobreporPagamentos } = require('../statusSocio');
+const { sobreporPagamentos, contarEmAberto } = require('../statusSocio');
 
 const router = express.Router();
 router.use(exigirAuth, exigirAba('relatorios'));
@@ -16,7 +16,7 @@ const CLUBE = CLUBE_FINANCEIRO;
 // Retrato atual do quadro de sócios ATPN (o que a planilha + a recepção dizem hoje).
 router.get('/socios', async (req, res, next) => {
   try {
-    const [porStatus, porCategoria, especiais, datas, motivos] = await Promise.all([
+    const [porStatus, porCategoria, especiais, datas, motivos, deps] = await Promise.all([
       pool.query('SELECT clube, status, count(*)::int AS n FROM socios WHERE clube = $1 GROUP BY clube, status', [CLUBE]),
       pool.query(
         `SELECT clube, COALESCE(categoria, 'nao_identificada') AS categoria, count(*)::int AS n
@@ -38,6 +38,11 @@ router.get('/socios', async (req, res, next) => {
                 END AS motivo, count(*)::int AS n
          FROM socios WHERE clube = $1 AND status = 'desligado' GROUP BY 1 ORDER BY 2 DESC`, [CLUBE]
       ),
+      pool.query(
+        `SELECT (SELECT count(*)::int FROM dependentes d JOIN socios s ON s.id = d.socio_id WHERE s.clube = $1 AND s.status <> 'desligado') AS dependentes,
+                (SELECT count(*)::int FROM socios WHERE clube = $1 AND status <> 'desligado' AND origem_planilha = 'ativo_geral' AND possivel_duplicado) AS duplicados,
+                (SELECT count(*)::int FROM socios WHERE clube = $1 AND origem_planilha = 'ativo_geral') AS quadro`, [CLUBE]
+      ),
     ]);
     res.json({
       atualizadoEm: datas.rows[0].d,
@@ -45,6 +50,9 @@ router.get('/socios', async (req, res, next) => {
       porCategoria: porCategoria.rows,
       situacoesEspeciais: especiais.rows,
       motivosDesligamento: motivos.rows,
+      dependentes: deps.rows[0].dependentes,
+      possiveisDuplicados: deps.rows[0].duplicados,
+      quadro: deps.rows[0].quadro,
     });
   } catch (err) {
     next(err);
@@ -63,15 +71,9 @@ router.get('/mensalidades', async (req, res, next) => {
   }
 });
 
-// Meses seguidos sem pagar, contando de trás pra frente (mesma regra da importação).
-function mesesEmAberto(mensalidades) {
-  let n = 0;
-  for (let i = mensalidades.length - 1; i >= 0; i--) {
-    if (mensalidades[i].valor === 0) n++;
-    else break;
-  }
-  return n;
-}
+// Meses em atraso = células pintadas de vermelho na planilha (inclusive "Sem margem"),
+// menos os que a recepção já recebeu na aba Mensalidades.
+const mesesEmAberto = (mensalidades) => contarEmAberto(mensalidades);
 
 async function listarInadimplentes({ status }) {
   const params = [CLUBE];
@@ -84,7 +86,7 @@ async function listarInadimplentes({ status }) {
   );
   if (!socios.length) return [];
   const { rows: mens } = await pool.query(
-    `SELECT socio_id, ano, mes, valor FROM socios_mensalidades
+    `SELECT socio_id, ano, mes, valor, em_aberto FROM socios_mensalidades
      WHERE socio_id = ANY($1) AND ano >= $2 ORDER BY socio_id, ano, mes`,
     [socios.map((s) => s.id), ANO_INICIAL_MENSALIDADES]
   );
@@ -97,7 +99,7 @@ async function listarInadimplentes({ status }) {
   const porSocio = new Map();
   for (const m of mens) {
     if (!porSocio.has(m.socio_id)) porSocio.set(m.socio_id, []);
-    porSocio.get(m.socio_id).push({ ano: m.ano, mes: m.mes, valor: m.valor === null ? null : Number(m.valor), observacao: null });
+    porSocio.get(m.socio_id).push({ ano: m.ano, mes: m.mes, valor: m.valor === null ? null : Number(m.valor), observacao: null, emAberto: m.em_aberto });
   }
   const pagsPorSocio = new Map();
   for (const p of pags) {

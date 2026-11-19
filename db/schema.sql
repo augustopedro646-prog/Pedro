@@ -306,3 +306,27 @@ CREATE TABLE IF NOT EXISTS presencas (
   UNIQUE (socio_id, data)
 );
 CREATE INDEX IF NOT EXISTS idx_presencas_data ON presencas(data);
+
+-- Legenda da planilha (conferida nas 403 linhas ATPN): a cor da coluna A é a situação do
+-- sócio (verde em dia, ciano 1-2 meses, laranja 3-5, vermelho 6+, rosa desativado) e a
+-- célula de mês pintada de vermelho é mês em atraso (inclusive "Sem margem").
+ALTER TABLE socios ADD COLUMN IF NOT EXISTS meses_em_aberto INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE socios ADD COLUMN IF NOT EXISTS nome_nota TEXT;
+-- mesma matrícula em pessoas diferentes (família, dependente com linha própria): a
+-- planilha pode contar a mesma família duas vezes — fica sinalizado, não escondido.
+ALTER TABLE socios ADD COLUMN IF NOT EXISTS possivel_duplicado BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE socios_mensalidades ADD COLUMN IF NOT EXISTS em_aberto BOOLEAN NOT NULL DEFAULT false;
+
+-- Dependentes: nomes em AZUL embaixo do nome do sócio (titular) na mesma célula da planilha.
+-- A reimportação recria a lista de cada titular; presença de dependente fica em presencas.
+CREATE TABLE IF NOT EXISTS dependentes (
+  id SERIAL PRIMARY KEY,
+  socio_id INTEGER NOT NULL REFERENCES socios(id),
+  nome TEXT NOT NULL,
+  criado_em TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_dependentes_socio ON dependentes(socio_id);
+
+ALTER TABLE presencas ADD COLUMN IF NOT EXISTS dependente_id INTEGER REFERENCES dependentes(id);
+ALTER TABLE presencas DROP CONSTRAINT IF EXISTS presencas_socio_id_data_key;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_presencas_unica ON presencas (socio_id, COALESCE(dependente_id, 0), data);

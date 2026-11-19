@@ -38,7 +38,9 @@ router.get('/', async (req, res, next) => {
     params.push(limite);
     const { rows } = await pool.query(
       `SELECT id, matricula, nome, clube, categoria, status, situacao_especial AS "situacaoEspecial",
-              telefone, to_char(planilha_atualizada_em, 'YYYY-MM-DD') AS "planilhaAtualizadaEm"
+              telefone, to_char(planilha_atualizada_em, 'YYYY-MM-DD') AS "planilhaAtualizadaEm",
+              meses_em_aberto AS "mesesEmAberto", possivel_duplicado AS "possivelDuplicado",
+              (SELECT count(*)::int FROM dependentes d WHERE d.socio_id = socios.id) AS "qtdDependentes"
        FROM socios ${where}
        ORDER BY (clube = 'cepe_atpn') DESC, (status = 'desligado'), nome LIMIT $${params.length}`,
       params
@@ -68,17 +70,19 @@ router.get('/:id', async (req, res, next) => {
               categoria_original AS "categoriaOriginal", dia_vencimento AS "diaVencimento", telefone,
               telefone_secundario AS "telefoneSecundario", status, situacao_especial AS "situacaoEspecial",
               motivo_desligamento AS "motivoDesligamento", origem_planilha AS "origemPlanilha",
-              to_char(planilha_atualizada_em, 'YYYY-MM-DD') AS "planilhaAtualizadaEm"
+              to_char(planilha_atualizada_em, 'YYYY-MM-DD') AS "planilhaAtualizadaEm",
+              meses_em_aberto AS "mesesEmAberto", nome_nota AS "nomeNota", possivel_duplicado AS "possivelDuplicado"
        FROM socios WHERE id = $1`,
       [id]
     );
     if (!rows[0]) return res.status(404).json({ erro: 'Sócio não encontrado' });
 
     const { rows: mensalidades } = await pool.query(
-      `SELECT ano, mes, valor, observacao FROM socios_mensalidades WHERE socio_id = $1 ORDER BY ano, mes`,
+      `SELECT ano, mes, valor, observacao, em_aberto AS "emAberto" FROM socios_mensalidades WHERE socio_id = $1 ORDER BY ano, mes`,
       [id]
     );
-    res.json({ ...rows[0], mensalidades });
+    const { rows: dependentes } = await pool.query('SELECT id, nome FROM dependentes WHERE socio_id = $1 ORDER BY nome', [id]);
+    res.json({ ...rows[0], mensalidades, dependentes });
   } catch (err) {
     next(err);
   }

@@ -25,12 +25,14 @@ const EFETIVO_SQL = `
     WHERE p.cancelado_em IS NULL AND s.clube = '${CLUBE_FINANCEIRO}' AND s.origem_planilha = 'ativo_geral'
     GROUP BY 1, 2, 3
   ), base AS (
-    SELECT m.socio_id, m.ano, m.mes, m.valor, m.observacao
+    SELECT m.socio_id, m.ano, m.mes, m.valor, m.observacao, m.em_aberto
     FROM socios_mensalidades m JOIN socios s ON s.id = m.socio_id
     WHERE s.clube = '${CLUBE_FINANCEIRO}' AND s.origem_planilha = 'ativo_geral' AND m.ano >= ${ANO_INICIAL}
   ), efetivo AS (
     SELECT COALESCE(b.socio_id, p.socio_id) AS socio_id, COALESCE(b.ano, p.ano) AS ano, COALESCE(b.mes, p.mes) AS mes,
-           CASE WHEN b.valor > 0 THEN b.valor ELSE COALESCE(p.valor, b.valor) END AS valor
+           CASE WHEN b.valor > 0 THEN b.valor ELSE COALESCE(p.valor, b.valor) END AS valor,
+           -- mês em atraso = célula vermelha da planilha, sem valor e sem pagamento registrado aqui
+           (COALESCE(b.em_aberto, false) AND p.valor IS NULL AND COALESCE(b.valor, 0) <= 0) AS aberto
     FROM base b FULL JOIN pag p ON p.socio_id = b.socio_id AND p.ano = b.ano AND p.mes = b.mes
     WHERE COALESCE(b.ano, p.ano) >= ${ANO_INICIAL}
   )`;
@@ -56,8 +58,8 @@ async function serieMensal() {
      SELECT ano, mes,
             COALESCE(sum(valor) FILTER (WHERE valor > 0), 0)::float8 AS arrecadado,
             count(*) FILTER (WHERE valor > 0)::int AS pagantes,
-            count(*) FILTER (WHERE valor = 0)::int AS "naoPagaram",
-            count(*) FILTER (WHERE valor IS NULL)::int AS especiais
+            count(*) FILTER (WHERE aberto)::int AS "naoPagaram",
+            count(*) FILTER (WHERE valor IS NULL AND NOT aberto)::int AS especiais
      FROM efetivo GROUP BY ano, mes ORDER BY ano, mes`
   );
   return rows;

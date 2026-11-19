@@ -61,7 +61,7 @@ router.get('/socio/:id', async (req, res, next) => {
   try {
     const socio = await carregarSocioAtpn(pool, Number(req.params.id));
     const [mens, pags] = await Promise.all([
-      pool.query('SELECT ano, mes, valor, observacao FROM socios_mensalidades WHERE socio_id = $1 AND ano >= $2 ORDER BY ano, mes', [socio.id, ANO_INICIAL]),
+      pool.query('SELECT ano, mes, valor, observacao, em_aberto FROM socios_mensalidades WHERE socio_id = $1 AND ano >= $2 ORDER BY ano, mes', [socio.id, ANO_INICIAL]),
       pool.query(
         `SELECT p.id, p.ano, p.mes, p.valor, p.forma_pagamento AS "forma", to_char(p.data_pagamento, 'YYYY-MM-DD') AS "dataPagamento",
                 p.observacao, p.criado_em AS "criadoEm", r.nome AS "registradoPor",
@@ -70,7 +70,7 @@ router.get('/socio/:id', async (req, res, next) => {
          WHERE p.socio_id = $1 ORDER BY p.data_pagamento DESC, p.id DESC`, [socio.id]
       ),
     ]);
-    const planilha = new Map(mens.rows.map((m) => [m.ano * 12 + m.mes, { valor: m.valor === null ? null : Number(m.valor), observacao: m.observacao }]));
+    const planilha = new Map(mens.rows.map((m) => [m.ano * 12 + m.mes, { valor: m.valor === null ? null : Number(m.valor), observacao: m.observacao, emAberto: m.em_aberto }]));
     const pagos = new Map();
     pags.rows.filter((p) => !p.canceladoEm).forEach((p) => pagos.set(p.ano * 12 + p.mes, (pagos.get(p.ano * 12 + p.mes) || 0) + Number(p.valor)));
 
@@ -86,7 +86,7 @@ router.get('/socio/:id', async (req, res, next) => {
       let valor = null;
       if (pl && pl.valor > 0) { situacao = 'pago_planilha'; valor = pl.valor; }
       else if (reg > 0) { situacao = 'pago_atpn'; valor = reg; }
-      else if (pl && pl.valor === 0) situacao = 'aberto';
+      else if (pl && (pl.emAberto || pl.valor === 0)) situacao = 'aberto'; // vermelho na planilha (inclui "Sem margem")
       else if (pl && pl.valor === null) situacao = 'especial';
       else situacao = 'sem_lancamento';
       meses.push({ ano, mes, situacao, valor, observacao: pl ? pl.observacao : null });
