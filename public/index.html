@@ -426,6 +426,73 @@
     background: transparent; border: 1px solid rgba(255,255,255,.2); color: var(--sidebar-text);
     border-radius: 6px; padding: 7px 10px; cursor: pointer; font-size: .82rem; text-align: left;
   }
+  /* ---- Réveillon: planta do salão ---- */
+.mp-wrap{overflow:hidden;border:2px solid var(--borda);border-radius:var(--radius);background:var(--superficie);-webkit-overflow-scrolling:touch;}
+.mp-stage{container-type:inline-size;}
+.mp-canvas{--mesaEsc:1;--ky:1;}
+.mp-mesa{transform:scale(var(--mesaEsc,1));}
+@container (max-width:620px){   /* celular: o mapa cabe na largura da tela; mesas maiores e só o número (status pela cor) */
+  .mp-canvas{--mesaEsc:1.32;--ky:1.5;height:calc(var(--H,98) * var(--ky) * 1cqw);}   /* aproveita a altura da tela: o desenho estica na vertical, mesas e objetos mantêm a proporção */
+  .mp-mesa .mp-st,.mp-mesa .mp-tot{display:none;}
+}
+.mp-canvas{position:relative;width:100%;background-color:var(--superficie);user-select:none;-webkit-user-select:none;}
+.mp-el{position:absolute;box-sizing:border-box;}
+.mp-mesa{z-index:10;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:0.25cqw;border:2px solid var(--borda);background:var(--superficie);box-shadow:var(--shadow);color:#2b2418;padding:0;font:inherit;text-align:center;overflow:hidden;cursor:pointer;}
+.mp-mesa.f-q,.mp-mesa.f-ret{border-radius:1.2cqw;}
+.mp-mesa.f-r{border-radius:50%;}
+.mp-mesa.mp-dim{opacity:0.28;}
+.mp-num{font-family:inherit;font-weight:700;font-size:max(2.6cqw,12px);line-height:1;}
+.mp-st{font-size:1.15cqw;text-transform:uppercase;letter-spacing:0.04em;color:var(--texto-fraco);line-height:1;}
+.mp-tot{font-family:'IBM Plex Mono',monospace;font-size:1.35cqw;font-weight:500;line-height:1;}
+.mp-ex{z-index:1;}
+.mp-ex-parede{z-index:8;background:#2b2418;opacity:0.8;border-radius:3px;}
+.mp-ex-area{background:var(--borda);opacity:0.7;border-radius:1.2cqw;}
+.mp-ex-rotulo{z-index:12;display:flex;align-items:center;justify-content:center;text-align:center;font-weight:700;color:#2b2418;letter-spacing:0.04em;text-transform:uppercase;line-height:1.1;}
+/* visual das áreas do salão (grama, piscina, deck, piso, palco, balcão, rampa, escada) */
+.mp-ex-area.c-grama{opacity:1;background:radial-gradient(circle at 22% 30%,rgba(255,255,255,0.14) 0 1.5px,transparent 2.5px) 0 0/19px 19px,radial-gradient(circle at 68% 64%,rgba(0,0,0,0.10) 0 1.5px,transparent 2.5px) 0 0/23px 23px,linear-gradient(135deg,#86c063,#5e9a3e);box-shadow:inset 0 0 0 2px rgba(255,255,255,0.2),inset 0 0 2cqw rgba(30,80,20,0.25);}
+.mp-ex-area.c-agua{opacity:1;border:0.45cqw solid #eef6f7;background:repeating-linear-gradient(118deg,rgba(255,255,255,0.22) 0 2px,transparent 2px 15px),linear-gradient(160deg,#86d8ec,#2c9fc4);box-shadow:inset 0 0 2cqw rgba(0,70,100,0.35),0 1px 4px rgba(0,0,0,0.25);}
+.mp-ex-area.c-deck{opacity:1;background:repeating-linear-gradient(90deg,rgba(60,35,10,0.18) 0 1px,transparent 1px 2.6cqw),linear-gradient(#cc9d66,#b5844d);box-shadow:inset 0 0 0 2px rgba(255,255,255,0.15);}
+.mp-ex-area.c-piso{opacity:1;background:linear-gradient(rgba(90,70,40,0.10) 1px,transparent 1px) 0 0/2.6cqw 2.6cqw,linear-gradient(90deg,rgba(90,70,40,0.10) 1px,transparent 1px) 0 0/2.6cqw 2.6cqw,#efe3c8;}
+.mp-ex-area.c-palco{opacity:1;background:repeating-linear-gradient(90deg,rgba(255,255,255,0.07) 0 2px,transparent 2px 2.2cqw),linear-gradient(#6a4730,#47301f);box-shadow:inset 0 0 0 2px rgba(255,255,255,0.12),0 2px 6px rgba(0,0,0,0.3);}
+.mp-ex-area.c-balcao{opacity:1;background:linear-gradient(#a06a44,#74482b);box-shadow:inset 0 0.4cqw 0 rgba(255,255,255,0.25),0 2px 5px rgba(0,0,0,0.3);}
+.mp-ex-area.c-rampa{opacity:1;background:repeating-linear-gradient(135deg,#d6ccb5 0 0.7cqw,#bdb29a 0.7cqw 1.4cqw);box-shadow:inset 0 0 0 2px rgba(0,0,0,0.12);}
+.mp-ex-escada{z-index:1;border-radius:3px;box-shadow:inset 0 0 0 2px rgba(0,0,0,0.18);}
+.mp-ex-escada.esc-v{background:repeating-linear-gradient(to bottom,#e3dac5 0 0.9cqw,#a89e87 0.9cqw 1.1cqw);}
+.mp-ex-escada.esc-h{background:repeating-linear-gradient(to right,#e3dac5 0 0.9cqw,#a89e87 0.9cqw 1.1cqw);}
+.mp-ex-parede{background:#4a3b2a;opacity:0.92;}
+.mp-ex-rotulo{text-transform:none;letter-spacing:0.01em;}
+.mp-ex-rotulo span{background:color-mix(in srgb,var(--superficie) 94%,transparent);padding:0.3em 0.85em;border-radius:0.9em;box-shadow:0 1px 4px rgba(0,0,0,0.3);white-space:nowrap;}
+.mp-mesa{box-shadow:0 1px 4px rgba(0,0,0,0.35);background:#fffdf6;color:#2b2418;}
+.mp-mesa .mp-st{color:#6b5f48;}
+/* andares: sombra mais forte = mais alto; rampa/escada ficam mais claras no lado que sobe */
+.mp-lvl{filter:drop-shadow(0 calc(var(--lv) * 0.3cqw) calc(var(--lv) * 0.4cqw) rgba(0,0,0,0.38));}
+.up-n{--ov:linear-gradient(to top,rgba(0,0,0,0.5),rgba(255,255,255,0.45));}
+.up-s{--ov:linear-gradient(to bottom,rgba(0,0,0,0.5),rgba(255,255,255,0.45));}
+.up-e{--ov:linear-gradient(to right,rgba(0,0,0,0.5),rgba(255,255,255,0.45));}
+.up-w{--ov:linear-gradient(to left,rgba(0,0,0,0.5),rgba(255,255,255,0.45));}
+.mp-ex-area.c-rampa[class*="up-"]::after,.mp-ex-escada[class*="up-"]::after{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:1.7cqw;line-height:1;color:rgba(50,30,10,0.6);pointer-events:none;}
+.mp-ex-area.c-rampa.up-s::after,.mp-ex-escada.up-s::after{content:"▼";}
+.mp-ex-area.c-rampa.up-n::after,.mp-ex-escada.up-n::after{content:"▲";}
+.mp-ex-area.c-rampa.up-e::after,.mp-ex-escada.up-e::after{content:"▶";}
+.mp-ex-area.c-rampa.up-w::after,.mp-ex-escada.up-w::after{content:"◀";}
+.mp-ex-area.c-rampa[class*="up-"]{background-image:var(--ov),repeating-linear-gradient(135deg,#d6ccb5 0 0.7cqw,#bdb29a 0.7cqw 1.4cqw);}
+.mp-ex-escada.esc-v[class*="up-"]{background-image:var(--ov),repeating-linear-gradient(to bottom,#e3dac5 0 0.9cqw,#a89e87 0.9cqw 1.1cqw);}
+.mp-ex-escada.esc-h[class*="up-"]{background-image:var(--ov),repeating-linear-gradient(to right,#e3dac5 0 0.9cqw,#a89e87 0.9cqw 1.1cqw);}
+.mp-ex-chuveiro{z-index:9;display:flex;align-items:center;justify-content:center;filter:drop-shadow(0 1px 2px rgba(0,0,0,0.35));}
+.mp-ex-chuveiro svg{width:100%;height:100%;}
+.mp-ex-objeto{z-index:9;display:flex;align-items:center;justify-content:center;filter:drop-shadow(0 1px 2px rgba(0,0,0,0.45));}
+.mp-ex-objeto svg{width:100%;height:100%;}
+.mp-ex-area.c-azulejo{opacity:1;background:linear-gradient(rgba(255,255,255,0.6) 1px,transparent 1px) 0 0/1.3cqw 1.3cqw,linear-gradient(90deg,rgba(255,255,255,0.6) 1px,transparent 1px) 0 0/1.3cqw 1.3cqw,#79b4d4;box-shadow:inset 0 0 0 2px rgba(255,255,255,0.35);}
+.mp-mesa.reservada{border-color:#d4a017;background:#fbe9b0;}
+.mp-mesa.confirmada{border-color:#1f7a3f;background:#bfe6c9;}
+.mp-wrap{isolation:isolate;position:relative;z-index:0;}
+.mp-mesa.mp-sel-rv{outline:3px solid #1b241d;outline-offset:2px;z-index:20;}
+.mp-mesa.reservada .mp-st{color:#7a5a05;} .mp-mesa.confirmada .mp-st{color:#14532b;}
+.mp-cli{font-size:1.25cqw;line-height:1.05;max-width:92%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#2b2418;}
+@container (max-width:620px){ .mp-cli{display:none;} }
+.rv-legenda{display:flex;gap:12px;flex-wrap:wrap;font-size:.82rem;color:var(--texto-fraco);margin:8px 0;}
+.rv-legenda i{display:inline-block;width:12px;height:12px;border-radius:3px;border:2px solid;margin-right:4px;vertical-align:-1px;}
+.mp-ex-parede{pointer-events:none;}
 </style>
 </head>
 <body>
@@ -434,6 +501,7 @@
 <div id="modal-raiz"></div>
 <div id="dialogo-raiz"></div>
 
+<script src="planta-salao.js"></script>
 <script>
 (() => {
   // ---------- Estado global (SPA "na mão", sem framework/build step) ----------
@@ -542,7 +610,7 @@
     // sócios (importado de planilha — ver scripts/importar-socios.js)
     sociosCarregado: false,
     sociosBusca: '',
-    sociosFiltroClube: 'todos',
+    sociosFiltroClube: 'cepe_atpn',
     sociosFiltroStatus: 'todos',
     sociosLista: [],
     sociosTotal: 0,
@@ -839,6 +907,7 @@
   function viewConteudo() {
     if (state.abaAtual === 'config') return viewConfiguracoes();
     if (state.abaAtual === 'equipe') return viewEquipe();
+    if (state.abaAtual === 'reveillon') return viewReveillon();
     if (state.abaAtual === 'ponto') return viewPonto();
     if (state.abaAtual === 'fluxo_caixa') return viewFluxoCaixa();
     if (state.abaAtual === 'tarefas') return viewTarefas();
@@ -3113,6 +3182,9 @@
       });
     });
 
+    document.querySelectorAll('[data-rev]').forEach((el) => {
+      el.addEventListener('click', () => acaoReveillon(el));
+    });
     document.querySelectorAll('[data-eq]').forEach((el) => {
       el.addEventListener('click', () => acaoEquipeAba(el));
     });
@@ -3287,7 +3359,7 @@
       tarefasCadastroCarregado: false, tarefasCadastro: [], novaTarefaFrequencia: 'diaria',
       calendarioCarregado: false, calendarioConfigurado: true, calendarioMesRef: null, calendarioEventos: [],
       eventosProximos: [], eventosCarregado: false,
-      sociosCarregado: false, sociosBusca: '', sociosFiltroClube: 'todos', sociosFiltroStatus: 'todos',
+      sociosCarregado: false, sociosBusca: '', sociosFiltroClube: 'cepe_atpn', sociosFiltroStatus: 'todos',
       sociosLista: [], sociosTotal: 0, sociosResumo: [], sociosExpandidoId: null, sociosDetalhe: null,
     });
     carregarCargos().then(render);
@@ -3353,6 +3425,11 @@
       render();
       await carregarRelatorios();
     }
+    if (id === 'reveillon') {
+      state.reveillon = null;
+      render();
+      await carregarReveillon();
+    }
     if (id === 'equipe') {
       state.equipeLista = null;
       render();
@@ -3411,6 +3488,123 @@
       const campo = document.getElementById('busca-socios');
       if (campo) campo.focus();
     }
+  }
+
+  // ---------- réveillon (planta do salão do Jabá com as reservas de mesa) ----------
+  async function carregarReveillon() {
+    state.reveillonErro = null;
+    try { state.reveillon = await api('/reveillon'); } catch (err) { state.reveillon = null; state.reveillonErro = err.message; }
+    if (state.abaAtual === 'reveillon') render();
+  }
+
+  function plantaHtml(porMesa) {
+    const al = PLANTA_SALAO;
+    const H = al.h || 62;
+    const filtro = state.reveillonFiltro || 'todas';
+    const pos = (p) => `left:${p.x}%;top:${p.y}%;width:${p.w}%;height:${p.h}%;`;
+    const posK = (p) => `left:${p.x}%;width:${p.w}%;top:calc(${p.y}% + ${(p.h / 2).toFixed(3)}% * (1 - 1 / var(--ky,1)));height:calc(${p.h}% / var(--ky,1));`;
+    const extras = al.extras.map((e) => {
+      const fs = e.t === 'rotulo' ? `font-size:${e.fs || 1.8}cqw;` : '';
+      let rot = e.rot ? `transform:rotate(${Number(e.rot) || 0}deg);` : '';
+      if (typeof e.br === 'string' && /^[0-9a-z% .]{1,40}$/i.test(e.br)) rot += `border-radius:${e.br};`;
+      if (Array.isArray(e.poly) && e.poly.length >= 3 && e.poly.length <= 12) rot += `clip-path:polygon(${e.poly.map((p) => `${Number(p[0]) || 0}% ${Number(p[1]) || 0}%`).join(',')});`;
+      const orient = e.t === 'escada' ? ((e.h * H / 100) > e.w ? ' esc-v' : ' esc-h') : '';
+      const upCls = ['n', 's', 'e', 'w'].includes(e.up) ? ' up-' + e.up : '';
+      if (Number(e.z)) rot += `z-index:${Math.max(0, Math.min(9, Number(e.z)))};`;
+      const miolo = e.t === 'rotulo' ? `<span>${esc(e.txt || '')}</span>` : e.t === 'chuveiro' ? CHUVEIRO_SVG : e.t === 'objeto' ? (MAPA_OBJETOS[e.k] || '') : '';
+      const k = e.t === 'objeto' || e.t === 'chuveiro' || e.t === 'rotulo' || (e.t === 'parede' && e.h * H / 100 < e.w);
+      return `<div class="mp-el mp-ex mp-ex-${e.t}${orient}${e.c ? ' c-' + e.c : ''}${upCls}" style="${k ? posK(e) : pos(e)}${fs}${rot}">${miolo}</div>`;
+    }).join('');
+    const rotulo = { livre: 'Livre', reservada: 'Reservada', confirmada: 'Confirmada' };
+    const mesas = Object.entries(al.mesas).map(([num, p]) => {
+      const n = Number(num);
+      const r = porMesa.get(n);
+      const st = r ? r.status : 'livre';
+      const dim = filtro !== 'todas' && filtro !== st;
+      const sel = state.reveillonMesa === n ? ' mp-sel-rv' : '';
+      return `<button class="mp-el mp-mesa ${st} f-${p.f || 'q'}${dim ? ' mp-dim' : ''}${sel}" data-rev="mesa" data-mesa="${n}" title="${r ? esc(r.nome) : 'Mesa livre'}" style="${posK(p)}">
+        <div class="mp-num">${n}</div>${r ? `<div class="mp-cli">${esc(r.nome)}</div>` : ''}<div class="mp-st">${rotulo[st]}</div></button>`;
+    }).join('');
+    return `<div class="mp-wrap"><div class="mp-stage"><div class="mp-canvas" style="aspect-ratio:100/${H};--H:${H};">${extras}${mesas}</div></div></div>`;
+  }
+
+  function viewReveillon() {
+    const cab = cabecalho('Réveillon', 'Mapa das mesas do salão (mesma planta do Jabá). Toque numa mesa livre para reservar, ou numa reservada para ver e editar.');
+    if (state.reveillonErro) return `${cab}<div class="secao"><p>Não foi possível carregar (${esc(state.reveillonErro)}). <button class="botao" data-rev="recarregar">Tentar de novo</button></p></div>`;
+    if (!state.reveillon) return `${cab}<p class="placeholder">Carregando…</p>`;
+    const { reservas, resumo } = state.reveillon;
+    const porMesa = new Map(reservas.map((r) => [r.mesa, r]));
+    const total = Object.keys(PLANTA_SALAO.mesas).length;
+    const brl = formatarMoeda;
+    const filtro = state.reveillonFiltro || 'todas';
+    const pil = (id, rot) => `<button class="pilula ${filtro === id ? 'sel' : ''}" data-rev="filtro" data-valor="${id}">${rot}</button>`;
+    const cartoes = `<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px;">
+      <div class="cartao-resumo"><div class="desc">Mesas reservadas</div><div style="font-size:1.5rem;font-weight:700;">${resumo.mesasReservadas} <span class="placeholder">de ${total}</span></div><div class="desc">${total - resumo.mesasReservadas} livres · ${resumo.confirmadas} confirmadas</div></div>
+      <div class="cartao-resumo"><div class="desc">Pessoas</div><div style="font-size:1.5rem;font-weight:700;">${resumo.pessoas}</div></div>
+      <div class="cartao-resumo"><div class="desc">Recebido</div><div style="font-size:1.5rem;font-weight:700;">${brl(resumo.valorPago)}</div><div class="desc">de ${brl(resumo.valorTotal)} · falta ${brl(resumo.valorTotal - resumo.valorPago)}</div></div>
+    </div>`;
+    const lista = reservas.map((r) => `<div class="linha-item" data-rev="mesa" data-mesa="${r.mesa}" style="cursor:pointer;">
+        <div><div class="nome">Mesa ${r.mesa} · ${esc(r.nome)}</div>
+          <div class="desc">${r.pessoas} ${r.pessoas === 1 ? 'pessoa' : 'pessoas'}${r.telefone ? ' · ' + esc(r.telefone) : ''}${r.observacao ? ' · ' + esc(r.observacao) : ''}</div></div>
+        <div style="text-align:right;"><span class="st-pill ${r.status === 'confirmada' ? 'st-em_dia' : 'st-ate_2_meses'}">${r.status}</span>
+          <div class="desc">${brl(r.valorPago)} / ${brl(r.valorTotal)}</div></div>
+      </div>`).join('') || '<p class="placeholder">Nenhuma mesa reservada ainda.</p>';
+    return `${cab}${cartoes}
+      <div class="pilulas-escolha" style="margin:0 0 6px;">${pil('todas', 'Todas')}${pil('livre', 'Livres')}${pil('reservada', 'Reservadas')}${pil('confirmada', 'Confirmadas')}</div>
+      <div class="rv-legenda"><span><i style="background:#fffdf6;border-color:#8a8a8a"></i>livre</span><span><i style="background:#fbe9b0;border-color:#d4a017"></i>reservada (falta confirmar)</span><span><i style="background:#bfe6c9;border-color:#1f7a3f"></i>confirmada</span></div>
+      ${plantaHtml(porMesa)}
+      <div class="secao" style="margin-top:14px;"><h3>Reservas (${reservas.length})</h3>${lista}</div>`;
+  }
+
+  function abrirReservaReveillon(mesa) {
+    const atual = state.reveillon.reservas.find((r) => r.mesa === mesa) || null;
+    const est = atual
+      ? { nome: atual.nome, telefone: atual.telefone || '', pessoas: String(atual.pessoas), valorTotal: String(atual.valorTotal), valorPago: String(atual.valorPago), status: atual.status, observacao: atual.observacao || '' }
+      : { nome: '', telefone: '', pessoas: '2', valorTotal: '', valorPago: '0', status: 'reservada', observacao: '' };
+    state.reveillonMesa = mesa;
+    abrirModal({
+      titulo: `Mesa ${mesa}${atual ? '' : ' · nova reserva'}`,
+      fecharNoFundo: false,
+      aoFechar: () => { state.reveillonMesa = null; if (state.abaAtual === 'reveillon') render(); },
+      render: () => `
+        <label class="campo"><span>Nome de quem reservou</span><input id="rvm-nome" maxlength="80" value="${esc(est.nome)}" /></label>
+        <label class="campo"><span>Telefone / WhatsApp</span><input id="rvm-tel" type="tel" inputmode="tel" maxlength="30" value="${esc(est.telefone)}" /></label>
+        <label class="campo"><span>Quantas pessoas</span><input id="rvm-pessoas" type="number" inputmode="numeric" min="1" max="99" value="${esc(est.pessoas)}" /></label>
+        <label class="campo"><span>Valor total da mesa (R$)</span><input id="rvm-total" inputmode="decimal" value="${esc(est.valorTotal)}" placeholder="0,00" /></label>
+        <label class="campo"><span>Quanto já pagou (R$)</span><input id="rvm-pago" inputmode="decimal" value="${esc(est.valorPago)}" placeholder="0,00" /></label>
+        <label class="campo"><span>Situação</span><select id="rvm-status"><option value="reservada" ${est.status === 'reservada' ? 'selected' : ''}>Reservada (falta confirmar)</option><option value="confirmada" ${est.status === 'confirmada' ? 'selected' : ''}>Confirmada</option></select></label>
+        <label class="campo"><span>Observação</span><input id="rvm-obs" maxlength="500" value="${esc(est.observacao)}" placeholder="Ex.: sócio, aniversariante, alergia…" /></label>
+        <div class="acoes-modal"><button class="botao" data-m="salvar">Salvar</button>${atual ? '<button class="botao botao-sec" data-m="cancelar-reserva">Cancelar reserva</button>' : ''}<button class="botao botao-sec" data-m="fechar">Fechar</button></div>`,
+      onInput: (c) => {
+        const mapa = { 'rvm-nome': 'nome', 'rvm-tel': 'telefone', 'rvm-pessoas': 'pessoas', 'rvm-total': 'valorTotal', 'rvm-pago': 'valorPago', 'rvm-obs': 'observacao' };
+        if (mapa[c.id]) est[mapa[c.id]] = c.value;
+      },
+      onMudou: (c) => { if (c.id === 'rvm-status') est.status = c.value; },
+      onClick: async (el) => {
+        const acao = el.dataset.m;
+        if (acao === 'fechar') { fecharModal(); return; }
+        try {
+          if (acao === 'cancelar-reserva') {
+            if (!await confirma(`Cancelar a reserva da mesa ${mesa} (${atual.nome})? A mesa volta a ficar livre.`, { ok: 'Cancelar reserva', perigo: true })) return;
+            await api(`/reveillon/${atual.id}`, { method: 'DELETE' });
+          } else if (acao === 'salvar') {
+            if (!est.nome.trim()) { avisar('Digite o nome de quem reservou.'); return; }
+            const corpo = { mesa, nome: est.nome, telefone: est.telefone, pessoas: Number(est.pessoas), valorTotal: est.valorTotal, valorPago: est.valorPago || 0, status: est.status, observacao: est.observacao };
+            if (atual) await api(`/reveillon/${atual.id}`, { method: 'PUT', body: corpo });
+            else await api('/reveillon', { method: 'POST', body: corpo });
+          } else return;
+          fecharModal();
+          await carregarReveillon();
+        } catch (err) { avisar(err.message); }
+      },
+    });
+  }
+
+  async function acaoReveillon(el) {
+    const tipo = el.dataset.rev;
+    if (tipo === 'recarregar') { state.reveillon = null; render(); await carregarReveillon(); return; }
+    if (tipo === 'filtro') { state.reveillonFiltro = el.dataset.valor; render(); return; }
+    if (tipo === 'mesa' && state.reveillon) abrirReservaReveillon(Number(el.dataset.mesa));
   }
 
   // ---------- equipe (igual à aba Equipe do PDV: cartões, papel, PIN oculto, editar) ----------

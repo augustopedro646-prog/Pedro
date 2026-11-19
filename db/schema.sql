@@ -330,3 +330,23 @@ CREATE INDEX IF NOT EXISTS idx_dependentes_socio ON dependentes(socio_id);
 ALTER TABLE presencas ADD COLUMN IF NOT EXISTS dependente_id INTEGER REFERENCES dependentes(id);
 ALTER TABLE presencas DROP CONSTRAINT IF EXISTS presencas_socio_id_data_key;
 CREATE UNIQUE INDEX IF NOT EXISTS idx_presencas_unica ON presencas (socio_id, COALESCE(dependente_id, 0), data);
+
+-- Réveillon: reservas de mesa na planta do salão do Jabá (mesmo local). A planta é uma cópia
+-- só de leitura do mapa do PDV (public/planta-salao.js); aqui fica só quem reservou qual mesa.
+CREATE TABLE IF NOT EXISTS reveillon_reservas (
+  id SERIAL PRIMARY KEY,
+  mesa_numero INTEGER NOT NULL,
+  nome TEXT NOT NULL,
+  telefone TEXT,
+  socio_id INTEGER REFERENCES socios(id),
+  pessoas INTEGER NOT NULL DEFAULT 1 CHECK (pessoas >= 1),
+  valor_total NUMERIC(10,2) NOT NULL DEFAULT 0,
+  valor_pago NUMERIC(10,2) NOT NULL DEFAULT 0,
+  status TEXT NOT NULL DEFAULT 'reservada' CHECK (status IN ('reservada', 'confirmada', 'cancelada')),
+  observacao TEXT,
+  criado_por INTEGER REFERENCES pessoas(id),
+  criado_em TIMESTAMPTZ NOT NULL DEFAULT now(),
+  atualizado_em TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+-- uma reserva ativa por mesa
+CREATE UNIQUE INDEX IF NOT EXISTS idx_reveillon_mesa_ativa ON reveillon_reservas (mesa_numero) WHERE status <> 'cancelada';
