@@ -3862,8 +3862,14 @@
     if (principal) { e.preventDefault(); principal.click(); }
   });
 
+  // Redesenha só quando a LARGURA muda (girar o aparelho, redimensionar). Abrir o teclado do
+  // celular só muda a altura: redesenhar nesse caso destruía o campo em foco e fechava o teclado.
+  let larguraAnterior = window.innerWidth;
   window.addEventListener('resize', () => {
-    if (state.usuario) render();
+    if (window.innerWidth === larguraAnterior) return;
+    larguraAnterior = window.innerWidth;
+    const digitando = document.activeElement && /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName);
+    if (state.usuario && !digitando) render();
   });
 
   // ---------- boot ----------
