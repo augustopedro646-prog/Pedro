@@ -1568,13 +1568,74 @@
       <p class="placeholder">Meses em aberto = meses seguidos com valor zero, contando de trás pra frente (mesma regra da planilha). Quem tem "sem margem", INSS, abonado etc. não entra como atraso.</p>`;
   }
 
+  // ---------- cobrança: faixas de atraso, projeção e metas ----------
+  const COBRANCA_PADRAO = { prazo: 8, taxas: { ate_2_meses: 70, '3_a_5_meses': 40, '6_meses_ou_mais': 15 } };
+  function metaCobranca() {
+    if (!state.relMeta) {
+      let salvo = null;
+      try { salvo = JSON.parse(localStorage.getItem('atpn-cobranca') || 'null'); } catch (e) { /* sem armazenamento */ }
+      state.relMeta = { prazo: salvo?.prazo > 0 ? salvo.prazo : COBRANCA_PADRAO.prazo, taxas: { ...COBRANCA_PADRAO.taxas, ...(salvo?.taxas || {}) } };
+    }
+    return state.relMeta;
+  }
+  const COBRANCA_FAIXAS = [
+    ['ate_2_meses', '1 a 2 meses', 'Abordagem de lembrete'],
+    ['3_a_5_meses', '3 a 5 meses', 'Acordo / negociação'],
+    ['6_meses_ou_mais', '6 meses ou mais', 'Contato: renovar ou descartar'],
+  ];
+
+  function relAbaCobranca() {
+    const c = state.rel.cobranca;
+    if (!c) return '<p class="placeholder">Carregando…</p>';
+    const meta = metaCobranca();
+    const brl = formatarMoeda;
+    let totSocios = 0, totAberto = 0, totProj = 0;
+    const linhas = COBRANCA_FAIXAS.map(([chave, rotulo, abordagem]) => {
+      const f = c.faixas[chave];
+      const taxa = (meta.taxas[chave] || 0) / 100;
+      // 6+ meses: o ganho é quem volta a pagar a mensalidade; nas outras, o que está em aberto
+      const proj = chave === '6_meses_ou_mais' ? f.mensalidadeMensal * taxa : f.valorEmAberto * taxa;
+      const contatos = Math.ceil(f.socios / meta.prazo);
+      totSocios += f.socios; totAberto += f.valorEmAberto; totProj += proj;
+      const extra = chave === '6_meses_ou_mais'
+        ? `<br><span class="placeholder">≈ ${Math.round(f.socios * taxa)} renovam · ≈ ${f.socios - Math.round(f.socios * taxa)} a descartar</span>` : '';
+      return `<tr>
+        <td>${pilulaStatus(chave)}<br><span class="placeholder">${esc(abordagem)}</span></td>
+        <td><strong>${f.socios}</strong></td>
+        <td>${f.meses}</td>
+        <td>${brl(f.valorEmAberto)}${f.estimados ? `<br><span class="placeholder">${f.estimados} com valor estimado</span>` : ''}</td>
+        <td><input type="number" min="0" max="100" step="5" value="${meta.taxas[chave]}" data-rel-meta="taxa" data-faixa="${chave}" style="width:70px;" aria-label="Taxa esperada ${rotulo}" /> %</td>
+        <td>${brl(proj)}${chave === '6_meses_ou_mais' ? '<br><span class="placeholder">por mês, se voltarem</span>' : ''}${extra}</td>
+        <td><strong>${contatos}</strong> / semana<br><button class="botao botao-pq" data-rel="ver-faixa" data-valor="${chave}">Ver lista</button></td>
+      </tr>`;
+    }).join('');
+    const totContatos = COBRANCA_FAIXAS.reduce((s, [k]) => s + Math.ceil(c.faixas[k].socios / meta.prazo), 0);
+    return `
+      <p class="placeholder">Quem está sem pagar, separado pelas faixas da planilha, com o que isso representa em dinheiro. A mensalidade de cada sócio é o último valor que ele pagou em 2026; sem histórico, usa a média (${brl(c.mensalidadeMedia)}).</p>
+      <div class="cartoes-resumo">
+        <div class="cartao-resumo faixa-em_dia"><span class="cartao-resumo-label">Em dia</span><strong class="cartao-resumo-valor cor-receita">${c.emDia}</strong></div>
+        <div class="cartao-resumo faixa-6_meses_ou_mais"><span class="cartao-resumo-label">Em atraso</span><strong class="cartao-resumo-valor cor-atraso">${totSocios}</strong></div>
+        <div class="cartao-resumo"><span class="cartao-resumo-label">Valor em aberto</span><strong class="cartao-resumo-valor cor-atraso">${brl(totAberto)}</strong></div>
+        <div class="cartao-resumo"><span class="cartao-resumo-label">Projeção a recuperar</span><strong class="cartao-resumo-valor cor-receita">${brl(totProj)}</strong></div>
+        <div class="cartao-resumo"><span class="cartao-resumo-label">Meta da equipe</span><strong class="cartao-resumo-valor">${totContatos}</strong><span class="cartao-resumo-label" style="margin:2px 0 0;text-transform:none;">contatos por semana</span></div>
+      </div>
+      <div class="linha-form" style="margin:10px 0;">
+        <label>Prazo para falar com todos: <input type="number" min="1" max="52" value="${meta.prazo}" data-rel-meta="prazo" style="width:70px;" /> semanas</label>
+      </div>
+      <div style="overflow-x:auto;"><table class="tabela-lista">
+        <thead><tr><th>Faixa</th><th>Sócios</th><th>Meses somados</th><th>Valor em aberto</th><th>Chance de pagar</th><th>Projeção</th><th>Meta de contatos</th></tr></thead>
+        <tbody>${linhas}</tbody>
+      </table></div>
+      <p class="placeholder">A "chance de pagar" é uma suposição sua para a projeção (os valores iniciais são só um ponto de partida) — ajuste conforme os resultados reais da cobrança. A meta de contatos divide os sócios de cada faixa pelo prazo escolhido.</p>`;
+  }
+
   function viewRelatorios() {
     const cab = cabecalho('Relatórios', 'Só sócios da ATPN: mensalidades, quadro de sócios e inadimplência');
     if (state.relErro) return `${cab}<div class="secao"><p>Não foi possível carregar (${esc(state.relErro)}). Isso é falha de carregamento, não "zero". <button class="botao" data-rel="recarregar">Tentar de novo</button></p></div>`;
     if (!state.rel) return `${cab}<p class="placeholder">Carregando…</p>`;
     const abaBtn = (id, r) => `<button class="${state.relAba === id ? 'ativa' : ''}" data-rel="aba" data-valor="${id}">${r}</button>`;
-    const corpo = state.relAba === 'socios' ? relAbaSocios() : state.relAba === 'inadimplentes' ? relAbaInadimplentes() : relAbaMensalidades();
-    return `${cab}<div class="abas-secundarias">${abaBtn('mensalidades', 'Mensalidades')}${abaBtn('socios', 'Sócios')}${abaBtn('inadimplentes', 'Inadimplentes')}</div><div class="secao">${corpo}</div>`;
+    const corpo = state.relAba === 'socios' ? relAbaSocios() : state.relAba === 'inadimplentes' ? relAbaInadimplentes() : state.relAba === 'cobranca' ? relAbaCobranca() : relAbaMensalidades();
+    return `${cab}<div class="abas-secundarias">${abaBtn('mensalidades', 'Mensalidades')}${abaBtn('socios', 'Sócios')}${abaBtn('cobranca', 'Cobrança')}${abaBtn('inadimplentes', 'Inadimplentes')}</div><div class="secao">${corpo}</div>`;
   }
 
   async function carregarInadimplentes() {
@@ -1586,8 +1647,8 @@
   async function carregarRelatorios() {
     state.relErro = null;
     try {
-      const [socios, mensal] = await Promise.all([api('/relatorios/socios'), api('/relatorios/mensalidades')]);
-      state.rel = { socios, mensal, inad: { total: 0, socios: [] } };
+      const [socios, mensal, cobranca] = await Promise.all([api('/relatorios/socios'), api('/relatorios/mensalidades'), api('/relatorios/cobranca')]);
+      state.rel = { socios, mensal, cobranca, inad: { total: 0, socios: [] } };
       await carregarInadimplentes();
     } catch (err) {
       state.rel = null;
@@ -1617,6 +1678,7 @@
     if (tipo === 'aba') state.relAba = v;
     else if (tipo === 'periodo') state.relPeriodo = v;
     else if (tipo === 'inad-faixa') { state.relInadFaixa = v; await carregarInadimplentes(); }
+    else if (tipo === 'ver-faixa') { state.relAba = 'inadimplentes'; state.relInadFaixa = v; await carregarInadimplentes(); }
     else if (tipo === 'csv') { await baixarInadimplentesCsv(); return; }
     else if (tipo === 'recarregar') { state.rel = null; render(); await carregarRelatorios(); }
     render();
@@ -2958,6 +3020,17 @@
 
     document.querySelectorAll('[data-rel]').forEach((el) => {
       el.addEventListener('click', () => acaoRelatorio(el));
+    });
+    // taxa/prazo da cobrança: só ao terminar de editar (change), pra não redesenhar a cada tecla
+    document.querySelectorAll('[data-rel-meta]').forEach((el) => {
+      el.addEventListener('change', () => {
+        const meta = metaCobranca();
+        const n = Number(el.value);
+        if (el.dataset.relMeta === 'prazo') meta.prazo = Number.isFinite(n) && n >= 1 ? Math.min(Math.round(n), 52) : meta.prazo;
+        else meta.taxas[el.dataset.faixa] = Number.isFinite(n) ? Math.min(Math.max(n, 0), 100) : meta.taxas[el.dataset.faixa];
+        try { localStorage.setItem('atpn-cobranca', JSON.stringify(meta)); } catch (e) { /* sem armazenamento */ }
+        render();
+      });
     });
 
     document.querySelectorAll('[data-ini]').forEach((el) => {

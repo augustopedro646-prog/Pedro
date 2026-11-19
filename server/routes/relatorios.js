@@ -132,6 +132,41 @@ router.get('/inadimplentes', async (req, res, next) => {
   }
 });
 
+// Cobrança: por faixa de atraso (a mesma da legenda da planilha), quantos sócios, quantos
+// meses somam e quanto isso vale. O valor de cada mês é o último valor pago pelo próprio
+// sócio; sem histórico em 2026, usa a mensalidade média de quem pagou (marcado como estimado).
+router.get('/cobranca', async (req, res, next) => {
+  try {
+    const lista = await listarInadimplentes({ status: null });
+    const { rows: [base] } = await pool.query(
+      `SELECT count(*) FILTER (WHERE status = 'em_dia')::int AS em_dia FROM socios WHERE clube = $1 AND origem_planilha = 'ativo_geral'`, [CLUBE]
+    );
+    const pagos = lista.filter((s) => s.ultimoValor > 0).map((s) => s.ultimoValor);
+    const { rows: [media] } = await pool.query(
+      `SELECT COALESCE(avg(valor) FILTER (WHERE valor > 0), 0)::float8 AS v FROM socios_mensalidades m JOIN socios s ON s.id = m.socio_id
+       WHERE s.clube = $1 AND s.origem_planilha = 'ativo_geral' AND m.ano >= $2`, [CLUBE, ANO_INICIAL_MENSALIDADES]
+    );
+    const mensalidadeMedia = pagos.length ? pagos.reduce((a, b) => a + b, 0) / pagos.length : media.v;
+    const faixas = {};
+    for (const f of STATUS_ATRASO) faixas[f] = { socios: 0, meses: 0, valorEmAberto: 0, mensalidadeMensal: 0, estimados: 0 };
+    for (const s of lista) {
+      const f = faixas[s.status];
+      if (!f) continue;
+      const estimado = !(s.ultimoValor > 0);
+      const mensal = estimado ? mensalidadeMedia : s.ultimoValor;
+      f.socios++; f.meses += s.mesesEmAberto; f.valorEmAberto += mensal * s.mesesEmAberto;
+      f.mensalidadeMensal += mensal; if (estimado) f.estimados++;
+    }
+    for (const f of Object.values(faixas)) {
+      f.valorEmAberto = Math.round(f.valorEmAberto * 100) / 100;
+      f.mensalidadeMensal = Math.round(f.mensalidadeMensal * 100) / 100;
+    }
+    res.json({ emDia: base.em_dia, mensalidadeMedia: Math.round(mensalidadeMedia * 100) / 100, faixas });
+  } catch (err) {
+    next(err);
+  }
+});
+
 // CSV — neutraliza células que o Excel interpretaria como fórmula (= + - @),
 // o texto vem de planilha digitada por pessoas.
 const celulaCsv = (v) => {
