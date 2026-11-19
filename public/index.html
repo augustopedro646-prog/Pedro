@@ -598,7 +598,10 @@
   function badgeDaAba(id) { return Number((state.badges || {})[id]) || 0; }
   async function carregarBadges() {
     try { state.badges = await api('/badges'); } catch (e) { state.badges = {}; }
-    if (state.usuario) render();
+    // Redesenhar a tela com o teclado aberto destrói o campo em foco e o teclado "bugava".
+    // Se a pessoa está digitando, os avisos do menu esperam o próximo ciclo.
+    const digitando = document.activeElement && /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName);
+    if (state.usuario && !digitando) render();
   }
   const iniciaisDe = (nome) => String(nome || '?').trim().split(/\s+/).slice(0, 2).map((p) => p[0]).join('').toUpperCase();
 
@@ -1953,14 +1956,14 @@
         <div><div class="nome">${esc(s.nome)}${tagDobro(s)}</div>
           <div class="desc">Matrícula ${esc(s.matricula || '—')} · ${pilulaStatus(s.status)}${s.telefone ? ' · ' + esc(s.telefone) : ''} · ${s.visitasMes} ${s.visitasMes === 1 ? 'vez' : 'vezes'} no mês</div></div>
         ${s.presenteHoje ? '<span class="tag-tipo" style="font-size:.8rem;">✓ Presente hoje</span>'
-          : `<button class="botao" data-ini="presenca" data-id="${s.id}">Registrar presença</button>`}
+          : `<button class="botao" data-ini="presenca" data-id="${s.id}">Confirmar presença</button>`}
       </div>
       ${(s.dependentes || []).map((d) => `
       <div class="linha-item" style="margin-left:18px;">
         <div><div class="nome"><span class="st-pill st-dep">dependente</span> ${esc(d.nome)}</div>
           <div class="desc">de ${esc(s.nome)}</div></div>
         ${d.presenteHoje ? '<span class="tag-tipo" style="font-size:.8rem;">✓ Presente hoje</span>'
-          : `<button class="botao" data-ini="presenca" data-id="${s.id}" data-dep="${d.id}">Registrar presença</button>`}
+          : `<button class="botao" data-ini="presenca" data-id="${s.id}" data-dep="${d.id}">Confirmar presença</button>`}
       </div>`).join('')}`).join('')}</div>`;
   }
 
@@ -1984,7 +1987,7 @@
       ${cab}
       <div class="secao">
         ${state.iniMsg ? `<p class="aviso-livre" style="margin:0 0 10px;">${esc(state.iniMsg)}</p>` : ''}
-        <input type="search" id="ini-busca" class="busca-socios-grande" placeholder="Buscar sócio (nome, matrícula…)" value="${esc(state.iniBusca)}"
+        <input type="text" inputmode="search" id="ini-busca" class="busca-socios-grande" placeholder="Buscar sócio (nome, matrícula…)" value="${esc(state.iniBusca)}"
           autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false" enterkeyhint="search" />
         <div id="ini-resultados">${resultadosInicioHtml()}</div>
       </div>
@@ -2031,6 +2034,7 @@
         const dep = el.dataset.dep ? Number(el.dataset.dep) : null;
         const socio = state.iniResultados.find((s) => s.id === id) || {};
         const nome = dep ? ((socio.dependentes || []).find((d) => d.id === dep) || {}).nome || 'Dependente' : socio.nome || 'Sócio';
+        if (!await confirma(`Confirmar a presença de ${nome} hoje?`, { ok: 'Confirmar presença' })) return;
         const r = await api('/presencas', { method: 'POST', body: { socioId: id, dependenteId: dep } });
         state.iniMsg = r.jaRegistrado ? `${nome} já estava registrado(a) hoje.` : `✓ Presença de ${nome} registrada.`;
         state.iniBusca = ''; state.iniResultados = [];
@@ -3845,6 +3849,7 @@
   document.addEventListener('focusin', (e) => {
     const c = e.target;
     if (!c || !/^(INPUT|TEXTAREA|SELECT)$/.test(c.tagName) || !ehMobile()) return;
+    if (c.id === 'ini-busca' || c.id === 'busca-socios') return; // buscas ficam no topo da tela: rolar só faz o teclado "pular"
     setTimeout(() => { try { c.scrollIntoView({ block: 'center', behavior: 'smooth' }); } catch (err) { /* ignora */ } }, 320);
   });
 
