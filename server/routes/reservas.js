@@ -18,7 +18,7 @@ class ErroReserva extends Error {
 }
 
 const COLUNAS = `id, titulo, solicitante, telefone, to_char(data, 'YYYY-MM-DD') AS data, hora_inicio AS "horaInicio",
-  hora_fim AS "horaFim", num_convidados AS "numConvidados", observacao, status, agenda_id AS "agendaId",
+  hora_fim AS "horaFim", num_convidados AS "numConvidados", observacao, obs_equipe AS "obsEquipe", status, agenda_id AS "agendaId",
   atualizado_em AS "atualizadoEm"`;
 
 function validar(corpo) {
@@ -102,10 +102,21 @@ router.get('/', async (req, res, next) => {
        ORDER BY ${filtro === 'encerradas' ? 'data DESC' : 'data ASC'}, hora_inicio NULLS LAST, id LIMIT 300`,
       [mapa[filtro]]
     );
+    // equipe escalada em cada reserva (vem da escala do calendário)
+    if (rows.length) {
+      const eq = await pool.query(
+        `SELECT e.reserva_id AS "reservaId", p.id AS "pessoaId", p.nome FROM escalas e JOIN pessoas p ON p.id = e.pessoa_id
+         WHERE e.reserva_id = ANY($1) ORDER BY p.nome`, [rows.map((r) => r.id)]
+      );
+      const porReserva = new Map();
+      eq.rows.forEach((x) => { if (!porReserva.has(x.reservaId)) porReserva.set(x.reservaId, []); porReserva.get(x.reservaId).push({ pessoaId: x.pessoaId, nome: x.nome }); });
+      rows.forEach((r) => { r.equipe = porReserva.get(r.id) || []; });
+    }
     // conflitos só importam enquanto a reserva ainda está em aberto
     let integracao = integracaoConfigurada();
     const porData = new Map();
     for (const r of rows) {
+      if (req.query.semConflitos) break; // o calendário só precisa da lista, sem consultar o PDV de cada data
       if (!['novo', 'negociando'].includes(r.status)) continue;
       try {
         const c = await conflitosDoDia(r, r.agendaId);
@@ -188,9 +199,27 @@ router.put('/:id', ...admin, async (req, res, next) => {
     if (rows[0].status === 'confirmado' || rows[0].status === 'concluido') {
       if (rows[0].agenda_id) await gravarNaAgenda(rows[0], req.usuario);
     }
+    // a equipe escalada acompanha o dia/horário/título da reserva
+    await pool.query(
+      `UPDATE escalas SET data = $1, hora_inicio = $2, hora_fim = $3, observacao = $4 WHERE reserva_id = $5`,
+      [v.data, v.horaInicio, v.horaFim, `Evento: ${v.titulo}`.slice(0, 300), id]
+    );
     res.json({ ok: true });
   } catch (err) {
     if (err instanceof ErroReserva) return res.status(err.status).json({ erro: err.message, conflitos: err.extra });
+    next(err);
+  }
+});
+
+// Observação interna da equipe (ex.: "orçamento enviado, sinal pago").
+router.put('/:id/obs-equipe', ...admin, async (req, res, next) => {
+  const texto = String(req.body?.obsEquipe ?? '').trim();
+  if (texto.length > 500) return res.status(400).json({ erro: 'Observação muito longa (máximo 500 caracteres)' });
+  try {
+    const { rowCount } = await pool.query('UPDATE reservas SET obs_equipe = $1, atualizado_em = now() WHERE id = $2', [texto || null, Number(req.params.id)]);
+    if (!rowCount) return res.status(404).json({ erro: 'Reserva não encontrada' });
+    res.json({ ok: true });
+  } catch (err) {
     next(err);
   }
 });
@@ -226,6 +255,8 @@ router.post('/:id/status', ...admin, async (req, res, next) => {
       agendaId = null;
     }
     await pool.query('UPDATE reservas SET status = $1, agenda_id = $2, atualizado_em = now() WHERE id = $3', [novo, agendaId, id]);
+    // reserva recusada não acontece: sai da escala da equipe
+    if (novo === 'recusado') await pool.query('DELETE FROM escalas WHERE reserva_id = $1', [id]);
     res.json({ ok: true });
   } catch (err) {
     if (err instanceof ErroReserva) return res.status(err.status).json({ erro: err.message, conflitos: err.extra });

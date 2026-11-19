@@ -256,3 +256,40 @@ CREATE TABLE IF NOT EXISTS despesas_anexos (
   criado_em TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS idx_despesas_anexos_despesa ON despesas_anexos(despesa_id);
+
+-- Escala da equipe da ATPN (calendário). É da ATPN — NÃO vai pra agenda do PDV
+-- Jabá. reserva_id nulo = escala normal do dia; preenchido = pessoa escalada
+-- para um evento/reserva (some junto se a reserva for excluída). Uma pessoa só
+-- pode estar uma vez na escala normal de cada dia e uma vez em cada reserva.
+CREATE TABLE IF NOT EXISTS escalas (
+  id SERIAL PRIMARY KEY,
+  pessoa_id INTEGER NOT NULL REFERENCES pessoas(id),
+  data DATE NOT NULL,
+  hora_inicio TEXT,
+  hora_fim TEXT,
+  observacao TEXT,
+  reserva_id INTEGER REFERENCES reservas(id) ON DELETE CASCADE,
+  criado_por INTEGER REFERENCES pessoas(id),
+  criado_em TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_escalas_pessoa_dia ON escalas(pessoa_id, data) WHERE reserva_id IS NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_escalas_pessoa_reserva ON escalas(pessoa_id, reserva_id) WHERE reserva_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_escalas_data ON escalas(data);
+
+-- "Observação da equipe" da reserva (ex.: orçamento enviado, sinal pago) — interna, separada da observação do pedido.
+ALTER TABLE reservas ADD COLUMN IF NOT EXISTS obs_equipe TEXT;
+
+-- Ponto: aparelhos autorizados e quem operou o registro. Enquanto NENHUM aparelho
+-- está autorizado, qualquer um pode bater ponto (transição, como no PDV Jabá);
+-- depois do primeiro, só aparelhos autorizados batem ponto. O aparelho guarda um
+-- token aleatório no navegador; aqui fica só o hash dele.
+CREATE TABLE IF NOT EXISTS ponto_aparelhos (
+  id SERIAL PRIMARY KEY,
+  nome TEXT NOT NULL,
+  token_hash TEXT NOT NULL UNIQUE,
+  criado_por INTEGER REFERENCES pessoas(id),
+  criado_em TIMESTAMPTZ NOT NULL DEFAULT now(),
+  revogado_em TIMESTAMPTZ
+);
+ALTER TABLE pontos ADD COLUMN IF NOT EXISTS registrado_por INTEGER REFERENCES pessoas(id);
+ALTER TABLE pontos ADD COLUMN IF NOT EXISTS origem TEXT NOT NULL DEFAULT 'proprio';

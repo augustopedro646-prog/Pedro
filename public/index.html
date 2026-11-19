@@ -4,6 +4,9 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>ATPN — Gestão</title>
+<!-- mesmas fontes do PDV Jabá (títulos Baloo 2, texto Inter); sem internet cai na fonte do sistema -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
   /* Paleta baseada na marca da ATPN (círculo verde/dourado, "Clube Social"):
      verde principal e dourado de apoio. Nunca cor hardcoded num componente,
@@ -62,7 +65,7 @@
   * { box-sizing: border-box; }
   body {
     margin: 0;
-    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    font-family: 'Inter', system-ui, -apple-system, "Segoe UI", sans-serif;
     background: var(--fundo);
     color: var(--texto);
   }
@@ -164,6 +167,8 @@
   }
 
   .conteudo { padding: 28px; }
+  /* em tela estreita o botão ☰ fica por cima do canto: dá espaço no topo (mesmo jeito do PDV) */
+  @media (max-width: 820px) { .conteudo { padding: 64px 16px 28px; } }
   .conteudo h2 { margin-top: 0; }
   .placeholder { color: var(--texto-fraco); }
 
@@ -175,7 +180,62 @@
     flex: 1 1 160px; min-width: 120px; padding: 8px 10px; border: 1px solid var(--borda);
     border-radius: 6px; background: var(--fundo); color: var(--texto);
   }
-  .botao { background: var(--primaria); color: var(--primaria-texto); border: none; border-radius: 6px; padding: 8px 14px; cursor: pointer; }
+  /* ---------- Botões (mesma família do PDV: .btn, .btn-primary, .btn-danger, .btn-sm) ---------- */
+  .botao {
+    background: var(--primaria); color: var(--primaria-texto); border: 1.5px solid var(--primaria); border-radius: 9px;
+    padding: 8px 15px; cursor: pointer; font-size: .9rem; font-weight: 600; display: inline-flex; align-items: center; gap: 6px;
+  }
+  .botao:hover { filter: brightness(1.08); }
+  .botao:disabled { opacity: .4; cursor: not-allowed; }
+  .botao-sec { background: var(--superficie); color: var(--texto); border-color: var(--borda); }
+  .botao-sec:hover { border-color: var(--primaria); filter: none; }
+  .botao-perigo { background: transparent; color: var(--perigo); border-color: var(--perigo); }
+  .botao-perigo:hover { background: rgba(179,65,58,.1); filter: none; }
+  .botao-perigo-cheio { background: var(--perigo); border-color: var(--perigo); color: #fff; }
+  .botao-pq { padding: 4px 10px; font-size: .8rem; border-radius: 8px; }
+
+  /* ---------- Cabeçalho de página: título + subtítulo à esquerda, ações à direita ---------- */
+  .cabecalho-pagina { display: flex; align-items: flex-start; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin-bottom: 18px; }
+  .cabecalho-pagina h2 { margin: 0; }
+  .cabecalho-pagina .subtitulo { color: var(--texto-fraco); font-size: .85rem; margin-top: 2px; max-width: 70ch; }
+  .cabecalho-acoes { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+  .conteudo h2, .conteudo h3, .modal h2, .dialogo h3 { font-family: 'Baloo 2', 'Inter', system-ui, sans-serif; }
+  .conteudo h2 { font-size: 1.5rem; color: var(--primaria); }
+
+  /* ---------- Estado vazio ---------- */
+  .vazio { text-align: center; padding: 34px 16px; color: var(--texto-fraco); }
+  .vazio h3 { color: var(--texto); margin: 0 0 6px; }
+
+  /* ---------- Modal (formulários e detalhes abrem aqui, como no PDV) ---------- */
+  body.modal-aberto { overflow: hidden; }
+  .modal-fundo { position: fixed; inset: 0; background: rgba(0,0,0,.5); z-index: 100; display: flex; align-items: center; justify-content: center; padding: 16px; overflow-y: auto; }
+  .modal { background: var(--fundo); color: var(--texto); border-radius: 16px; width: 100%; max-height: calc(100vh - 32px); display: flex; flex-direction: column; box-shadow: 0 12px 40px rgba(0,0,0,.35); }
+  .modal-topo { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 16px 20px 8px; }
+  .modal-topo h2 { margin: 0; font-size: 1.25rem; color: var(--primaria); }
+  .modal-x { background: none; border: none; font-size: 1.6rem; line-height: 1; color: var(--texto-fraco); cursor: pointer; padding: 2px 8px; }
+  .modal-x:hover { color: var(--texto); }
+  .modal-corpo { padding: 8px 20px 20px; overflow-y: auto; }
+  .modal-corpo h4 { font-family: 'Baloo 2', 'Inter', sans-serif; font-size: .8rem; text-transform: uppercase; letter-spacing: .04em; color: var(--texto-fraco); margin: 16px 0 6px; }
+  .campo { margin-bottom: 12px; display: flex; flex-direction: column; gap: 4px; font-size: .82rem; color: var(--texto-fraco); }
+  .campo input, .campo select, .campo textarea { font-size: 16px; padding: 9px 11px; border: 1px solid var(--borda); border-radius: 8px; background: var(--superficie); color: var(--texto); font-family: inherit; }
+  .campo-linha { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .acoes-modal { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 16px; }
+  .linha-item { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 9px 2px; border-bottom: 1px solid var(--borda); }
+  .linha-item:last-child { border-bottom: none; }
+  .linha-item .nome { font-weight: 600; }
+  .linha-item .desc { color: var(--texto-fraco); font-size: .82rem; }
+  @media (max-width: 560px) {
+    .modal-fundo { align-items: flex-end; padding: 0; }
+    .modal { border-radius: 16px 16px 0 0; max-height: 94vh; }
+  }
+
+  /* ---------- Caixas próprias de aviso/confirmação/pergunta (no lugar de alert/confirm/prompt) ---------- */
+  .dialogo-fundo { position: fixed; inset: 0; background: rgba(0,0,0,.55); z-index: 200; display: flex; align-items: center; justify-content: center; padding: 16px; }
+  .dialogo { background: var(--superficie); color: var(--texto); border: 1px solid var(--borda); border-radius: 14px; max-width: 460px; width: 100%; padding: 20px; box-shadow: 0 12px 40px rgba(0,0,0,.4); }
+  .dialogo h3 { margin: 0 0 8px; }
+  .dialogo-msg { white-space: pre-wrap; line-height: 1.45; overflow-wrap: anywhere; }
+  .dialogo input { width: 100%; margin-top: 12px; font-size: 16px; padding: 9px 11px; border: 1px solid var(--borda); border-radius: 8px; background: var(--fundo); color: var(--texto); }
+  .dialogo-acoes { display: flex; justify-content: flex-end; gap: 8px; margin-top: 18px; flex-wrap: wrap; }
   table.permissoes { border-collapse: collapse; width: 100%; }
   table.permissoes th, table.permissoes td { border: 1px solid var(--borda); padding: 8px 10px; text-align: center; font-size: .85rem; }
   table.permissoes th:first-child, table.permissoes td:first-child { text-align: left; }
@@ -191,6 +251,26 @@
   .abas-secundarias button.ativa { background: var(--primaria); color: var(--primaria-texto); border-color: var(--primaria); }
   .navegacao-mes { display: flex; align-items: center; gap: 12px; }
 
+  /* ---------- Calendário: células clicáveis, pílulas de escala, navegação ---------- */
+  .cal-cell[data-cal="dia"] { cursor: pointer; }
+  .cal-cell[data-cal="dia"]:hover { border-color: var(--primaria); }
+  .cal-cell[data-cal="dia"]:focus-visible { outline: 2px solid var(--primaria); outline-offset: 1px; }
+  .cal-ponto-dot { color: var(--primaria); font-size: .6rem; }
+  .cal-pilula { font-size: .66rem; line-height: 1.25; padding: 1px 6px; border-radius: 6px; background: var(--primaria); color: var(--primaria-texto); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .cal-pilula-evento { background: var(--dourado); color: #2b2418; }
+  .cal-mais { font-size: .66rem; color: var(--texto-fraco); font-weight: 700; }
+  .nav-mes { display: flex; align-items: center; gap: 8px; }
+  .mes-rotulo { min-width: 140px; text-align: center; font-weight: 600; }
+  .esc-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+  .esc-grid-head { text-align: center; font-size: .72rem; color: var(--texto-fraco); margin-bottom: 2px; }
+  .esc-dia { border: 1px solid var(--borda); background: var(--superficie); color: var(--texto); border-radius: 8px; padding: 8px 0; cursor: pointer; font-size: .9rem; }
+  .esc-dia:hover { border-color: var(--primaria); }
+  .esc-dia.hoje { border-width: 2px; }
+  .esc-dia.sel { background: var(--primaria); color: var(--primaria-texto); border-color: var(--primaria); font-weight: 700; }
+  .pilulas-escolha { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0 4px; }
+  .pilula { border: 1.5px solid var(--borda); background: var(--superficie); color: var(--texto); border-radius: 999px; padding: 6px 14px; cursor: pointer; font-weight: 600; font-size: .88rem; }
+  .pilula.sel { background: var(--primaria); border-color: var(--primaria); color: var(--primaria-texto); }
+
   /* ---------- Despesas por foto ---------- */
   .tag-tipo { font-size: .68rem; font-weight: 700; padding: 1px 7px; border-radius: 999px; border: 1px solid var(--borda); color: var(--texto-fraco); white-space: nowrap; }
   .form-despesa { border-color: var(--primaria); }
@@ -203,6 +283,9 @@
   .painel-anexos { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
 
   /* ---------- Eventos / Reservas ---------- */
+  .mes-grupo { margin-bottom: 14px; }
+  .mes-grupo-cab { width: 100%; display: flex; justify-content: space-between; align-items: center; padding: 10px 14px; border: 1px solid var(--borda); background: var(--superficie); color: var(--texto); border-radius: 10px; cursor: pointer; font-weight: 700; font-family: 'Baloo 2', 'Inter', sans-serif; margin-bottom: 10px; }
+  .mes-grupo-cab:hover { border-color: var(--primaria); }
   .cartao-reserva { border: 1px solid var(--borda); border-left-width: 4px; border-radius: var(--radius); padding: 12px 14px; margin-bottom: 12px; background: var(--superficie); }
   .cartao-reserva.status-novo { border-left-color: var(--dourado); }
   .cartao-reserva.status-negociando { border-left-color: var(--dourado); }
@@ -269,8 +352,11 @@
 
   .cartoes-resumo { display: flex; gap: 14px; margin-bottom: 20px; flex-wrap: wrap; }
   .cartao-resumo { flex: 1 1 170px; background: var(--superficie); border: 1px solid var(--borda); border-radius: var(--radius); padding: 16px; box-shadow: var(--shadow); }
-  .cartao-resumo-label { display: block; color: var(--texto-fraco); font-size: .8rem; margin-bottom: 6px; }
-  .cartao-resumo-valor { font-size: 1.4rem; }
+  /* cartão de número no padrão do PDV (.metric): rótulo pequeno em maiúscula + valor grande em Baloo 2 */
+  .cartao-resumo-label { display: block; color: var(--texto-fraco); font-size: .72rem; text-transform: uppercase; letter-spacing: .04em; margin-bottom: 4px; }
+  .cartao-resumo-valor { font-family: 'Baloo 2', 'Inter', sans-serif; font-size: 1.6rem; font-weight: 700; line-height: 1.15; }
+  .avatar { width: 32px; height: 32px; border-radius: 50%; background: var(--primaria); color: var(--primaria-texto); display: inline-flex; align-items: center; justify-content: center; font-weight: 700; font-size: .8rem; flex: none; }
+  .user-linha { display: flex; align-items: center; gap: 10px; }
 
   .graficos-lado-a-lado { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
   @media (max-width: 820px) { .graficos-lado-a-lado { grid-template-columns: 1fr; } }
@@ -322,6 +408,9 @@
 </head>
 <body>
 <div id="app"></div>
+<!-- fora do #app de propósito: render() reconstrói o #app inteiro, e modal/diálogo não podem ser destruídos junto -->
+<div id="modal-raiz"></div>
+<div id="dialogo-raiz"></div>
 
 <script>
 (() => {
@@ -354,6 +443,10 @@
     configCarregado: false,
     configCargos: [],
     configEquipe: [],
+    calEscalas: [],
+    calPontos: [],
+    calReservas: [],
+    calendarioErro: null,
     despForm: null,
     despAnexos: null,
     financeiroAPagar: null,
@@ -364,11 +457,10 @@
     mensForm: null,
     mensHoje: null,
     mensErro: null,
-    eventosAba: 'reservas',
+    eventosAba: 'abertas',
+    eventosMesesAbertos: {},
     reservas: null,
     reservasErro: null,
-    reservasFiltro: 'abertas',
-    reservaEditando: null,
     configAssoc: null,
     historicoTipo: 'associacao',
     historicoVersoes: null,
@@ -386,6 +478,16 @@
 
     // bater ponto
     pontoCarregado: false,
+    pontoModo: 'pin',
+    pontoPessoaId: null,
+    pontoStatus: null,
+    pontoMsg: null,
+    pontoErroPin: null,
+    pontoErro: null,
+    pontoPessoas: [],
+    pontoHoje: [],
+    pontoDispositivo: null,
+    pontoAparelhos: [],
     pontoRegistros: [],
 
     // fluxo de caixa
@@ -468,7 +570,133 @@
   }
 
   function ehMobile() { return window.matchMedia('(max-width: 820px)').matches; }
-  function badgeDaAba(_id) { return 0; } // pendências por aba entram quando as telas de negócio existirem
+  // bolinha de contagem no menu (só pendência de verdade; erro de carga = sem bolinha)
+  function badgeDaAba(id) { return Number((state.badges || {})[id]) || 0; }
+  async function carregarBadges() {
+    try { state.badges = await api('/badges'); } catch (e) { state.badges = {}; }
+    if (state.usuario) render();
+  }
+  const iniciaisDe = (nome) => String(nome || '?').trim().split(/\s+/).slice(0, 2).map((p) => p[0]).join('').toUpperCase();
+
+  // ---------- caixas próprias: avisar / confirma / pergunta (no lugar de alert/confirm/prompt) ----------
+  // Feitas fora do #app (render() não as destrói), uma por vez, Enter confirma e Esc cancela.
+  const filaDialogos = [];
+  let dialogoAberto = false;
+
+  function dialogo(cfg) {
+    return new Promise((resolve) => {
+      filaDialogos.push({ cfg, resolve });
+      if (!dialogoAberto) proximoDialogo();
+    });
+  }
+
+  function proximoDialogo() {
+    const item = filaDialogos.shift();
+    if (!item) { dialogoAberto = false; return; }
+    dialogoAberto = true;
+    const { cfg, resolve } = item;
+    const raiz = document.getElementById('dialogo-raiz');
+    const focoAnterior = document.activeElement;
+    raiz.innerHTML = `
+      <div class="dialogo-fundo"><div class="dialogo" role="dialog" aria-modal="true" aria-labelledby="dlg-msg">
+        ${cfg.titulo ? `<h3>${esc(cfg.titulo)}</h3>` : ''}
+        <div class="dialogo-msg" id="dlg-msg">${esc(cfg.mensagem)}</div>
+        ${cfg.tipo === 'pergunta' ? `<input id="dlg-entrada" autocomplete="off" value="${esc(cfg.padrao || '')}" placeholder="${esc(cfg.dica || '')}" />` : ''}
+        <div class="dialogo-acoes">
+          ${cfg.tipo !== 'aviso' ? `<button class="botao botao-sec" data-dlg="nao">${esc(cfg.cancelar || 'Cancelar')}</button>` : ''}
+          <button class="botao ${cfg.perigo ? 'botao-perigo-cheio' : ''}" data-dlg="sim">${esc(cfg.ok || 'OK')}</button>
+        </div>
+      </div></div>`;
+    const entrada = raiz.querySelector('#dlg-entrada');
+    const fechar = (valor) => {
+      document.removeEventListener('keydown', tecla, true);
+      raiz.innerHTML = '';
+      if (focoAnterior && focoAnterior.focus) try { focoAnterior.focus(); } catch (e) { /* ignora */ }
+      resolve(valor);
+      proximoDialogo();
+    };
+    const confirmar = () => fechar(cfg.tipo === 'pergunta' ? entrada.value : (cfg.tipo === 'confirma' ? true : undefined));
+    const cancelar = () => fechar(cfg.tipo === 'pergunta' ? null : (cfg.tipo === 'confirma' ? false : undefined));
+    function tecla(e) {
+      if (e.key === 'Escape') { e.stopPropagation(); e.preventDefault(); cancelar(); }
+      else if (e.key === 'Enter') { e.stopPropagation(); e.preventDefault(); confirmar(); }
+    }
+    document.addEventListener('keydown', tecla, true);
+    raiz.querySelector('[data-dlg="sim"]').addEventListener('click', confirmar);
+    const btnNao = raiz.querySelector('[data-dlg="nao"]');
+    if (btnNao) btnNao.addEventListener('click', cancelar);
+    (entrada || raiz.querySelector('[data-dlg="sim"]')).focus();
+    if (entrada) entrada.select();
+  }
+
+  const avisar = (mensagem, titulo) => dialogo({ tipo: 'aviso', mensagem, titulo });
+  const confirma = (mensagem, opcoes) => dialogo({ tipo: 'confirma', mensagem, ...(opcoes || {}) });
+  const pergunta = (mensagem, padrao, opcoes) => dialogo({ tipo: 'pergunta', mensagem, padrao, ...(opcoes || {}) });
+
+  // ---------- modal (formulários e detalhes: o dia do calendário, escalar alguém, evento...) ----------
+  // Um modal por vez, vivendo fora do #app. O controlador traz: titulo, largura,
+  // render() -> html, onClick(el) para os [data-m], onMontar() depois de cada
+  // desenho, onInput(campo) opcional e fecharNoFundo (padrão true; formulários
+  // com digitação usam false pra um clique sem querer não perder o que foi escrito).
+  let modalAtual = null;
+
+  function abrirModal(ctrl) {
+    modalAtual = ctrl;
+    document.body.classList.add('modal-aberto');
+    desenharModal();
+  }
+
+  function fecharModal() {
+    const c = modalAtual;
+    modalAtual = null;
+    document.getElementById('modal-raiz').innerHTML = '';
+    document.body.classList.remove('modal-aberto');
+    if (c && c.aoFechar) c.aoFechar();
+  }
+
+  // Redesenha mantendo o campo em foco (e o cursor) — pra marcar um dia, trocar
+  // de mês etc. sem o usuário perder onde estava digitando.
+  function desenharModal() {
+    const raiz = document.getElementById('modal-raiz');
+    if (!modalAtual) { raiz.innerHTML = ''; return; }
+    const ativo = document.activeElement && raiz.contains(document.activeElement) ? document.activeElement : null;
+    const idAtivo = ativo && ativo.id;
+    const pos = ativo && typeof ativo.selectionStart === 'number' ? ativo.selectionStart : null;
+    const rolagem = raiz.querySelector('.modal-corpo') ? raiz.querySelector('.modal-corpo').scrollTop : 0;
+    raiz.innerHTML = `
+      <div class="modal-fundo" data-modal-fundo>
+        <div class="modal" style="max-width:${modalAtual.largura || 640}px" role="dialog" aria-modal="true">
+          <div class="modal-topo"><h2>${esc(modalAtual.titulo)}</h2><button class="modal-x" data-modal-fechar aria-label="Fechar">×</button></div>
+          <div class="modal-corpo">${modalAtual.render()}</div>
+        </div>
+      </div>`;
+    const corpo = raiz.querySelector('.modal-corpo');
+    if (corpo) corpo.scrollTop = rolagem;
+    if (idAtivo) {
+      const n = raiz.querySelector(`#${CSS.escape(idAtivo)}`);
+      if (n) { n.focus(); if (pos !== null) try { n.setSelectionRange(pos, pos); } catch (e) { /* tipos sem seleção */ } }
+    }
+    if (modalAtual.onMontar) modalAtual.onMontar(raiz);
+  }
+
+  (function ligarModal() {
+    const raiz = document.getElementById('modal-raiz');
+    raiz.addEventListener('click', (e) => {
+      if (!modalAtual) return;
+      if (e.target.closest('[data-modal-fechar]')) { fecharModal(); return; }
+      const el = e.target.closest('[data-m]');
+      if (el && modalAtual.onClick) { modalAtual.onClick(el, e); return; }
+      if (e.target.matches('[data-modal-fundo]') && modalAtual.fecharNoFundo !== false) fecharModal();
+    });
+    raiz.addEventListener('input', (e) => { if (modalAtual && modalAtual.onInput) modalAtual.onInput(e.target, e); });
+    raiz.addEventListener('change', (e) => { if (modalAtual && modalAtual.onMudou) modalAtual.onMudou(e.target, e); });
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && modalAtual && !dialogoAberto) fecharModal(); });
+  })();
+
+  // Cabeçalho padrão de página (igual ao do PDV): título + subtítulo à esquerda e ações à direita.
+  function cabecalho(titulo, subtitulo, acoesHtml) {
+    return `<div class="cabecalho-pagina"><div><h2>${esc(titulo)}</h2>${subtitulo ? `<div class="subtitulo">${esc(subtitulo)}</div>` : ''}</div>${acoesHtml ? `<div class="cabecalho-acoes">${acoesHtml}</div>` : ''}</div>`;
+  }
 
   // ---------- render ----------
   function render() {
@@ -561,8 +789,8 @@
           <button data-action="toggle-tema">${temaEscuroAgora() ? '☀️ Modo claro' : '🌙 Modo escuro'}</button>
         </div>
         <div class="user-chip">
-          <div>${esc(state.usuario.nome)}</div>
-          <div style="opacity:.7">${esc(state.usuario.cargoNome)}</div>
+          <div class="user-linha"><span class="avatar">${esc(iniciaisDe(state.usuario.nome))}</span>
+            <div><div>${esc(state.usuario.nome)}</div><div style="opacity:.7">${esc(state.usuario.cargoNome)}</div></div></div>
           <button data-action="sair">Sair</button>
         </div>
       </aside>
@@ -598,33 +826,226 @@
   }
 
   // ---------- bater ponto ----------
-  function viewPonto() {
-    if (!state.pontoCarregado) return '<h2>Bater ponto</h2><p class="placeholder">Carregando…</p>';
+  // Igual ao PDV: modo quiosque (escolhe a pessoa e ela digita o PIN dela), "Equipe hoje"
+  // com corrigir/apagar (administrador) e aparelhos autorizados. Enquanto nenhum
+  // aparelho foi autorizado, qualquer computador bate ponto.
+  const CHAVE_APARELHO = 'atpn-ponto-aparelho';
 
-    const meuUltimo = [...state.pontoRegistros].reverse().find((r) => r.pessoaId === state.usuario.pessoaId);
-    const proximoTipo = meuUltimo?.tipo === 'entrada' ? 'saída' : 'entrada';
+  function tokenDoAparelho() {
+    try {
+      let t = localStorage.getItem(CHAVE_APARELHO);
+      if (!/^[a-f0-9]{64}$/.test(t || '')) {
+        t = [...crypto.getRandomValues(new Uint8Array(32))].map((b) => b.toString(16).padStart(2, '0')).join('');
+        localStorage.setItem(CHAVE_APARELHO, t);
+      }
+      return t;
+    } catch (e) { return ''; } // navegador sem localStorage: o aparelho simplesmente não pode ser autorizado
+  }
+  const cabAparelho = () => ({ 'X-Ponto-Aparelho': tokenDoAparelho() });
+
+  const horaDoIso = (iso) => new Date(iso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+
+  function aparelhoHtml() {
+    const d = state.pontoDispositivo;
+    const ehAdmin = state.usuario.administrador;
+    if (!d) return '';
+    let msg;
+    if (d.exigeAutorizacao && d.autorizado) msg = '<span class="aviso-livre">✓ Este aparelho está autorizado a bater ponto.</span>';
+    else if (d.exigeAutorizacao) msg = '<div class="aviso-conflito aviso-forte">Este computador não está autorizado a bater ponto. Peça ao administrador para autorizá-lo.</div>';
+    else msg = '<span class="placeholder">Nenhum aparelho foi autorizado ainda: qualquer computador pode bater ponto. O administrador pode restringir autorizando os computadores da recepção.</span>';
+    const lista = ehAdmin ? `
+      ${state.pontoAparelhos.length ? `<h4>Aparelhos autorizados</h4>${state.pontoAparelhos.map((a) => `
+        <div class="linha-item"><div><div class="nome">${esc(a.nome)}</div><div class="desc">autorizado em ${esc(new Date(a.criadoEm).toLocaleDateString('pt-BR'))}${a.criadoPor ? ' por ' + esc(a.criadoPor) : ''}</div></div>
+          <button class="botao botao-perigo botao-pq" data-pt="revogar" data-id="${a.id}">Revogar</button></div>`).join('')}` : ''}
+      ${!d.autorizado ? `<div class="campo-linha" style="margin-top:10px;align-items:end;">
+        <label class="campo"><span>Nome deste aparelho</span><input id="pt-nome-aparelho" maxlength="60" placeholder="Ex.: Recepção" /></label>
+        <div><button class="botao botao-sec" data-pt="autorizar">Autorizar este aparelho</button></div></div>` : ''}` : '';
+    return `<div class="secao">${msg}${lista}</div>`;
+  }
+
+  function viewPonto() {
+    const cab = cabecalho('Bater ponto', 'Escolha a pessoa e confirme com o PIN dela, ou bata o seu próprio ponto');
+    if (state.pontoErro) return `${cab}<div class="secao"><p>Não foi possível carregar o ponto (${esc(state.pontoErro)}). Isso é falha de carregamento, não "ninguém bateu ponto". <button class="botao" data-pt="recarregar">Tentar de novo</button></p></div>`;
+    if (!state.pontoCarregado) return `${cab}<p class="placeholder">Carregando…</p>`;
+
+    const ehAdmin = state.usuario.administrador;
+    const d = state.pontoDispositivo || {};
+    const bloqueado = d.exigeAutorizacao && !d.autorizado;
+    const modo = state.pontoModo;
+    const pilula = (id, rot) => `<button class="pilula ${modo === id ? 'sel' : ''}" data-pt="modo" data-valor="${id}">${rot}</button>`;
+
+    let corpoModo;
+    if (modo === 'pin') {
+      const porCargo = new Map();
+      state.pontoPessoas.forEach((p) => { if (!porCargo.has(p.cargoNome)) porCargo.set(p.cargoNome, []); porCargo.get(p.cargoNome).push(p); });
+      const sel = state.pontoPessoas.find((p) => p.id === state.pontoPessoaId);
+      const st = state.pontoStatus;
+      let statusTxt = '';
+      if (sel) {
+        statusTxt = !st ? 'Carregando…' : (st.ultimo && st.ultimo.tipo === 'entrada'
+          ? `${sel.nome} está trabalhando desde ${horaDoIso(st.ultimo.registradoEm)}`
+          : (st.ultimo ? `${sel.nome} está fora do expediente — última saída às ${horaDoIso(st.ultimo.registradoEm)}` : `${sel.nome} ainda não bateu ponto`));
+      }
+      const vaiEntrada = !(st && st.ultimo && st.ultimo.tipo === 'entrada');
+      corpoModo = `
+        <div class="secao" style="max-width:460px;">
+          <label class="campo"><span>Pessoa</span>
+            <select id="pt-pessoa"><option value="">— escolha —</option>
+              ${[...porCargo.entries()].map(([cargo, ps]) => `<optgroup label="${esc(cargo)}">${ps.map((p) => `<option value="${p.id}" ${p.id === state.pontoPessoaId ? 'selected' : ''}>${esc(p.nome)}</option>`).join('')}</optgroup>`).join('')}
+            </select></label>
+          ${sel ? `
+            <p class="placeholder">${esc(statusTxt)}</p>
+            <label class="campo"><span>PIN de ${esc(sel.nome)}</span><input id="pt-pin" type="password" inputmode="numeric" autocomplete="off" maxlength="4" placeholder="••••" /></label>
+            ${state.pontoErroPin ? `<p style="color:var(--perigo);font-weight:600;">${esc(state.pontoErroPin)}</p>` : ''}
+            <button class="botao" data-pt="bater-pin" ${bloqueado ? 'disabled' : ''}>${vaiEntrada ? 'Bater entrada' : 'Bater saída'}</button>` : ''}
+          ${state.pontoMsg ? `<p class="aviso-livre" style="margin-top:12px;">${esc(state.pontoMsg)}</p>` : ''}
+        </div>`;
+    } else {
+      const meuUltimo = [...state.pontoRegistros].reverse().find((r) => r.pessoaId === state.usuario.pessoaId);
+      const proximo = meuUltimo?.tipo === 'entrada' ? 'saída' : 'entrada';
+      corpoModo = `
+        <div class="secao" style="max-width:460px;">
+          <p>Seu próximo registro será: <strong>${proximo}</strong></p>
+          <button class="botao" data-pt="bater-meu" ${bloqueado ? 'disabled' : ''}>Bater ponto (${proximo})</button>
+          ${state.pontoMsg ? `<p class="aviso-livre" style="margin-top:12px;">${esc(state.pontoMsg)}</p>` : ''}
+        </div>`;
+    }
+
+    const hoje = state.pontoHoje.map((p) => `
+      <div class="linha-item"><div><div class="nome">${esc(p.pessoaNome)}</div>
+        <div class="desc">${p.tipo === 'entrada' ? 'Trabalhando desde' : 'Última saída às'} ${esc(horaDoIso(p.registradoEm))}${p.corrigidoPor ? ' · corrigido' : ''}${p.origem === 'quiosque' ? ' · pelo quiosque' : ''}</div></div>
+        ${ehAdmin ? `<div class="cabecalho-acoes"><button class="botao botao-sec botao-pq" data-pt="corrigir" data-id="${p.id}" title="Corrigir">✎</button><button class="botao botao-perigo botao-pq" data-pt="apagar" data-id="${p.id}" title="Apagar">✕</button></div>` : ''}</div>`).join('')
+      || '<div class="vazio"><h3>Ninguém bateu ponto hoje ainda</h3><p>Os registros do dia aparecem aqui.</p></div>';
 
     const linhas = [...state.pontoRegistros].reverse().map((r) => `
-      <tr>
-        <td>${esc(r.pessoaNome)}</td>
-        <td>${r.tipo === 'entrada' ? 'Entrada' : 'Saída'}</td>
-        <td>${new Date(r.registradoEm).toLocaleString('pt-BR')}</td>
-        ${state.usuario.administrador ? `<td><button class="botao-link" data-action="remover-ponto" data-id="${r.id}">remover</button></td>` : ''}
-      </tr>`).join('') || `<tr><td colspan="${state.usuario.administrador ? 4 : 3}" class="placeholder">Nenhum registro nos últimos 30 dias.</td></tr>`;
+      <tr><td>${esc(r.pessoaNome)}</td><td>${r.tipo === 'entrada' ? 'Entrada' : 'Saída'}</td><td>${esc(new Date(r.registradoEm).toLocaleString('pt-BR'))}${r.corrigidoPor ? ' · corrigido' : ''}</td>
+        ${ehAdmin ? `<td><button class="botao-link" data-pt="apagar" data-id="${r.id}">remover</button></td>` : ''}</tr>`).join('')
+      || `<tr><td colspan="${ehAdmin ? 4 : 3}" class="placeholder">Nenhum registro nos últimos 30 dias.</td></tr>`;
 
     return `
-      <h2>Bater ponto</h2>
+      ${cab}
+      ${aparelhoHtml()}
+      <div class="pilulas-escolha" style="margin:0 0 14px;">${pilula('pin', '🔢 Com o PIN da pessoa')}${pilula('meu', 'Meu ponto')}</div>
+      ${corpoModo}
+      <h3>Equipe hoje</h3>
+      <div class="secao">${hoje}</div>
       <div class="secao">
-        <p>Seu próximo registro será: <strong>${proximoTipo}</strong></p>
-        <button class="botao" data-action="bater-ponto">Bater ponto (${proximoTipo})</button>
-      </div>
-      <div class="secao">
-        <h3>Últimos registros ${state.usuario.administrador ? '(de todo mundo)' : '(seus)'}</h3>
-        <table class="tabela-lista">
-          <thead><tr><th>Pessoa</th><th>Tipo</th><th>Quando</th>${state.usuario.administrador ? '<th></th>' : ''}</tr></thead>
+        <h3>Últimos registros ${ehAdmin ? '(de todo mundo)' : '(seus)'}</h3>
+        <div style="overflow-x:auto;"><table class="tabela-lista">
+          <thead><tr><th>Pessoa</th><th>Tipo</th><th>Quando</th>${ehAdmin ? '<th></th>' : ''}</tr></thead>
           <tbody>${linhas}</tbody>
-        </table>
+        </table></div>
       </div>`;
+  }
+
+  async function carregarPonto() {
+    state.pontoErro = null;
+    try {
+      const [registros, dispositivo, pessoas, hoje, aparelhos] = await Promise.all([
+        api('/ponto'),
+        api('/ponto/dispositivo', { headers: cabAparelho() }),
+        api('/ponto/pessoas'),
+        api('/ponto/hoje'),
+        state.usuario.administrador ? api('/ponto/dispositivos') : Promise.resolve([]),
+      ]);
+      state.pontoRegistros = registros;
+      state.pontoDispositivo = dispositivo;
+      state.pontoPessoas = pessoas;
+      state.pontoHoje = hoje;
+      state.pontoAparelhos = aparelhos;
+      if (state.pontoPessoaId && !pessoas.some((p) => p.id === state.pontoPessoaId)) state.pontoPessoaId = null;
+    } catch (err) {
+      state.pontoErro = err.message;
+    }
+  }
+
+  async function atualizarPonto() {
+    await carregarPonto();
+    render();
+  }
+
+  async function carregarStatusPonto() {
+    state.pontoStatus = null;
+    if (!state.pontoPessoaId) return;
+    try { state.pontoStatus = await api(`/ponto/status?pessoaId=${state.pontoPessoaId}`); } catch (e) { state.pontoStatus = { ultimo: null }; }
+  }
+
+  async function baterPonto(corpo, rotulo) {
+    try {
+      const r = await api(corpo ? '/ponto/registrar-com-pin' : '/ponto', { method: 'POST', body: corpo || undefined, headers: cabAparelho() });
+      state.pontoMsg = `${rotulo || 'Registro'}: ${r.tipo === 'entrada' ? 'entrada' : 'saída'} registrada às ${horaDoIso(r.registradoEm)}.`;
+      state.pontoErroPin = null;
+      await carregarPonto();
+      await carregarStatusPonto();
+      render();
+    } catch (err) {
+      if (corpo) { state.pontoErroPin = err.message; state.pontoMsg = null; render(); } else avisar(err.message);
+    }
+  }
+
+  function abrirCorrigirPontoModal(p) {
+    const local = (iso) => { const d = new Date(iso); const z = (n) => String(n).padStart(2, '0'); return `${d.getFullYear()}-${z(d.getMonth() + 1)}-${z(d.getDate())}T${z(d.getHours())}:${z(d.getMinutes())}`; };
+    const est = { tipo: p.tipo, quando: local(p.registradoEm) };
+    abrirModal({
+      titulo: 'Corrigir ponto',
+      fecharNoFundo: false,
+      render: () => `
+        <p><strong>${esc(p.pessoaNome)}</strong></p>
+        <label class="campo"><span>Tipo</span><select id="cp-tipo"><option value="entrada" ${est.tipo === 'entrada' ? 'selected' : ''}>Entrada</option><option value="saida" ${est.tipo === 'saida' ? 'selected' : ''}>Saída</option></select></label>
+        <label class="campo"><span>Data e hora</span><input id="cp-quando" type="datetime-local" value="${esc(est.quando)}" /></label>
+        <p class="placeholder">A correção fica marcada como "corrigido" e registra quem fez.</p>
+        <div class="acoes-modal"><button class="botao" data-m="salvar">Salvar</button><button class="botao botao-sec" data-m="cancelar">Cancelar</button></div>`,
+      onMudou: (c) => { if (c.id === 'cp-tipo') est.tipo = c.value; if (c.id === 'cp-quando') est.quando = c.value; },
+      onInput: (c) => { if (c.id === 'cp-quando') est.quando = c.value; },
+      onClick: async (el) => {
+        if (el.dataset.m === 'cancelar') { fecharModal(); return; }
+        if (!est.quando) { avisar('Informe a data e a hora.'); return; }
+        try {
+          await api(`/ponto/${p.id}`, { method: 'PUT', body: { tipo: est.tipo, registradoEm: new Date(est.quando).toISOString() } });
+          fecharModal();
+          await atualizarPonto();
+        } catch (err) { avisar(err.message); }
+      },
+    });
+  }
+
+  async function acaoPonto(el) {
+    const a = el.dataset.pt;
+    const id = Number(el.dataset.id);
+    try {
+      if (a === 'modo') { state.pontoModo = el.dataset.valor; state.pontoMsg = null; state.pontoErroPin = null; render(); return; }
+      if (a === 'recarregar') { state.pontoCarregado = false; render(); await carregarPonto(); state.pontoCarregado = true; render(); return; }
+      if (a === 'bater-meu') { await baterPonto(null, state.usuario.nome); return; }
+      if (a === 'bater-pin') {
+        const pin = (document.getElementById('pt-pin') || {}).value || '';
+        const sel = state.pontoPessoas.find((p) => p.id === state.pontoPessoaId);
+        if (!sel) return;
+        if (!/^\d{4}$/.test(pin)) { state.pontoErroPin = 'O PIN tem 4 números.'; render(); return; }
+        await baterPonto({ pessoaId: sel.id, pin }, sel.nome);
+        return;
+      }
+      if (a === 'autorizar') {
+        const nome = ((document.getElementById('pt-nome-aparelho') || {}).value || '').trim();
+        if (!nome) { avisar('Dê um nome para este aparelho (ex.: Recepção).'); return; }
+        await api('/ponto/dispositivos', { method: 'POST', body: { nome, token: tokenDoAparelho() } });
+        await atualizarPonto();
+        return;
+      }
+      if (a === 'revogar') {
+        if (!await confirma('Revogar a autorização desse aparelho? Se for o último, qualquer computador volta a poder bater ponto.', { ok: 'Revogar', perigo: true })) return;
+        await api(`/ponto/dispositivos/${id}`, { method: 'DELETE' });
+      } else if (a === 'corrigir') {
+        const p = state.pontoHoje.find((x) => x.id === id) || state.pontoRegistros.find((x) => x.id === id);
+        if (p) abrirCorrigirPontoModal(p);
+        return;
+      } else if (a === 'apagar') {
+        if (!await confirma('Apagar esse registro de ponto?', { ok: 'Apagar', perigo: true })) return;
+        await api(`/ponto/${id}`, { method: 'DELETE' });
+      }
+      await atualizarPonto();
+    } catch (err) {
+      avisar(err.message);
+    }
   }
 
   // ---------- fluxo de caixa ----------
@@ -738,7 +1159,7 @@
         <td>${formatarMoeda(l.valor)}</td>
         <td><button class="botao-link" data-action="remover-lancamento" data-id="${l.id}">remover</button></td>
       </tr>`).join('') || `<tr><td colspan="6" class="placeholder">Nenhum lançamento no mês.</td></tr>`;
-    const cabecalho = ehDespesa
+    const cabecalhoTabela = ehDespesa
       ? '<thead><tr><th>Pago em</th><th>Descrição</th><th>Categoria</th><th>Forma de pagamento</th><th>Valor</th><th></th></tr></thead>'
       : '<thead><tr><th>Data</th><th>Descrição</th><th>Categoria</th><th>Forma de pagamento</th><th>Valor</th><th></th></tr></thead>';
     const formSimples = `
@@ -756,7 +1177,7 @@
     const formHtml = ehDespesa ? formDespesaHtml() : formSimples;
 
     return `
-      <h2>Fluxo de caixa</h2>
+      ${cabecalho('Fluxo de caixa', 'Receitas, despesas, contas a pagar e mensalidades dos sócios ATPN, mês a mês')}
       <div class="secao">
         <div class="navegacao-mes">
           <button class="botao" data-action="mes-anterior">‹</button>
@@ -796,7 +1217,7 @@
           <button class="${state.financeiroAba === 'receitas' ? 'ativa' : ''}" data-action="financeiro-aba" data-aba="receitas">Receitas</button>
         </div>
         <div style="overflow-x:auto;"><table class="tabela-lista">
-          ${cabecalho}
+          ${cabecalhoTabela}
           <tbody>${linhas}</tbody>
         </table></div>
         <p><strong>Total${ehDespesa ? ' pago' : ''}: ${formatarMoeda(total)}</strong></p>
@@ -903,7 +1324,7 @@
     };
 
     return `
-      <h2>Tarefas</h2>
+      ${cabecalho('Tarefas', 'Checklist do dia por etapa, atribuída a cada cargo')}
       <div class="secao">
         <div class="navegacao-mes">
           <button class="botao" data-action="tarefa-dia-anterior">‹</button>
@@ -1112,7 +1533,7 @@
   }
 
   function viewRelatorios() {
-    const cab = '<h2>Relatórios</h2>';
+    const cab = cabecalho('Relatórios', 'Só sócios da ATPN: mensalidades, quadro de sócios e inadimplência');
     if (state.relErro) return `${cab}<div class="secao"><p>Não foi possível carregar (${esc(state.relErro)}). Isso é falha de carregamento, não "zero". <button class="botao" data-rel="recarregar">Tentar de novo</button></p></div>`;
     if (!state.rel) return `${cab}<p class="placeholder">Carregando…</p>`;
     const abaBtn = (id, r) => `<button class="${state.relAba === id ? 'ativa' : ''}" data-rel="aba" data-valor="${id}">${r}</button>`;
@@ -1150,7 +1571,7 @@
       document.body.appendChild(a); a.click(); a.remove();
       URL.revokeObjectURL(url);
     } catch (err) {
-      alert(err.message);
+      avisar(err.message);
     }
   }
 
@@ -1228,9 +1649,9 @@
       state.configAssoc = await api('/config/associacao', { method: 'PUT', body: lerAssociacaoDaTela() });
       state.historicoVersoes = null;
       render();
-      alert('Dados e horário salvos.');
+      avisar('Dados e horário salvos.');
     } catch (err) {
-      alert(err.message);
+      avisar(err.message);
     }
   }
 
@@ -1269,7 +1690,7 @@
         </div>`).join('');
     }
     return `
-      <h2>Histórico de versões</h2>
+      ${cabecalho('Histórico de versões', 'Volte a uma versão anterior dos dados da associação, das permissões e da equipe')}
       <div class="secao">
         <p class="placeholder">Guarda as últimas 50 versões anteriores. "Restaurar" volta ao estado que a pessoa tinha <em>antes</em> daquela alteração, e o estado de agora também fica guardado — dá pra desfazer a restauração. PIN nunca é guardado.</p>
         <div class="abas-secundarias">${chips}</div>
@@ -1289,7 +1710,7 @@
       render();
       await carregarHistorico();
     } else if (tipo === 'restaurar') {
-      if (!confirm('Restaurar esta versão? O estado de agora fica guardado no histórico.')) return;
+      if (!await confirma('Restaurar esta versão? O estado de agora fica guardado no histórico.')) return;
       try {
         await api(`/historico/${el.dataset.valor}/restaurar`, { method: 'POST' });
         // o que foi restaurado pode mudar a tela de Configurações e as abas do menu
@@ -1297,9 +1718,9 @@
         state.configAssoc = null;
         state.abas = await api('/auth/me/abas');
         await carregarHistorico();
-        alert('Versão restaurada.');
+        avisar('Versão restaurada.');
       } catch (err) {
-        alert(err.message);
+        avisar(err.message);
       }
     }
   }
@@ -1372,7 +1793,7 @@
         <td>${esc(p.socioNome)}</td><td>${String(p.mes).padStart(2, '0')}/${p.ano}</td><td>${formatarMoeda(p.valor)}</td><td>${esc(p.forma)}</td><td>${esc(p.registradoPor || '—')}</td>
       </tr>`).join('') : '';
     return `
-      <h2>Mensalidades</h2>
+      ${cabecalho('Mensalidades', 'Recepção da ATPN: receber, imprimir o comprovante e conferir o que está em aberto')}
       <div class="secao">
         <p class="placeholder">Recepção da ATPN: procure o sócio, confira o que está em aberto e registre o recebimento. Só sócios da <strong>ATPN</strong> (os do CEPE ficam apenas na aba Sócios). O valor entra no fluxo de caixa e no relatório, e a reimportação da planilha não apaga o que foi registrado aqui.</p>
         <input type="text" id="mens-busca" class="busca-socios-grande" placeholder="Nome, matrícula, telefone ou CPF do sócio…" value="${esc(state.mensBusca)}" autocomplete="off" />
@@ -1413,7 +1834,7 @@
     const brl = (v) => `R$ ${Number(v).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
     const dt = (s) => String(s).split('-').reverse().join('/');
     const w = window.open('', '_blank', 'width=520,height=680');
-    if (!w) { alert('O navegador bloqueou a janela do comprovante. Permita pop-ups para este site.'); return; }
+    if (!w) { avisar('O navegador bloqueou a janela do comprovante. Permita pop-ups para este site.'); return; }
     w.document.write(`<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Comprovante ${c.id}</title>
       <style>body{font-family:system-ui,sans-serif;padding:24px;color:#111} h1{font-size:18px;margin:0 0 2px} .sub{color:#555;font-size:12px;margin-bottom:18px}
       table{width:100%;border-collapse:collapse;font-size:14px} td{padding:6px 0;border-bottom:1px solid #ddd} td:first-child{color:#555;width:42%}
@@ -1455,36 +1876,36 @@
         return;
       }
       if (tipo === 'estornar') {
-        const motivo = prompt('Motivo do estorno (obrigatório):');
-        if (!motivo || motivo.trim().length < 3) { if (motivo !== null) alert('Informe o motivo (pelo menos 3 letras).'); return; }
+        const motivo = await pergunta('Motivo do estorno (obrigatório):');
+        if (!motivo || motivo.trim().length < 3) { if (motivo !== null) avisar('Informe o motivo (pelo menos 3 letras).'); return; }
         await api(`/mensalidades/pagamentos/${el.dataset.id}/estornar`, { method: 'POST', body: { motivo: motivo.trim() } });
       } else if (tipo === 'receber') {
         const f = lerFormMens();
         state.mensForm = f;
         const [ano, mes] = f.mes.split('-').map(Number);
         const valor = parseNumero(f.valor);
-        if (!(valor > 0)) { alert('Informe o valor.'); return; }
+        if (!(valor > 0)) { avisar('Informe o valor.'); return; }
         const corpo = { socioId: state.mensFicha.socio.id, ano, mes, valor, forma: f.forma, dataPagamento: f.data, observacao: f.obs };
         let pagamento;
         try {
           pagamento = await api('/mensalidades/pagamentos', { method: 'POST', body: corpo });
         } catch (err) {
           if (!err.precisaConfirmar) throw err;
-          if (!confirm(err.message)) return;
+          if (!await confirma(err.message)) return;
           pagamento = await api('/mensalidades/pagamentos', { method: 'POST', body: { ...corpo, confirmarParcial: true } });
         }
         state.mensForm = null;
         await abrirFichaMens(state.mensFicha.socio.id);
         await carregarMensHoje();
         render();
-        if (confirm('Recebimento registrado. Abrir o comprovante para imprimir?')) imprimirComprovante(await api(`/mensalidades/comprovante/${pagamento.id}`));
+        if (await confirma('Recebimento registrado. Abrir o comprovante para imprimir?')) imprimirComprovante(await api(`/mensalidades/comprovante/${pagamento.id}`));
         return;
       }
       await abrirFichaMens(state.mensFicha.socio.id);
       await carregarMensHoje();
       render();
     } catch (err) {
-      alert(err.message);
+      avisar(err.message);
     }
   }
 
@@ -1493,7 +1914,7 @@
 
   function viewInicio() {
     const nome = (state.usuario.nome || '').split(' ')[0];
-    const cab = `<h2>Início</h2><p class="placeholder">Olá, ${esc(nome)} — ${esc(new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' }))}</p>`;
+    const cab = cabecalho('Início', `Olá, ${nome} — ${new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })}`);
     if (!state.inicioCarregado) return `${cab}<p class="placeholder">Carregando…</p>`;
     if (state.inicioErro || !state.inicio) {
       return `${cab}<div class="secao"><p>Não foi possível carregar o resumo (${esc(state.inicioErro || 'erro')}). Os números abaixo <strong>não</strong> são zero — é falha de carregamento. Tente de novo.</p>
@@ -1609,41 +2030,48 @@
       </div>`;
   }
 
-  // ---------- eventos / reservas da ATPN (funil + conflito de espaço) ----------
+  // ---------- eventos / reservas da ATPN (funil + conflito de espaço + equipe) ----------
+  // Mesmo desenho do PDV: cabeçalho com "+ Novo", pílulas de filtro com contagem,
+  // lista agrupada por mês (seção que abre/fecha) e um cartão por reserva com
+  // observação da equipe e os botões do próximo passo. Formulário em modal.
   const STATUS_RESERVA = { novo: 'Novo', negociando: 'Em negociação', confirmado: 'Confirmado', recusado: 'Recusado', concluido: 'Concluído' };
-  const FILTROS_RESERVA = [['abertas', 'Em aberto'], ['confirmadas', 'Confirmadas'], ['encerradas', 'Recusadas / concluídas'], ['todas', 'Todas']];
-  // próximos passos de cada status: [status destino, rótulo]
+  // próximos passos de cada status: [status destino, rótulo, estilo]
   const ACOES_RESERVA = {
-    novo: [['negociando', 'Negociar'], ['confirmado', 'Confirmar'], ['recusado', 'Recusar']],
-    negociando: [['confirmado', 'Confirmar'], ['recusado', 'Recusar'], ['novo', 'Voltar p/ novo']],
-    confirmado: [['concluido', 'Concluir'], ['negociando', 'Voltar p/ negociação'], ['recusado', 'Recusar']],
-    recusado: [['novo', 'Reabrir']],
-    concluido: [['confirmado', 'Reabrir como confirmado']],
+    novo: [['negociando', 'Iniciar negociação', 'botao-sec'], ['confirmado', 'Confirmar', 'botao-sec'], ['recusado', 'Recusar', 'botao-perigo']],
+    negociando: [['confirmado', 'Confirmar', 'botao-sec'], ['novo', 'Voltar p/ novo', 'botao-sec'], ['recusado', 'Recusar', 'botao-perigo']],
+    confirmado: [['concluido', '✔ Concluir', ''], ['negociando', 'Voltar p/ negociação', 'botao-sec'], ['recusado', 'Recusar', 'botao-perigo']],
+    recusado: [['novo', '↩ Reabrir', 'botao-sec']],
+    concluido: [['confirmado', '↩ Reabrir', 'botao-sec']],
   };
+  const ABAS_EVENTOS = ['abertas', 'confirmadas', 'encerradas', 'agenda'];
 
   function textoConflito(c) {
     const quando = c.horaInicio ? `${c.horaInicio}${c.horaFim ? '–' + c.horaFim : ''}` : 'sem horário';
     const rotulo = c.motivo === 'sobrepoe' ? 'Horário sobreposto' : 'Mesmo dia, sem horário pra comparar';
     return `${rotulo}: ${c.titulo} (${c.origem || '?'}, ${quando})`;
   }
+  const listaConflitosTexto = (lista) => lista.map((c) => `• ${textoConflito(c)}`).join('\n');
+
+  function avisosConflitoHtml(conflitos, configurado) {
+    if (conflitos === null) return '<div class="aviso-conflito aviso-incerto">Não foi possível checar conflitos agora (agenda do PDV indisponível) — isso não significa que está livre.</div>';
+    if (configurado === false) return '<div class="aviso-conflito aviso-incerto">Integração com o PDV Jabá não configurada: conflitos não são checados.</div>';
+    if (conflitos && conflitos.length) return conflitos.map((c) => `<div class="aviso-conflito ${c.motivo === 'sobrepoe' ? 'aviso-forte' : ''}">⚠ ${esc(textoConflito(c))}</div>`).join('');
+    return '<div class="aviso-livre">✓ Nenhum conflito de espaço nesse dia.</div>';
+  }
 
   function cartaoReservaHtml(r, ehAdmin) {
-    const data = new Date(`${r.data}T12:00:00`);
-    const dia = data.toLocaleDateString('pt-BR', { weekday: 'short', day: '2-digit', month: '2-digit', year: 'numeric' });
+    const dia = new Date(`${r.data}T12:00:00`).toLocaleDateString('pt-BR', { weekday: 'short', day: '2-digit', month: '2-digit', year: 'numeric' });
     const passou = ['novo', 'negociando', 'confirmado'].includes(r.status) && r.data < dataLocalStr(new Date());
     const aberta = r.status === 'novo' || r.status === 'negociando';
-    let conflito = '';
-    if (aberta) {
-      if (r.conflitos === null) conflito = '<div class="aviso-conflito aviso-incerto">Não foi possível checar conflitos agora (agenda do PDV indisponível) — isso não significa que está livre.</div>';
-      else if (state.reservas && state.reservas.configurado === false) conflito = '<div class="aviso-conflito aviso-incerto">Integração com o PDV Jabá não configurada: conflitos não são checados.</div>';
-      else if (r.conflitos && r.conflitos.length) conflito = r.conflitos.map((c) => `<div class="aviso-conflito ${c.motivo === 'sobrepoe' ? 'aviso-forte' : ''}">⚠ ${esc(textoConflito(c))}</div>`).join('');
-      else conflito = '<div class="aviso-livre">✓ Nenhum conflito de espaço nesse dia.</div>';
-    }
+    const encerrada = r.status === 'recusado' || r.status === 'concluido';
+    const equipe = (r.equipe || []).length ? `<div class="placeholder" style="margin-top:3px;">👥 <strong>Equipe:</strong> ${esc(r.equipe.map((p) => p.nome).join(', '))}</div>` : '';
     const acoes = ehAdmin ? `
       <div class="acoes-reserva">
-        ${(ACOES_RESERVA[r.status] || []).map(([s, rot]) => `<button class="botao" data-rv="status" data-id="${r.id}" data-valor="${s}">${rot}</button>`).join('')}
-        <button class="botao-link" data-rv="editar" data-id="${r.id}">editar</button>
-        <button class="botao-link" data-rv="excluir" data-id="${r.id}">excluir</button>
+        ${encerrada ? '' : `<button class="botao botao-sec botao-pq" data-rv="obs" data-id="${r.id}">Salvar observação</button>`}
+        <button class="botao botao-sec botao-pq" data-rv="editar" data-id="${r.id}">✎ Editar</button>
+        <button class="botao botao-sec botao-pq" data-rv="equipe" data-id="${r.id}">👥 ${(r.equipe || []).length ? 'Equipe' : 'Escalar equipe'}</button>
+        ${(ACOES_RESERVA[r.status] || []).map(([s, rot, est]) => `<button class="botao ${est} botao-pq" data-rv="status" data-id="${r.id}" data-valor="${s}">${rot}</button>`).join('')}
+        <button class="botao botao-perigo botao-pq" data-rv="excluir" data-id="${r.id}">🗑 Excluir</button>
       </div>` : '';
     return `
       <div class="cartao-reserva status-${esc(r.status)}">
@@ -1652,143 +2080,78 @@
             <div class="placeholder">📅 ${esc(dia)}${r.horaInicio ? ` · ${esc(r.horaInicio)}${r.horaFim ? '–' + esc(r.horaFim) : ''}` : ' · sem horário'}${r.numConvidados ? ` · 👥 ${r.numConvidados} pessoas` : ''}</div>
             ${r.solicitante || r.telefone ? `<div class="placeholder">${esc(r.solicitante || '')}${r.telefone ? ' · ' + esc(r.telefone) : ''}</div>` : ''}
             ${r.observacao ? `<div class="placeholder">${esc(r.observacao)}</div>` : ''}
+            ${equipe}
           </div>
           <span class="tag-status tag-${esc(r.status)}">${esc(STATUS_RESERVA[r.status])}</span>
         </div>
         ${passou ? '<div class="aviso-conflito">⚠ A data já passou — conclua, edite ou exclua.</div>' : ''}
-        ${conflito}
+        ${aberta ? avisosConflitoHtml(r.conflitos, state.reservas && state.reservas.configurado) : ''}
+        ${encerrada ? (r.obsEquipe ? `<div class="placeholder" style="margin-top:6px;">Equipe: ${esc(r.obsEquipe)}</div>` : '')
+          : `<label class="campo" style="margin-top:10px;"><span>Observação da equipe</span><input id="obs-${r.id}" class="input-obs-equipe" maxlength="500" value="${esc(r.obsEquipe || '')}" placeholder="Ex.: orçamento enviado, sinal pago, cliente vai confirmar" ${ehAdmin ? '' : 'disabled'} /></label>`}
         ${acoes}
       </div>`;
   }
 
-  function formReservaHtml() {
-    const e = state.reservaEditando; // null = nova
-    const v = (k) => esc(e ? (e[k] ?? '') : '');
-    return `
-      <div class="secao">
-        <h3>${e && e.id ? 'Editar reserva' : 'Nova reserva'}</h3>
-        <div class="grade-assoc">
-          <label class="campo-assoc"><span>Título (obrigatório)</span><input id="rv-titulo" maxlength="120" value="${v('titulo')}" placeholder="Ex.: Formatura Turma 2026" /></label>
-          <label class="campo-assoc"><span>Solicitante</span><input id="rv-solicitante" maxlength="100" value="${v('solicitante')}" /></label>
-          <label class="campo-assoc"><span>Telefone</span><input id="rv-telefone" maxlength="30" inputmode="tel" value="${v('telefone')}" /></label>
-          <label class="campo-assoc"><span>Data</span><input id="rv-data" type="date" value="${e ? esc(e.data) : ''}" /></label>
-          <label class="campo-assoc"><span>Início</span><input id="rv-inicio" type="time" value="${v('horaInicio')}" /></label>
-          <label class="campo-assoc"><span>Fim</span><input id="rv-fim" type="time" value="${v('horaFim')}" /></label>
-          <label class="campo-assoc"><span>Convidados</span><input id="rv-convidados" inputmode="numeric" maxlength="6" value="${v('numConvidados')}" /></label>
-          <label class="campo-assoc"><span>Observação</span><input id="rv-obs" maxlength="500" value="${v('observacao')}" /></label>
-        </div>
-        <div id="rv-conflito-previa" class="placeholder">Escolha a data (e o horário) pra ver se o espaço está livre.</div>
-        <div class="linha-form">
-          <button class="botao" data-rv="salvar">${e && e.id ? 'Salvar alterações' : 'Adicionar reserva'}</button>
-          ${e ? '<button class="botao" data-rv="cancelar-form">Cancelar</button>' : ''}
-        </div>
+  // agrupado por mês, cada mês numa seção que abre/fecha; "Este mês" abre sozinho
+  function reservasPorMesHtml(lista, aba, ehAdmin) {
+    const grupos = new Map();
+    lista.forEach((r) => { const k = r.data.slice(0, 7); if (!grupos.has(k)) grupos.set(k, []); grupos.get(k).push(r); });
+    const mesAtual = dataLocalStr(new Date()).slice(0, 7);
+    const rotulo = (k) => {
+      if (k === mesAtual) return 'Este mês';
+      const [a, m] = k.split('-').map(Number);
+      const t = new Date(a, m - 1, 1).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+      return t.charAt(0).toUpperCase() + t.slice(1);
+    };
+    return [...grupos.keys()].map((k) => {
+      const chave = `${aba}:${k}`;
+      const padrao = k <= mesAtual || grupos.size === 1; // meses passados/atual abertos; futuros fechados se houver muitos
+      const aberto = chave in state.eventosMesesAbertos ? state.eventosMesesAbertos[chave] : (k === mesAtual || grupos.size <= 3 || padrao);
+      const itens = grupos.get(k);
+      return `<div class="mes-grupo">
+        <button class="mes-grupo-cab" data-rv="mes" data-chave="${esc(chave)}" data-aberto="${aberto ? 1 : 0}" aria-expanded="${aberto}">
+          <span>${esc(rotulo(k))} <span class="placeholder">· ${itens.length} ${itens.length === 1 ? 'item' : 'itens'}</span></span><span>${aberto ? '▴' : '▾'}</span></button>
+        ${aberto ? itens.map((r) => cartaoReservaHtml(r, ehAdmin)).join('') : ''}
       </div>`;
+    }).join('');
   }
 
   function viewEventos() {
     const ehAdmin = state.usuario.administrador;
-    const abaBtn = (id, r) => `<button class="${state.eventosAba === id ? 'ativa' : ''}" data-rv="aba" data-valor="${id}">${r}</button>`;
-    let corpo;
-    if (state.eventosAba === 'agenda') {
-      corpo = viewAgenda90();
-    } else if (state.reservasErro) {
-      corpo = `<div class="secao"><p>Não foi possível carregar as reservas (${esc(state.reservasErro)}). Isso é falha de carregamento, não "nenhuma reserva". <button class="botao" data-rv="recarregar">Tentar de novo</button></p></div>`;
-    } else if (!state.reservas) {
-      corpo = '<p class="placeholder">Carregando…</p>';
-    } else {
-      const filtros = FILTROS_RESERVA.map(([id, r]) => `<button class="${state.reservasFiltro === id ? 'ativa' : ''}" data-rv="filtro" data-valor="${id}">${r}</button>`).join('');
-      const cartoes = state.reservas.reservas.map((r) => cartaoReservaHtml(r, ehAdmin)).join('')
-        || '<p class="placeholder">Nenhuma reserva nessa seleção.</p>';
-      corpo = `
-        ${ehAdmin ? formReservaHtml() : ''}
-        <div class="secao">
-          <p class="placeholder">Reservas e pedidos de evento no espaço da ATPN. <strong>Só as confirmadas entram na agenda compartilhada com o restaurante</strong> (e saem dela se voltarem pra negociação, forem recusadas ou excluídas). Antes de confirmar, o sistema avisa se já há algo marcado no mesmo dia — quem decide é o administrador.</p>
-          <div class="abas-secundarias">${filtros}</div>
-          ${cartoes}
-        </div>`;
+    const aba = ABAS_EVENTOS.includes(state.eventosAba) ? state.eventosAba : 'abertas';
+    const cab = cabecalho('Eventos/Reservas', 'Reservas e pedidos de evento no espaço da ATPN. Só as confirmadas entram na agenda compartilhada com o restaurante; antes de confirmar, o sistema avisa se já há algo no mesmo dia.',
+      ehAdmin ? '<button class="botao" data-rv="nova">+ Novo evento/reserva</button>' : '');
+    if (state.reservasErro) {
+      return `${cab}<div class="secao"><p>Não foi possível carregar as reservas (${esc(state.reservasErro)}). Isso é falha de carregamento, não "nenhuma reserva". <button class="botao" data-rv="recarregar">Tentar de novo</button></p></div>`;
     }
-    return `<h2>Eventos</h2><div class="abas-secundarias">${abaBtn('reservas', 'Reservas da ATPN')}${abaBtn('agenda', 'Agenda (90 dias)')}</div>${corpo}`;
+    if (!state.reservas) return `${cab}<p class="placeholder">Carregando…</p>`;
+
+    const todas = state.reservas.reservas;
+    const grupo = {
+      abertas: todas.filter((r) => r.status === 'novo' || r.status === 'negociando').sort((a, b) => a.data.localeCompare(b.data) || (a.horaInicio || '').localeCompare(b.horaInicio || '')),
+      confirmadas: todas.filter((r) => r.status === 'confirmado').sort((a, b) => a.data.localeCompare(b.data) || (a.horaInicio || '').localeCompare(b.horaInicio || '')),
+      encerradas: todas.filter((r) => r.status === 'recusado' || r.status === 'concluido').sort((a, b) => b.data.localeCompare(a.data)),
+    };
+    const pilula = (id, rot, n) => `<button class="pilula ${aba === id ? 'sel' : ''}" data-rv="aba" data-valor="${id}">${rot}${n != null ? ` (${n})` : ''}</button>`;
+    const filtros = `<div class="pilulas-escolha" style="margin:0 0 14px;">${pilula('abertas', 'Em aberto', grupo.abertas.length)}${pilula('confirmadas', 'Confirmadas', grupo.confirmadas.length)}${pilula('encerradas', 'Recusadas / concluídas', grupo.encerradas.length)}${pilula('agenda', 'Agenda (90 dias)')}</div>`;
+    if (aba === 'agenda') return `${cab}${filtros}${viewAgenda90()}`;
+
+    const lista = grupo[aba];
+    const vazio = {
+      abertas: ['Nada em aberto', 'Cadastre uma reserva em “+ Novo evento/reserva” ou marque no calendário.'],
+      confirmadas: ['Nenhuma reserva confirmada', 'As confirmadas aparecem aqui e na agenda do restaurante.'],
+      encerradas: ['Nada encerrado ainda', 'Reservas concluídas ou recusadas aparecem aqui.'],
+    }[aba];
+    return `${cab}${filtros}${lista.length ? reservasPorMesHtml(lista, aba, ehAdmin) : `<div class="vazio"><h3>${vazio[0]}</h3><p>${vazio[1]}</p></div>`}`;
   }
 
   async function carregarReservas() {
     state.reservasErro = null;
     try {
-      state.reservas = await api(`/reservas?filtro=${state.reservasFiltro}`);
+      state.reservas = await api('/reservas?filtro=todas');
     } catch (err) {
       state.reservas = null;
       state.reservasErro = err.message;
-    }
-  }
-
-  function lerFormReserva() {
-    const val = (id) => document.getElementById(id).value.trim();
-    return {
-      titulo: val('rv-titulo'), solicitante: val('rv-solicitante'), telefone: val('rv-telefone'),
-      data: val('rv-data'), horaInicio: val('rv-inicio'), horaFim: val('rv-fim'),
-      numConvidados: val('rv-convidados'), observacao: val('rv-obs'),
-    };
-  }
-
-  const listaConflitosTexto = (lista) => lista.map((c) => `• ${textoConflito(c)}`).join('\n');
-
-  // pré-visualização no formulário: mostra se o espaço está livre assim que a data/horário muda
-  async function previaConflitoForm() {
-    const alvo = document.getElementById('rv-conflito-previa');
-    if (!alvo) return;
-    const f = lerFormReserva();
-    if (!f.data) { alvo.className = 'placeholder'; alvo.textContent = 'Escolha a data (e o horário) pra ver se o espaço está livre.'; return; }
-    try {
-      const p = new URLSearchParams({ data: f.data, horaInicio: f.horaInicio, horaFim: f.horaFim });
-      if (state.reservaEditando && state.reservaEditando.id) p.set('ignorarId', state.reservaEditando.id);
-      const r = await api(`/reservas/conflitos?${p.toString()}`);
-      if (!r.configurado) { alvo.className = 'aviso-conflito aviso-incerto'; alvo.textContent = 'Integração com o PDV Jabá não configurada: conflitos não são checados.'; }
-      else if (r.conflitos.length) { alvo.className = ''; alvo.innerHTML = r.conflitos.map((c) => `<div class="aviso-conflito ${c.motivo === 'sobrepoe' ? 'aviso-forte' : ''}">⚠ ${esc(textoConflito(c))}</div>`).join(''); }
-      else { alvo.className = 'aviso-livre'; alvo.textContent = '✓ Nenhum conflito de espaço nesse dia.'; }
-    } catch (err) {
-      alvo.className = 'aviso-conflito aviso-incerto';
-      alvo.textContent = 'Não foi possível checar conflitos agora — isso não significa que está livre.';
-    }
-  }
-
-  async function acaoReserva(el) {
-    const tipo = el.dataset.rv;
-    const id = Number(el.dataset.id);
-    try {
-      if (tipo === 'aba') { state.eventosAba = el.dataset.valor; render(); return; }
-      if (tipo === 'filtro') { state.reservasFiltro = el.dataset.valor; await carregarReservas(); render(); return; }
-      if (tipo === 'recarregar') { state.reservas = null; render(); await carregarReservas(); render(); return; }
-      if (tipo === 'editar') { state.reservaEditando = state.reservas.reservas.find((r) => r.id === id) || null; render(); previaConflitoForm(); window.scrollTo({ top: 0, behavior: 'smooth' }); return; }
-      if (tipo === 'cancelar-form') { state.reservaEditando = null; render(); return; }
-      if (tipo === 'excluir') {
-        if (!confirm('Excluir essa reserva? Se estiver confirmada, ela também sai da agenda do restaurante.')) return;
-        await api(`/reservas/${id}`, { method: 'DELETE' });
-      } else if (tipo === 'status') {
-        try {
-          await api(`/reservas/${id}/status`, { method: 'POST', body: { status: el.dataset.valor } });
-        } catch (err) {
-          if (!err.conflitos) throw err;
-          if (!confirm(`Conflito de espaço:\n\n${listaConflitosTexto(err.conflitos)}\n\nConfirmar mesmo assim?`)) return;
-          await api(`/reservas/${id}/status`, { method: 'POST', body: { status: el.dataset.valor, forcar: true } });
-        }
-      } else if (tipo === 'salvar') {
-        const corpo = lerFormReserva();
-        const editando = state.reservaEditando && state.reservaEditando.id;
-        const chamar = (extra) => api(editando ? `/reservas/${editando}` : '/reservas', { method: editando ? 'PUT' : 'POST', body: { ...corpo, ...extra } });
-        try {
-          await chamar({});
-        } catch (err) {
-          if (!err.conflitos) throw err;
-          if (!confirm(`Conflito de espaço:\n\n${listaConflitosTexto(err.conflitos)}\n\nSalvar mesmo assim?`)) return;
-          await chamar({ forcar: true });
-        }
-        state.reservaEditando = null;
-      }
-      await carregarReservas();
-      state.eventosCarregado = false; // a agenda de 90 dias mudou (confirmadas entram/saem)
-      render();
-      carregarAgenda90();
-    } catch (err) {
-      alert(err.message);
     }
   }
 
@@ -1806,103 +2169,505 @@
     if (state.abaAtual === 'eventos') render();
   }
 
-  // ---------- calendário (agenda compartilhada com o PDV Jabá) ----------
-  function viewCalendario() {
-    if (!state.calendarioCarregado) return '<h2>Calendário</h2><p class="placeholder">Carregando…</p>';
+  // ---- formulário (novo / editar) em modal, com a prévia de conflito ao vivo ----
+  function abrirReservaModal(r) {
+    const e = r || {};
+    const est = { id: e.id || null, titulo: e.titulo || '', solicitante: e.solicitante || '', telefone: e.telefone || '', data: e.data || '',
+      ini: e.horaInicio || '', fim: e.horaFim || '', conv: e.numConvidados || '', obs: e.observacao || '' };
+    const previa = async () => {
+      const alvo = document.getElementById('rv-previa');
+      if (!alvo) return;
+      if (!est.data) { alvo.innerHTML = '<span class="placeholder">Escolha a data (e o horário) para ver se o espaço está livre.</span>'; return; }
+      try {
+        const p = new URLSearchParams({ data: est.data, horaInicio: est.ini, horaFim: est.fim });
+        if (est.id) p.set('ignorarId', est.id);
+        const r2 = await api(`/reservas/conflitos?${p.toString()}`);
+        alvo.innerHTML = avisosConflitoHtml(r2.conflitos, r2.configurado);
+      } catch (err) {
+        alvo.innerHTML = avisosConflitoHtml(null, true);
+      }
+    };
+    abrirModal({
+      titulo: est.id ? 'Editar reserva' : 'Novo evento/reserva',
+      fecharNoFundo: false,
+      render: () => `
+        <label class="campo"><span>Título (obrigatório)</span><input id="rv-titulo" maxlength="120" value="${esc(est.titulo)}" placeholder="Ex.: Formatura Turma 2026" /></label>
+        <div class="campo-linha">
+          <label class="campo"><span>Solicitante</span><input id="rv-solicitante" maxlength="100" value="${esc(est.solicitante)}" /></label>
+          <label class="campo"><span>Telefone</span><input id="rv-telefone" maxlength="30" inputmode="tel" value="${esc(est.telefone)}" /></label>
+        </div>
+        <label class="campo"><span>Data</span><input id="rv-data" type="date" value="${esc(est.data)}" /></label>
+        <div class="campo-linha">
+          <label class="campo"><span>Início</span><input id="rv-inicio" type="time" value="${esc(est.ini)}" /></label>
+          <label class="campo"><span>Fim</span><input id="rv-fim" type="time" value="${esc(est.fim)}" /></label>
+        </div>
+        <label class="campo"><span>Convidados</span><input id="rv-convidados" inputmode="numeric" maxlength="6" value="${esc(est.conv)}" /></label>
+        <label class="campo"><span>Observação do pedido</span><input id="rv-obs" maxlength="500" value="${esc(est.obs)}" /></label>
+        <div id="rv-previa" class="placeholder">Escolha a data (e o horário) para ver se o espaço está livre.</div>
+        <div class="acoes-modal"><button class="botao" data-m="salvar">${est.id ? 'Salvar alterações' : 'Adicionar reserva'}</button><button class="botao botao-sec" data-m="cancelar">Cancelar</button></div>`,
+      onMontar: () => previa(),
+      onInput: (c) => {
+        const mapa = { 'rv-titulo': 'titulo', 'rv-solicitante': 'solicitante', 'rv-telefone': 'telefone', 'rv-convidados': 'conv', 'rv-obs': 'obs' };
+        if (mapa[c.id]) est[mapa[c.id]] = c.value;
+      },
+      onMudou: (c) => {
+        const mapa = { 'rv-data': 'data', 'rv-inicio': 'ini', 'rv-fim': 'fim' };
+        if (mapa[c.id]) { est[mapa[c.id]] = c.value; previa(); }
+      },
+      onClick: async (el) => {
+        if (el.dataset.m === 'cancelar') { fecharModal(); return; }
+        const corpo = { titulo: est.titulo, solicitante: est.solicitante, telefone: est.telefone, data: est.data,
+          horaInicio: est.ini, horaFim: est.fim, numConvidados: est.conv, observacao: est.obs };
+        const chamar = (extra) => api(est.id ? `/reservas/${est.id}` : '/reservas', { method: est.id ? 'PUT' : 'POST', body: { ...corpo, ...extra } });
+        try {
+          try {
+            await chamar({});
+          } catch (err) {
+            if (!err.conflitos) throw err;
+            if (!await confirma(`Conflito de espaço:\n\n${listaConflitosTexto(err.conflitos)}\n\nSalvar mesmo assim?`, { ok: 'Salvar mesmo assim' })) return;
+            await chamar({ forcar: true });
+          }
+          fecharModal();
+          await atualizarEventos();
+        } catch (err) { avisar(err.message); }
+      },
+    });
+  }
 
+  async function atualizarEventos() {
+    await carregarReservas();
+    state.eventosCarregado = false;
+    render();
+    carregarAgenda90();
+  }
+
+  async function acaoReserva(el) {
+    const tipo = el.dataset.rv;
+    const id = Number(el.dataset.id);
+    try {
+      if (tipo === 'aba') { state.eventosAba = el.dataset.valor; render(); return; }
+      if (tipo === 'recarregar') { state.reservas = null; render(); await carregarReservas(); render(); return; }
+      if (tipo === 'mes') { state.eventosMesesAbertos[el.dataset.chave] = el.dataset.aberto !== '1'; render(); return; }
+      if (tipo === 'nova') { abrirReservaModal(null); return; }
+      const r = state.reservas && state.reservas.reservas.find((x) => x.id === id);
+      if (tipo === 'editar') { abrirReservaModal(r); return; }
+      if (tipo === 'equipe') { await abrirEquipeModal(r, null); return; } // salvar recarrega a tela (dentro do modal)
+      if (tipo === 'obs') {
+        const campo = document.getElementById(`obs-${id}`);
+        await api(`/reservas/${id}/obs-equipe`, { method: 'PUT', body: { obsEquipe: campo ? campo.value : '' } });
+        await avisar('Observação salva.');
+      } else if (tipo === 'excluir') {
+        if (!await confirma('Excluir essa reserva? Se estiver confirmada, ela também sai da agenda do restaurante. Isso não tem volta.', { ok: 'Excluir', perigo: true })) return;
+        await api(`/reservas/${id}`, { method: 'DELETE' });
+      } else if (tipo === 'status') {
+        try {
+          await api(`/reservas/${id}/status`, { method: 'POST', body: { status: el.dataset.valor } });
+        } catch (err) {
+          if (!err.conflitos) throw err;
+          if (!await confirma(`Conflito de espaço:\n\n${listaConflitosTexto(err.conflitos)}\n\nConfirmar mesmo assim?`, { ok: 'Confirmar mesmo assim' })) return;
+          await api(`/reservas/${id}/status`, { method: 'POST', body: { status: el.dataset.valor, forcar: true } });
+        }
+      }
+      await atualizarEventos();
+    } catch (err) {
+      avisar(err.message);
+    }
+  }
+
+  // ---------- calendário: eventos + feriados + escala da equipe da ATPN ----------
+  // Mesmo comportamento do PDV Jabá: a grade é clicável e cada dia abre um modal
+  // (feriados, eventos, escala com o ponto batido, equipe dos eventos). Só o
+  // Administrador cria evento, escala, edita e remove. A escala é DA ATPN
+  // (tabela própria) e não vai pra agenda do restaurante.
+  const MAX_PILULAS_CELULA = 3;
+  const NOMES_DIA_CURTO = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb'];
+
+  function uid() { return Math.random().toString(36).slice(2, 9); } // mesmo padrão de id do PDV Jabá
+
+  const dataLocalDoIso = (iso) => dataLocalStr(new Date(iso));
+  const horaLocalDoIso = (iso) => new Date(iso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+  const fmtDataBr = (s) => String(s).split('-').reverse().join('/');
+  const faixaHora = (ini, fim) => (ini ? `${ini}${fim ? '–' + fim : ''}` : null);
+
+  function pontosDoDia(dataStr) {
+    const porPessoa = new Map();
+    state.calPontos.filter((p) => dataLocalDoIso(p.registradoEm) === dataStr).forEach((p) => {
+      if (!porPessoa.has(p.pessoaId)) porPessoa.set(p.pessoaId, { nome: p.pessoaNome, horas: [] });
+      porPessoa.get(p.pessoaId).horas.push(horaLocalDoIso(p.registradoEm));
+    });
+    return porPessoa;
+  }
+
+  function viewCalendario() {
+    const cab = (acoes) => cabecalho('Calendário', 'Eventos e escala da equipe da ATPN', acoes);
+    if (!state.calendarioCarregado) return `${cab('')}<p class="placeholder">Carregando…</p>`;
+    if (state.calendarioErro) {
+      return `${cab('')}<div class="secao"><p>Não foi possível carregar o calendário (${esc(state.calendarioErro)}). Isso é falha de carregamento, não "mês vazio". <button class="botao" data-cal="recarregar">Tentar de novo</button></p></div>`;
+    }
     if (!state.calendarioConfigurado) {
-      return `
-        <h2>Calendário</h2>
+      return `${cab('')}
         <div class="secao">
           <p class="placeholder">A integração com o PDV Jabá ainda não foi configurada nesse servidor
           (falta rodar <code>scripts/configurar-integracao-jaba.js</code> uma vez e preencher
-          <code>JABA_DATABASE_URL</code>/<code>JABA_LOJA_ID</code> no <code>.env</code>). Sem isso essa
-          aba não tem onde guardar os eventos — reservas e eventos são a mesma agenda do PDV Jabá.</p>
+          <code>JABA_DATABASE_URL</code>/<code>JABA_LOJA_ID</code> no <code>.env</code>). Sem isso os eventos do
+          restaurante não aparecem aqui.</p>
         </div>`;
     }
 
+    const ehAdmin = state.usuario.administrador;
     const { ano, mes } = state.calendarioMesRef;
     const hojeStr = dataLocalStr(new Date());
     const diasNoMes = new Date(ano, mes + 1, 0).getDate();
     const vaziasAntes = new Date(ano, mes, 1).getDay();
+
+    const nav = `
+      <button class="botao botao-sec botao-pq" data-cal="mes-ant" aria-label="Mês anterior">←</button>
+      <span class="mes-rotulo">${esc(nomeMes(state.calendarioMesRef))}</span>
+      <button class="botao botao-sec botao-pq" data-cal="mes-seg" aria-label="Próximo mês">→</button>`;
+    const botoesAdmin = ehAdmin ? `
+      <button class="botao" data-cal="novo-evento">+ Novo evento</button>
+      <button class="botao botao-sec" data-cal="escalar">+ Escalar alguém</button>` : '';
+
     let celulas = '<div class="cal-cell cal-cell-vazia"></div>'.repeat(vaziasAntes);
+    const pontosPorDia = new Set(state.calPontos.map((p) => dataLocalDoIso(p.registradoEm)));
     for (let dia = 1; dia <= diasNoMes; dia++) {
       const dataStr = `${ano}-${String(mes + 1).padStart(2, '0')}-${String(dia).padStart(2, '0')}`;
       const evs = state.calendarioEventos.filter((e) => e.data === dataStr);
+      const escs = state.calEscalas.filter((e) => e.data === dataStr);
       const fers = feriadosDoDia(dataStr);
       const ehFeriado = fers.some((f) => f.tipo !== 'facultativo');
-      const classe = [
-        'cal-cell',
-        dataStr === hojeStr ? 'cal-cell-hoje' : '',
-        evs.length ? 'cal-cell-evento' : '',
-        ehFeriado ? 'cal-cell-feriado' : (fers.length ? 'cal-cell-facultativo' : ''),
-      ].join(' ');
+      const classe = ['cal-cell', dataStr === hojeStr ? 'cal-cell-hoje' : '', evs.length ? 'cal-cell-evento' : '',
+        ehFeriado ? 'cal-cell-feriado' : (fers.length ? 'cal-cell-facultativo' : '')].join(' ');
+      const visiveis = escs.slice(0, MAX_PILULAS_CELULA);
+      const resto = escs.length - visiveis.length;
       celulas += `
-        <div class="${classe}">
-          <span class="cal-cell-num">${dia}</span>
-          ${fers.map((f) => `<div class="cal-chip ${f.tipo === 'facultativo' ? 'cal-chip-facultativo' : 'cal-chip-feriado'}" title="${esc(ROTULO_FERIADO[f.tipo])}">${esc(f.nome)}</div>`).join('')}
-          ${evs.map((e) => `<div class="cal-chip cal-chip-evento" title="${esc(e.titulo)}">${esc(e.titulo)}</div>`).join('')}
+        <div class="${classe}" data-cal="dia" data-data="${dataStr}" role="button" tabindex="0" aria-label="Abrir o dia ${dia}">
+          <span class="cal-cell-num">${dia}${pontosPorDia.has(dataStr) ? ' <span class="cal-ponto-dot" title="Tem ponto registrado neste dia">●</span>' : ''}</span>
+          ${fers.map((f) => `<div class="cal-chip ${f.tipo === 'facultativo' ? 'cal-chip-facultativo' : 'cal-chip-feriado'}">${f.tipo === 'facultativo' ? '' : '🇧🇷 '}${esc(f.nome)}</div>`).join('')}
+          ${evs.map((e) => `<div class="cal-chip cal-chip-evento">${esc(e.titulo)}</div>`).join('')}
+          ${visiveis.map((e) => `<div class="cal-pilula ${e.reservaId ? 'cal-pilula-evento' : ''}" title="${esc(e.pessoaNome)}${e.horaInicio ? ' · ' + esc(faixaHora(e.horaInicio, e.horaFim)) : ''}">${esc(e.pessoaNome)}</div>`).join('')}
+          ${resto > 0 ? `<div class="cal-mais">+${resto}</div>` : ''}
         </div>`;
     }
 
-    const feriadosDoMes = [];
-    for (let dia = 1; dia <= diasNoMes; dia++) {
-      const dataStr = `${ano}-${String(mes + 1).padStart(2, '0')}-${String(dia).padStart(2, '0')}`;
-      feriadosDoDia(dataStr).forEach((f) => feriadosDoMes.push({ data: dataStr, ...f }));
-    }
-
-    const linhas = state.calendarioEventos.map((e) => `
-      <tr>
-        <td>${esc(e.data.split('-').reverse().join('/'))}</td>
-        <td>${e.horaInicio ? esc(e.horaInicio) + (e.horaFim ? '–' + esc(e.horaFim) : '') : '—'}</td>
-        <td>${esc(e.titulo)}</td>
-        <td>${esc(e.observacao || '—')}</td>
-        <td>${esc(e.origem || '—')}</td>
-        ${state.usuario.administrador ? `<td>${e.proprio ? `<button class="botao-link" data-action="remover-evento" data-id="${e.id}">remover</button>` : ''}</td>` : ''}
-      </tr>`).join('') || `<tr><td colspan="${state.usuario.administrador ? 6 : 5}" class="placeholder">Nenhum evento no mês.</td></tr>`;
-
-    const linhasFeriados = feriadosDoMes.map((f) => `
-      <tr><td>${esc(f.data.split('-').reverse().join('/'))}</td><td>${esc(f.nome)}</td><td>${esc(ROTULO_FERIADO[f.tipo])}</td></tr>`).join('');
+    const linhasEventos = state.calendarioEventos.map((e) => `
+      <div class="linha-item" data-cal="dia" data-data="${e.data}" style="cursor:pointer;">
+        <div><div class="nome">${esc(e.titulo)}</div>
+          <div class="desc">${esc(fmtDataBr(e.data))}${e.horaInicio ? ' · ' + esc(faixaHora(e.horaInicio, e.horaFim)) : ''}${e.observacao ? ' · ' + esc(e.observacao) : ''}</div></div>
+        <span class="tag-tipo">${esc(e.origem || '—')}</span>
+      </div>`).join('') || '<div class="vazio"><h3>Nenhum evento neste mês</h3><p>Clique num dia da grade para ver o que há nele.</p></div>';
 
     return `
-      <h2>Calendário</h2>
-      <div class="secao">
-        <div class="navegacao-mes">
-          <button class="botao" data-action="calendario-mes-anterior">‹</button>
-          <strong>${nomeMes(state.calendarioMesRef)}</strong>
-          <button class="botao" data-action="calendario-mes-seguinte">›</button>
-        </div>
-      </div>
+      ${cab(`<div class="nav-mes">${nav}</div>${botoesAdmin}`)}
       <div class="secao">
         <div class="cal-legenda">
           <span><i style="background:var(--ev-bg)"></i>Evento</span>
           <span><i style="background:var(--fer-bg)"></i>Feriado</span>
           <span><i style="background:var(--fer-soft)"></i>Ponto facultativo</span>
+          <span><i style="background:var(--primaria)"></i>Equipe escalada</span>
+          <span><i style="background:var(--dourado)"></i>Equipe de evento</span>
+          <span><span class="cal-ponto-dot">●</span> Ponto registrado</span>
         </div>
-        <div class="cal-grid-head">${['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb'].map((d) => `<div>${d}</div>`).join('')}</div>
+        <div class="cal-grid-head">${NOMES_DIA_CURTO.map((d) => `<div>${d}</div>`).join('')}</div>
         <div class="cal-grid">${celulas}</div>
       </div>
-      <div class="secao">
-        <h3>Eventos do mês</h3>
-        <table class="tabela-lista">
-          <thead><tr><th>Data</th><th>Horário</th><th>Evento</th><th>Detalhes</th><th>Origem</th>${state.usuario.administrador ? '<th></th>' : ''}</tr></thead>
-          <tbody>${linhas}</tbody>
-        </table>
-        ${linhasFeriados ? `<h3>Feriados do mês</h3><table class="tabela-lista"><tbody>${linhasFeriados}</tbody></table>` : ''}
-        ${state.usuario.administrador ? `
-          <div class="linha-form">
-            <input type="date" id="novo-evento-data" value="${new Date().toISOString().slice(0, 10)}" />
-            <input type="text" id="novo-evento-hora-inicio" placeholder="Hora início (opcional)" />
-            <input type="text" id="novo-evento-hora-fim" placeholder="Hora fim (opcional)" />
-          </div>
-          <div class="linha-form">
-            <input type="text" id="novo-evento-titulo" placeholder="Título" />
-            <input type="text" id="novo-evento-observacao" placeholder="Observação (opcional)" />
-            <button class="botao" data-action="add-evento">Adicionar</button>
-          </div>` : ''}
-      </div>`;
+      <div class="secao"><h3>Eventos do mês</h3>${linhasEventos}</div>`;
   }
 
+  // ---- modal do dia ----
+  function diaModalHtml(dataStr) {
+    const ehAdmin = state.usuario.administrador;
+    const fers = feriadosDoDia(dataStr);
+    const eventos = state.calendarioEventos.filter((e) => e.data === dataStr);
+    const escs = state.calEscalas.filter((e) => e.data === dataStr);
+    const escalaNormal = escs.filter((e) => !e.reservaId);
+    const escalaEventos = escs.filter((e) => e.reservaId);
+    const reservas = state.calReservas.filter((r) => r.data === dataStr && r.status !== 'recusado');
+    const pontos = pontosDoDia(dataStr);
+    const escaladas = new Set(escs.map((e) => e.pessoaId));
+    const semEscala = [...pontos.entries()].filter(([id]) => !escaladas.has(id));
+
+    const linhaEscala = (e) => {
+      const real = e.reservaId && escalaNormal.some((x) => x.pessoaId === e.pessoaId) ? null : pontos.get(e.pessoaId);
+      const planejado = faixaHora(e.horaInicio, e.horaFim);
+      const pontoTxt = real && real.horas.length ? real.horas.join('–') : null;
+      const horarioTxt = planejado || pontoTxt || '?';
+      const extra = planejado && pontoTxt ? ` (ponto: ${pontoTxt})` : '';
+      return `
+        <div class="linha-item"><div><div class="nome">${esc(e.pessoaNome)} <span class="desc">· ${esc(e.cargoNome)}</span></div>
+          <div class="desc">Horário: ${esc(horarioTxt)}${esc(extra)}${e.observacao && !e.reservaId ? ' · ' + esc(e.observacao) : ''}</div></div>
+          ${ehAdmin ? `<div class="cabecalho-acoes"><button class="botao botao-sec botao-pq" data-m="escala-editar" data-id="${e.id}" title="Editar horário">✎</button><button class="botao botao-perigo botao-pq" data-m="escala-rm" data-id="${e.id}" title="Tirar da escala">✕</button></div>` : ''}</div>`;
+    };
+
+    const gruposEvento = new Map();
+    escalaEventos.forEach((e) => { if (!gruposEvento.has(e.reservaId)) gruposEvento.set(e.reservaId, []); gruposEvento.get(e.reservaId).push(e); });
+
+    return `
+      ${fers.length ? fers.map((f) => `<div class="linha-item"><div><div class="nome">${f.tipo === 'facultativo' ? '' : '🇧🇷 '}${esc(f.nome)}</div><div class="desc">${esc(ROTULO_FERIADO[f.tipo])}</div></div></div>`).join('') : ''}
+
+      <h4>Eventos</h4>
+      ${eventos.length ? eventos.map((e) => {
+        const daReserva = String(e.id).startsWith('atpn-res-');
+        const editavel = ehAdmin && e.proprio && !daReserva;
+        return `<div class="linha-item"><div><div class="nome">${esc(e.titulo)} <span class="tag-tipo">${esc(e.origem || '')}</span></div>
+          ${e.horaInicio ? `<div class="desc">${esc(faixaHora(e.horaInicio, e.horaFim))}</div>` : ''}
+          ${e.observacao ? `<div class="desc">${esc(e.observacao)}</div>` : ''}
+          ${daReserva ? '<div class="desc">Vem de uma reserva — edite na aba Eventos.</div>' : ''}</div>
+          ${editavel ? `<div class="cabecalho-acoes"><button class="botao botao-sec botao-pq" data-m="evento-editar" data-id="${esc(e.id)}" title="Editar">✎</button><button class="botao botao-perigo botao-pq" data-m="evento-rm" data-id="${esc(e.id)}" title="Apagar">✕</button></div>` : ''}</div>`;
+      }).join('') : '<div class="desc">Nenhum evento.</div>'}
+
+      <h4>Escala da equipe</h4>
+      ${escalaNormal.length ? escalaNormal.map(linhaEscala).join('') : '<div class="desc">Ninguém escalado.</div>'}
+
+      ${gruposEvento.size ? `<h4>Equipe dos eventos</h4>${[...gruposEvento.entries()].map(([rid, membros]) => `
+        <div class="linha-item" style="display:block;"><div class="nome">🎉 ${esc(membros[0].reservaTitulo || 'Evento')}</div>${membros.map(linhaEscala).join('')}</div>`).join('')}` : ''}
+
+      ${reservas.length ? `<h4>Reservas e eventos da ATPN no dia</h4>${reservas.map((r) => `
+        <div class="linha-item"><div><div class="nome">${esc(r.titulo)} <span class="tag-tipo">${esc(STATUS_RESERVA[r.status] || r.status)}</span></div>
+          <div class="desc">${r.horaInicio ? esc(faixaHora(r.horaInicio, r.horaFim)) + ' · ' : ''}${r.numConvidados ? r.numConvidados + ' pessoas · ' : ''}${(r.equipe || []).length ? 'Equipe: ' + esc(r.equipe.map((p) => p.nome).join(', ')) : 'sem equipe escalada'}</div></div>
+          ${ehAdmin ? `<button class="botao botao-sec botao-pq" data-m="equipe" data-id="${r.id}">👥 ${(r.equipe || []).length ? 'Equipe' : 'Escalar equipe'}</button>` : ''}</div>`).join('')}` : ''}
+
+      ${semEscala.length ? `<h4>Bateu ponto sem estar escalado</h4>${semEscala.map(([, p]) => `<div class="linha-item"><div class="nome">${esc(p.nome)}</div><div class="desc">${esc(p.horas.join(', '))}</div></div>`).join('')}` : ''}
+
+      ${ehAdmin ? `<div class="acoes-modal"><button class="botao botao-sec" data-m="novo-evento">+ Evento</button><button class="botao botao-sec" data-m="escalar">+ Escalar</button></div>` : ''}`;
+  }
+
+  function abrirDiaModal(dataStr) {
+    abrirModal({
+      titulo: `${fmtDataBr(dataStr)} — ${new Date(`${dataStr}T12:00:00`).toLocaleDateString('pt-BR', { weekday: 'long' })}`,
+      render: () => diaModalHtml(dataStr),
+      onClick: (el) => acaoDia(el, dataStr),
+    });
+  }
+
+  async function acaoDia(el, dataStr) {
+    const m = el.dataset.m;
+    const id = el.dataset.id;
+    try {
+      if (m === 'novo-evento') { abrirEventoModal({ data: dataStr }, dataStr); return; }
+      if (m === 'escalar') { await abrirEscalarModal(dataStr); return; }
+      if (m === 'evento-editar') { abrirEventoModal(state.calendarioEventos.find((e) => e.id === id), dataStr); return; }
+      if (m === 'escala-editar') { abrirEscalaEditModal(state.calEscalas.find((e) => String(e.id) === id), dataStr); return; }
+      if (m === 'equipe') { await abrirEquipeModal(state.calReservas.find((r) => String(r.id) === id), dataStr); return; }
+      if (m === 'evento-rm') {
+        if (!await confirma('Apagar esse evento do calendário?', { ok: 'Apagar', perigo: true })) return;
+        await api(`/calendario/${encodeURIComponent(id)}`, { method: 'DELETE' });
+      } else if (m === 'escala-rm') {
+        if (!await confirma('Tirar essa pessoa da escala?', { ok: 'Tirar', perigo: true })) return;
+        await api(`/escalas/${id}`, { method: 'DELETE' });
+      }
+      await recarregarCalendario();
+      desenharModal();
+    } catch (err) {
+      avisar(err.message);
+    }
+  }
+
+  // ---- evento (novo / editar) ----
+  function abrirEventoModal(ev, voltarPara) {
+    const e = ev || {};
+    const est = { id: e.id || null, data: e.data || dataLocalStr(new Date()), titulo: e.titulo || '', ini: e.horaInicio || '', fim: e.horaFim || '', obs: e.observacao || '' };
+    abrirModal({
+      titulo: est.id ? 'Editar evento' : 'Novo evento',
+      fecharNoFundo: false,
+      render: () => `
+        <label class="campo"><span>Data</span><input id="ev-data" type="date" value="${esc(est.data)}" /></label>
+        <label class="campo"><span>Título</span><input id="ev-titulo" maxlength="120" value="${esc(est.titulo)}" placeholder="Ex.: Assembleia geral" /></label>
+        <div class="campo-linha">
+          <label class="campo"><span>Hora início (opcional)</span><input id="ev-ini" type="time" value="${esc(est.ini)}" /></label>
+          <label class="campo"><span>Hora fim (opcional)</span><input id="ev-fim" type="time" value="${esc(est.fim)}" /></label>
+        </div>
+        <label class="campo"><span>Observação (opcional)</span><input id="ev-obs" maxlength="300" value="${esc(est.obs)}" /></label>
+        <div class="acoes-modal"><button class="botao" data-m="salvar">Salvar</button><button class="botao botao-sec" data-m="cancelar">Cancelar</button></div>`,
+      onInput: (c) => {
+        const mapa = { 'ev-data': 'data', 'ev-titulo': 'titulo', 'ev-ini': 'ini', 'ev-fim': 'fim', 'ev-obs': 'obs' };
+        if (mapa[c.id]) est[mapa[c.id]] = c.value;
+      },
+      onClick: async (el) => {
+        if (el.dataset.m === 'cancelar') { voltarPara ? abrirDiaModal(voltarPara) : fecharModal(); return; }
+        if (!est.data || !est.titulo.trim()) { avisar('Preencha pelo menos a data e o título.'); return; }
+        if (est.ini && est.fim && est.fim < est.ini) { avisar('A hora fim precisa ser depois da hora início.'); return; }
+        try {
+          const corpo = { data: est.data, titulo: est.titulo.trim(), horaInicio: est.ini || null, horaFim: est.fim || null, observacao: est.obs.trim() || null };
+          if (est.id) await api(`/calendario/${encodeURIComponent(est.id)}`, { method: 'PUT', body: corpo });
+          else await api('/calendario', { method: 'POST', body: { id: uid(), tipo: 'evento', ...corpo } });
+          await recarregarCalendario();
+          voltarPara ? abrirDiaModal(est.data) : fecharModal();
+        } catch (err) { avisar(err.message); }
+      },
+    });
+  }
+
+  // ---- escalar alguém (vários dias de uma vez) ----
+  async function abrirEscalarModal(dataInicial) {
+    const pessoas = await api('/escalas/pessoas');
+    const d0 = dataInicial || dataLocalStr(new Date());
+    const est = { datas: new Set(dataInicial ? [dataInicial] : []), mes: d0.slice(0, 7), pessoaId: '', ini: '', fim: '' };
+    const hoje = dataLocalStr(new Date());
+    const grade = () => {
+      const [a, m] = est.mes.split('-').map(Number);
+      const dias = new Date(a, m, 0).getDate();
+      const vazias = new Date(a, m - 1, 1).getDay();
+      let h = '<div></div>'.repeat(vazias);
+      for (let d = 1; d <= dias; d++) {
+        const ds = `${est.mes}-${String(d).padStart(2, '0')}`;
+        h += `<button type="button" class="esc-dia ${est.datas.has(ds) ? 'sel' : ''} ${ds === hoje ? 'hoje' : ''}" data-m="dia" data-data="${ds}">${d}</button>`;
+      }
+      return h;
+    };
+    const rotuloMes = () => { const [a, m] = est.mes.split('-').map(Number); const t = new Date(a, m - 1, 1).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' }); return t.charAt(0).toUpperCase() + t.slice(1); };
+    const mudarMes = (delta) => { const [a, m] = est.mes.split('-').map(Number); const d = new Date(a, m - 1 + delta, 1); est.mes = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`; };
+    abrirModal({
+      titulo: 'Escalar alguém',
+      fecharNoFundo: false,
+      render: () => {
+        const ord = [...est.datas].sort();
+        return `
+          <div class="campo"><span>Dias (clique para marcar vários)</span>
+            <div class="nav-mes" style="justify-content:center;margin-bottom:6px;">
+              <button type="button" class="botao botao-sec botao-pq" data-m="mes-ant" aria-label="Mês anterior">←</button>
+              <span class="mes-rotulo">${esc(rotuloMes())}</span>
+              <button type="button" class="botao botao-sec botao-pq" data-m="mes-seg" aria-label="Próximo mês">→</button>
+            </div>
+            <div class="esc-grid esc-grid-head">${['D', 'S', 'T', 'Q', 'Q', 'S', 'S'].map((x) => `<div>${x}</div>`).join('')}</div>
+            <div class="esc-grid">${grade()}</div>
+            <div style="margin-top:6px;font-size:.85rem;color:var(--texto);">${ord.length
+              ? `<strong>${ord.length} dia${ord.length > 1 ? 's' : ''}:</strong> ${esc(ord.map((d) => d.slice(8, 10) + '/' + d.slice(5, 7)).join(', '))} <button type="button" class="botao botao-sec botao-pq" data-m="limpar">Limpar</button>`
+              : '<span class="placeholder">Clique nos dias para marcar.</span>'}</div>
+          </div>
+          <label class="campo"><span>Funcionário</span>
+            <select id="esc-pessoa"><option value="">— selecione —</option>${pessoas.map((p) => `<option value="${p.id}" ${String(p.id) === String(est.pessoaId) ? 'selected' : ''}>${esc(p.nome)} (${esc(p.cargoNome)})</option>`).join('')}</select></label>
+          <div class="campo-linha">
+            <label class="campo"><span>Hora início (opcional)</span><input id="esc-ini" type="time" value="${esc(est.ini)}" /></label>
+            <label class="campo"><span>Hora fim (opcional)</span><input id="esc-fim" type="time" value="${esc(est.fim)}" /></label>
+          </div>
+          <div class="acoes-modal"><button class="botao" data-m="salvar">Salvar</button><button class="botao botao-sec" data-m="cancelar">Cancelar</button></div>`;
+      },
+      onInput: (c) => { if (c.id === 'esc-ini') est.ini = c.value; if (c.id === 'esc-fim') est.fim = c.value; },
+      onMudou: (c) => { if (c.id === 'esc-pessoa') est.pessoaId = c.value; },
+      onClick: async (el) => {
+        const m = el.dataset.m;
+        if (m === 'dia') { const d = el.dataset.data; if (est.datas.has(d)) est.datas.delete(d); else est.datas.add(d); desenharModal(); return; }
+        if (m === 'mes-ant') { mudarMes(-1); desenharModal(); return; }
+        if (m === 'mes-seg') { mudarMes(1); desenharModal(); return; }
+        if (m === 'limpar') { est.datas.clear(); desenharModal(); return; }
+        if (m === 'cancelar') { dataInicial ? abrirDiaModal(dataInicial) : fecharModal(); return; }
+        if (!est.datas.size || !est.pessoaId) { avisar('Marque pelo menos um dia e escolha o funcionário.'); return; }
+        if (est.ini && est.fim && est.fim < est.ini) { avisar('A hora fim precisa ser depois da hora início.'); return; }
+        try {
+          const r = await api('/escalas/lote', { method: 'POST', body: { pessoaId: Number(est.pessoaId), datas: [...est.datas].sort(), horaInicio: est.ini || null, horaFim: est.fim || null } });
+          const nome = (pessoas.find((p) => String(p.id) === String(est.pessoaId)) || {}).nome || 'Pessoa';
+          await recarregarCalendario();
+          dataInicial ? abrirDiaModal(dataInicial) : fecharModal();
+          if (r.puladas.length) await avisar(`${nome} escalado(a) em ${r.criadas.length} dia(s). ${r.puladas.length} já estava(m) na escala e foi(ram) pulado(s): ${r.puladas.map((d) => d.slice(8, 10) + '/' + d.slice(5, 7)).join(', ')}.`);
+        } catch (err) { avisar(err.message); }
+      },
+    });
+  }
+
+  // ---- editar horário de uma escala ----
+  function abrirEscalaEditModal(e, voltarPara) {
+    if (!e) return;
+    const est = { ini: e.horaInicio || '', fim: e.horaFim || '', obs: e.observacao || '' };
+    abrirModal({
+      titulo: 'Editar horário',
+      fecharNoFundo: false,
+      render: () => `
+        <p><strong>${esc(e.pessoaNome)}</strong> <span class="placeholder">· ${esc(fmtDataBr(e.data))}${e.reservaTitulo ? ' · evento: ' + esc(e.reservaTitulo) : ' · escala'}</span></p>
+        <div class="campo-linha">
+          <label class="campo"><span>Entrada</span><input id="ee-ini" type="time" value="${esc(est.ini)}" /></label>
+          <label class="campo"><span>Saída</span><input id="ee-fim" type="time" value="${esc(est.fim)}" /></label>
+        </div>
+        <label class="campo"><span>Observação (opcional)</span><input id="ee-obs" maxlength="300" value="${esc(est.obs)}" /></label>
+        <p class="placeholder">Deixe o horário em branco para tirar. Vale só para essa pessoa neste dia.</p>
+        <div class="acoes-modal"><button class="botao" data-m="salvar">Salvar</button><button class="botao botao-sec" data-m="cancelar">Cancelar</button></div>`,
+      onInput: (c) => { if (c.id === 'ee-ini') est.ini = c.value; if (c.id === 'ee-fim') est.fim = c.value; if (c.id === 'ee-obs') est.obs = c.value; },
+      onClick: async (el) => {
+        if (el.dataset.m === 'cancelar') { abrirDiaModal(voltarPara); return; }
+        if (est.ini && est.fim && est.fim < est.ini) { avisar('A saída precisa ser depois da entrada.'); return; }
+        try {
+          await api(`/escalas/${e.id}`, { method: 'PUT', body: { horaInicio: est.ini || null, horaFim: est.fim || null, observacao: est.obs } });
+          await recarregarCalendario();
+          abrirDiaModal(voltarPara);
+        } catch (err) { avisar(err.message); }
+      },
+    });
+  }
+
+  // ---- equipe de um evento/reserva ----
+  async function abrirEquipeModal(reserva, voltarPara) {
+    if (!reserva) return;
+    const pessoas = await api('/escalas/pessoas');
+    const sel = new Set((reserva.equipe || []).map((p) => p.pessoaId));
+    abrirModal({
+      titulo: 'Escalar equipe',
+      fecharNoFundo: false,
+      render: () => `
+        <p><strong>${esc(reserva.titulo)}</strong><br><span class="placeholder">📅 ${esc(fmtDataBr(reserva.data))}${reserva.horaInicio ? ' às ' + esc(reserva.horaInicio) : ''}${reserva.numConvidados ? ' · 👥 ' + reserva.numConvidados + ' pessoas' : ''}</span></p>
+        <p class="placeholder">Quem trabalha nesse evento. Cada pessoa aparece na escala do calendário nesse dia.</p>
+        <div class="pilulas-escolha">${pessoas.map((p) => `<button type="button" class="pilula ${sel.has(p.id) ? 'sel' : ''}" data-m="pessoa" data-id="${p.id}">${esc(p.nome)}</button>`).join('') || '<span class="placeholder">Ninguém na equipe ainda.</span>'}</div>
+        <div class="acoes-modal"><button class="botao" data-m="salvar">Salvar equipe</button><button class="botao botao-sec" data-m="cancelar">Cancelar</button></div>`,
+      onClick: async (el) => {
+        const m = el.dataset.m;
+        if (m === 'pessoa') { const id = Number(el.dataset.id); if (sel.has(id)) sel.delete(id); else sel.add(id); desenharModal(); return; }
+        if (m === 'cancelar') { voltarPara ? abrirDiaModal(voltarPara) : fecharModal(); return; }
+        try {
+          await api(`/escalas/reserva/${reserva.id}`, { method: 'PUT', body: { pessoaIds: [...sel] } });
+          await recarregarCalendario();
+          if (state.reservas) { await carregarReservas(); render(); } // a aba Eventos mostra a equipe de cada reserva
+          voltarPara ? abrirDiaModal(voltarPara) : fecharModal();
+        } catch (err) { avisar(err.message); }
+      },
+    });
+  }
+
+  // ---- carregar / navegar ----
+  async function carregarCalendario() {
+    state.calendarioErro = null;
+    // pode ser chamado de outra aba (ex.: salvar equipe de uma reserva) antes de o calendário ser aberto
+    if (!state.calendarioMesRef) state.calendarioMesRef = refMesAtual();
+    const { inicio, fim } = limitesMes(state.calendarioMesRef);
+    try {
+      const [cal, escalas, pontos, reservas] = await Promise.all([
+        api(`/calendario?inicio=${inicio}&fim=${fim}`),
+        api(`/escalas?inicio=${inicio}&fim=${fim}`),
+        api(`/ponto?inicio=${inicio}&fim=${fim}`).catch(() => []), // sem a aba Ponto, só não mostra o ponto
+        api('/reservas?filtro=todas&semConflitos=1').then((r) => r.reservas).catch(() => []),
+      ]);
+      state.calendarioConfigurado = cal.configurado;
+      state.calendarioEventos = cal.eventos;
+      state.calEscalas = escalas;
+      state.calPontos = pontos;
+      state.calReservas = reservas;
+    } catch (err) {
+      state.calendarioErro = err.message;
+    }
+  }
+
+  async function recarregarCalendario() {
+    await carregarCalendario();
+    render();
+  }
+
+  async function mudarMesCalendario(delta) {
+    let { ano, mes } = state.calendarioMesRef;
+    mes += delta;
+    if (mes < 0) { mes = 11; ano -= 1; } else if (mes > 11) { mes = 0; ano += 1; }
+    state.calendarioMesRef = { ano, mes };
+    await recarregarCalendario();
+  }
+
+  async function acaoCalendario(el) {
+    const a = el.dataset.cal;
+    try {
+      if (a === 'mes-ant') await mudarMesCalendario(-1);
+      else if (a === 'mes-seg') await mudarMesCalendario(1);
+      else if (a === 'recarregar') await recarregarCalendario();
+      else if (a === 'dia') abrirDiaModal(el.dataset.data);
+      else if (a === 'novo-evento') abrirEventoModal({ data: dataLocalStr(new Date()) }, null);
+      else if (a === 'escalar') await abrirEscalarModal(null);
+    } catch (err) { avisar(err.message); }
+  }
   // ---------- sócios ----------
   const STATUS_SOCIO_LABEL = {
     em_dia: 'Em dia',
@@ -1981,7 +2746,7 @@
     const filtroStatusBtn = (valor, rotulo) => `<button class="${state.sociosFiltroStatus === valor ? 'ativa' : ''}" data-action="filtro-socio-status" data-status="${valor}">${esc(rotulo)}</button>`;
 
     return `
-      <h2>Sócios</h2>
+      ${cabecalho('Sócios', 'Quadro completo (CEPE e ATPN): busca, situação de pagamento e histórico mensal')}
       <div class="secao">
         <input type="text" id="busca-socios" class="busca-socios-grande" placeholder="Buscar sócio por nome…" value="${esc(state.sociosBusca)}" autocomplete="off" />
       </div>
@@ -2065,7 +2830,7 @@
       </tr>`).join('');
 
     return `
-      <h2>Configurações</h2>
+      ${cabecalho('Configurações', 'Dados da associação, equipe, cargos e permissões por aba')}
       ${secaoAssociacaoHtml()}
       <div class="secao">
         <h3>Equipe</h3>
@@ -2175,10 +2940,6 @@
     document.querySelectorAll('[data-rv]').forEach((el) => {
       el.addEventListener('click', () => acaoReserva(el));
     });
-    ['rv-data', 'rv-inicio', 'rv-fim'].forEach((id) => {
-      const campo = document.getElementById(id);
-      if (campo) campo.addEventListener('change', previaConflitoForm);
-    });
 
     document.querySelectorAll('[data-hist]').forEach((el) => {
       el.addEventListener('click', () => acaoHistorico(el));
@@ -2201,11 +2962,19 @@
     const btnSalvarPermissoes = document.querySelector('[data-action="salvar-permissoes"]');
     if (btnSalvarPermissoes) btnSalvarPermissoes.addEventListener('click', salvarPermissoes);
 
-    const btnBaterPonto = document.querySelector('[data-action="bater-ponto"]');
-    if (btnBaterPonto) btnBaterPonto.addEventListener('click', baterPonto);
-
-    document.querySelectorAll('[data-action="remover-ponto"]').forEach((el) => {
-      el.addEventListener('click', () => removerPonto(Number(el.dataset.id)));
+    document.querySelectorAll('[data-pt]').forEach((el) => {
+      el.addEventListener('click', () => acaoPonto(el));
+    });
+    const selPessoaPonto = document.getElementById('pt-pessoa');
+    if (selPessoaPonto) selPessoaPonto.addEventListener('change', async (e) => {
+      state.pontoPessoaId = e.target.value ? Number(e.target.value) : null;
+      state.pontoMsg = null; state.pontoErroPin = null;
+      await carregarStatusPonto();
+      render();
+    });
+    const campoPinPonto = document.getElementById('pt-pin');
+    if (campoPinPonto) campoPinPonto.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') { const b = document.querySelector('[data-pt="bater-pin"]'); if (b) acaoPonto(b); }
     });
 
     document.querySelectorAll('[data-action="financeiro-aba"]').forEach((el) => {
@@ -2254,17 +3023,10 @@
       el.addEventListener('click', () => removerTarefa(Number(el.dataset.id)));
     });
 
-    const btnCalendarioMesAnterior = document.querySelector('[data-action="calendario-mes-anterior"]');
-    if (btnCalendarioMesAnterior) btnCalendarioMesAnterior.addEventListener('click', () => mudarMesCalendario(-1));
-
-    const btnCalendarioMesSeguinte = document.querySelector('[data-action="calendario-mes-seguinte"]');
-    if (btnCalendarioMesSeguinte) btnCalendarioMesSeguinte.addEventListener('click', () => mudarMesCalendario(1));
-
-    const btnAddEvento = document.querySelector('[data-action="add-evento"]');
-    if (btnAddEvento) btnAddEvento.addEventListener('click', adicionarEvento);
-
-    document.querySelectorAll('[data-action="remover-evento"]').forEach((el) => {
-      el.addEventListener('click', () => removerEvento(el.dataset.id));
+    document.querySelectorAll('[data-cal]').forEach((el) => {
+      el.addEventListener('click', () => acaoCalendario(el));
+      // célula do dia é role="button": Enter/Espaço também abrem
+      if (el.dataset.cal === 'dia') el.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); acaoCalendario(el); } });
     });
 
     const campoBuscaSocios = document.getElementById('busca-socios');
@@ -2352,10 +3114,12 @@
       abas: [], abaAtual: null, configCarregado: false,
       rel: null, relErro: null, inicio: null, inicioCarregado: false, inicioErro: null,
       configAssoc: null, historicoVersoes: null, historicoErro: null,
-      reservas: null, reservasErro: null, reservaEditando: null, eventosAba: 'reservas',
+      reservas: null, reservasErro: null, eventosAba: 'abertas', eventosMesesAbertos: {},
       mensBusca: '', mensResultados: [], mensFicha: null, mensForm: null, mensHoje: null, mensErro: null,
       despForm: null, despAnexos: null, financeiroAPagar: null,
-      pontoCarregado: false, pontoRegistros: [],
+      calEscalas: [], calPontos: [], calReservas: [], calendarioErro: null,
+      pontoCarregado: false, pontoRegistros: [], pontoModo: 'pin', pontoPessoaId: null, pontoStatus: null, pontoMsg: null,
+      pontoErroPin: null, pontoErro: null, pontoPessoas: [], pontoHoje: [], pontoDispositivo: null, pontoAparelhos: [],
       financeiroCarregado: false, financeiroMesRef: null, financeiroAba: 'despesas',
       financeiroDespesas: [], financeiroReceitas: [], financeiroResumo: null,
       tarefasCarregado: false, tarefasData: null, tarefasLista: [],
@@ -2390,6 +3154,9 @@
     state.abas = await api('/auth/me/abas');
     const primeira = state.abas[0]?.id ?? (state.usuario.administrador ? 'config' : null);
     await abrirAba(primeira);
+    carregarBadges();
+    clearInterval(state.timerBadges);
+    state.timerBadges = setInterval(() => { if (state.usuario && !document.hidden) carregarBadges(); }, 120000);
   }
 
   async function abrirAba(id) {
@@ -2430,9 +3197,13 @@
       await carregarConfiguracoes();
       state.configCarregado = true;
     }
-    if (id === 'ponto' && !state.pontoCarregado) {
+    if (id === 'ponto') {
+      // sempre recarrega: o ponto é o retrato do momento
+      state.pontoCarregado = false;
+      state.pontoMsg = null;
       render();
       await carregarPonto();
+      await carregarStatusPonto();
       state.pontoCarregado = true;
     }
     if (id === 'fluxo_caixa' && !state.financeiroCarregado) {
@@ -2450,7 +3221,9 @@
       state.tarefasCarregado = true;
       if (state.usuario.administrador) state.tarefasCadastroCarregado = true;
     }
-    if (id === 'calendario' && !state.calendarioCarregado) {
+    if (id === 'calendario') {
+      // sempre recarrega: outra pessoa pode ter escalado/criado evento desde a última visita
+      state.calendarioCarregado = false;
       render();
       if (!state.calendarioMesRef) state.calendarioMesRef = refMesAtual();
       await carregarCalendario();
@@ -2458,7 +3231,6 @@
     }
     if (id === 'eventos') {
       state.reservas = null;
-      state.reservaEditando = null;
       state.eventosCarregado = false;
       render();
       await Promise.all([carregarReservas(), carregarAgenda90()]);
@@ -2484,8 +3256,8 @@
         const nome = document.getElementById('eq-novo-nome').value.trim();
         const cargoId = Number(document.getElementById('eq-novo-cargo').value);
         const pin = document.getElementById('eq-novo-pin').value;
-        if (!nome) { alert('Digite o nome.'); return; }
-        if (!/^\d{4}$/.test(pin)) { alert('O PIN precisa ter exatamente 4 números.'); return; }
+        if (!nome) { avisar('Digite o nome.'); return; }
+        if (!/^\d{4}$/.test(pin)) { avisar('O PIN precisa ter exatamente 4 números.'); return; }
         await api('/config/equipe', { method: 'POST', body: { nome, cargoId, pin } });
       } else if (tipo === 'salvar') {
         await api(`/config/equipe/${btn.dataset.id}`, { method: 'PUT', body: {
@@ -2494,18 +3266,18 @@
         } });
       } else if (tipo === 'ativo') {
         const desativando = btn.dataset.ativo === '0';
-        if (desativando && !confirm('Desativar essa pessoa? Ela perde o acesso na hora (o histórico fica).')) return;
+        if (desativando && !await confirma('Desativar essa pessoa? Ela perde o acesso na hora (o histórico fica).')) return;
         await api(`/config/equipe/${btn.dataset.id}`, { method: 'PUT', body: { ativo: !desativando } });
       } else if (tipo === 'pin') {
         const pin = linha.querySelector('.eq-pin').value;
-        if (!/^\d{4}$/.test(pin)) { alert('O PIN precisa ter exatamente 4 números.'); return; }
+        if (!/^\d{4}$/.test(pin)) { avisar('O PIN precisa ter exatamente 4 números.'); return; }
         await api(`/config/equipe/${btn.dataset.id}/pin`, { method: 'PUT', body: { pin } });
-        alert('PIN trocado.');
+        avisar('PIN trocado.');
       }
       state.configEquipe = await api('/config/equipe');
       render();
     } catch (err) {
-      alert(err.message);
+      avisar(err.message);
     }
   }
 
@@ -2539,28 +3311,6 @@
       linha.abas.forEach((a) => itens.push({ cargoId: linha.cargoId, aba: a.aba, permitido: a.permitido }));
     });
     await api('/config/permissoes', { method: 'PUT', body: { itens } });
-  }
-
-  // ---------- bater ponto ----------
-  async function carregarPonto() {
-    state.pontoRegistros = await api('/ponto');
-  }
-
-  async function baterPonto() {
-    try {
-      await api('/ponto', { method: 'POST' });
-      await carregarPonto();
-      render();
-    } catch (err) {
-      alert(err.message);
-    }
-  }
-
-  async function removerPonto(id) {
-    if (!confirm('Remover esse registro de ponto?')) return;
-    await api(`/ponto/${id}`, { method: 'DELETE' });
-    await carregarPonto();
-    render();
   }
 
   // ---------- despesas: compra, boleto, conta, pagamento (com foto) ----------
@@ -2700,12 +3450,12 @@
     lerDespFormDoDom();
     const f = state.despForm;
     for (const file of files) {
-      if (f.arquivos.length >= MAX_ARQUIVOS) { alert(`Máximo de ${MAX_ARQUIVOS} anexos por despesa.`); break; }
+      if (f.arquivos.length >= MAX_ARQUIVOS) { avisar(`Máximo de ${MAX_ARQUIVOS} anexos por despesa.`); break; }
       try {
         const { blob, mime } = await reduzirImagem(file);
-        if (blob.size > 8 * 1024 * 1024) { alert(`"${file.name}" tem mais de 8 MB.`); continue; }
+        if (blob.size > 8 * 1024 * 1024) { avisar(`"${file.name}" tem mais de 8 MB.`); continue; }
         f.arquivos.push({ nome: file.name, mime, blob, url: mime === 'application/pdf' ? null : URL.createObjectURL(blob) });
-      } catch (err) { alert(err.message); }
+      } catch (err) { avisar(err.message); }
     }
     render();
     if (autoLer && state.leituraNotaConfigurada && f.arquivos.length) await lerPelaIA();
@@ -2730,7 +3480,7 @@
   async function lerPelaIA() {
     const f = state.despForm;
     const arq = f && f.arquivos[0];
-    if (!arq) { alert('Anexe uma foto primeiro.'); return; }
+    if (!arq) { avisar('Anexe uma foto primeiro.'); return; }
     lerDespFormDoDom();
     f.lendo = true; f.aviso = '';
     render();
@@ -2759,8 +3509,8 @@
     lerDespFormDoDom();
     const f = state.despForm;
     const valor = parseNumero(f.valor);
-    if (!f.descricao.trim() || !f.data || !(valor > 0)) { alert('Preencha descrição, data e um valor maior que zero.'); return; }
-    if (!f.pago && f.data < dataLocalStr(new Date()) && !confirm('O vencimento já passou. Registrar mesmo assim como conta a pagar (vencida)?')) return;
+    if (!f.descricao.trim() || !f.data || !(valor > 0)) { avisar('Preencha descrição, data e um valor maior que zero.'); return; }
+    if (!f.pago && f.data < dataLocalStr(new Date()) && !await confirma('O vencimento já passou. Registrar mesmo assim como conta a pagar (vencida)?')) return;
     const corpo = {
       data: f.data, descricao: f.descricao.trim(), fornecedor: f.fornecedor.trim() || null, categoria: f.categoria.trim() || null,
       valor, formaPagamento: f.forma || null, tipo: f.tipo, pago: f.pago, observacao: f.obs.trim() || null,
@@ -2776,9 +3526,9 @@
       state.despForm = null;
       await carregarFinanceiro();
       render();
-      if (falhas.length) alert(`Despesa salva, mas não consegui anexar:\n${falhas.join('\n')}\nAbra a despesa e anexe de novo.`);
+      if (falhas.length) avisar(`Despesa salva, mas não consegui anexar:\n${falhas.join('\n')}\nAbra a despesa e anexe de novo.`);
     } catch (err) {
-      alert(err.message);
+      avisar(err.message);
     }
   }
 
@@ -2830,16 +3580,16 @@
         return;
       }
       if (tipo === 'pagar-hoje') {
-        if (!confirm('Marcar como paga hoje?')) return;
+        if (!await confirma('Marcar como paga hoje?')) return;
         await api(`/financeiro/despesas/${id}/pagar`, { method: 'POST', body: {} });
       } else if (tipo === 'pagar-outra') {
-        const texto = prompt('Data do pagamento (dd/mm/aaaa):', dataLocalStr(new Date()).split('-').reverse().join('/'));
+        const texto = await pergunta('Data do pagamento (dd/mm/aaaa):', dataLocalStr(new Date()).split('-').reverse().join('/'));
         if (texto === null) return;
         const data = dataDoPrompt(texto);
-        if (!data) { alert('Data inválida. Use dd/mm/aaaa.'); return; }
+        if (!data) { avisar('Data inválida. Use dd/mm/aaaa.'); return; }
         await api(`/financeiro/despesas/${id}/pagar`, { method: 'POST', body: { data } });
       } else if (tipo === 'remover') {
-        if (!confirm('Remover essa conta? (some também a foto anexada)')) return;
+        if (!await confirma('Remover essa conta? (some também a foto anexada)')) return;
         await api(`/financeiro/despesas/${id}`, { method: 'DELETE' });
       } else if (tipo === 'anexos') {
         state.despAnexos = { despesaId: id, itens: await api(`/financeiro/despesas/${id}/anexos`) };
@@ -2849,7 +3599,7 @@
       } else if (tipo === 'ver-anexo') {
         await abrirAnexoDespesa(id); return;
       } else if (tipo === 'rm-anexo') {
-        if (!confirm('Remover esse anexo?')) return;
+        if (!await confirma('Remover esse anexo?')) return;
         await api(`/financeiro/despesas/anexo/${id}`, { method: 'DELETE' });
         const despId = state.despAnexos.despesaId;
         state.despAnexos = { despesaId: despId, itens: await api(`/financeiro/despesas/${despId}/anexos`) };
@@ -2859,7 +3609,7 @@
       await carregarFinanceiro();
       render();
     } catch (err) {
-      alert(err.message);
+      avisar(err.message);
     }
   }
 
@@ -2897,7 +3647,7 @@
     const formaPagamento = document.getElementById('novo-lancamento-forma').value;
     const valor = parseNumero(document.getElementById('novo-lancamento-valor').value);
     if (!data || !descricao || !(valor > 0)) {
-      alert('Preencha data, descrição e um valor maior que zero.');
+      avisar('Preencha data, descrição e um valor maior que zero.');
       return;
     }
     try {
@@ -2908,12 +3658,12 @@
       await carregarFinanceiro();
       render();
     } catch (err) {
-      alert(err.message);
+      avisar(err.message);
     }
   }
 
   async function removerLancamento(id) {
-    if (!confirm('Remover esse lançamento?')) return;
+    if (!await confirma('Remover esse lançamento?')) return;
     await api(`/financeiro/${state.financeiroAba}/${id}`, { method: 'DELETE' });
     await carregarFinanceiro();
     render();
@@ -2943,7 +3693,7 @@
       await carregarTarefas();
       render();
     } catch (err) {
-      alert(err.message);
+      avisar(err.message);
     }
   }
 
@@ -2961,16 +3711,16 @@
     const cargoId = Number(document.getElementById('nova-tarefa-cargo').value);
     const etapa = document.getElementById('nova-tarefa-etapa').value;
     const frequencia = document.getElementById('nova-tarefa-frequencia').value;
-    if (!titulo || !cargoId) { alert('Preencha pelo menos o título e o cargo.'); return; }
+    if (!titulo || !cargoId) { avisar('Preencha pelo menos o título e o cargo.'); return; }
 
     const body = { titulo, descricao: descricao || null, cargoId, etapa, frequencia };
     if (frequencia === 'dias_semana') {
       body.diasSemana = [...document.querySelectorAll('.dia-semana-tarefa:checked')].map((el) => Number(el.value));
-      if (!body.diasSemana.length) { alert('Escolha pelo menos um dia da semana.'); return; }
+      if (!body.diasSemana.length) { avisar('Escolha pelo menos um dia da semana.'); return; }
     }
     if (frequencia === 'intervalo') {
       body.intervaloDias = parseInt(document.getElementById('nova-tarefa-intervalo').value, 10);
-      if (!(body.intervaloDias > 0)) { alert('Informe a cada quantos dias a tarefa se repete.'); return; }
+      if (!(body.intervaloDias > 0)) { avisar('Informe a cada quantos dias a tarefa se repete.'); return; }
     }
 
     try {
@@ -2979,60 +3729,14 @@
       await Promise.all([carregarTarefas(), carregarTarefasCadastro()]);
       render();
     } catch (err) {
-      alert(err.message);
+      avisar(err.message);
     }
   }
 
   async function removerTarefa(id) {
-    if (!confirm('Remover essa tarefa? O histórico de conclusões dela também será apagado.')) return;
+    if (!await confirma('Remover essa tarefa? O histórico de conclusões dela também será apagado.')) return;
     await api(`/tarefas/${id}`, { method: 'DELETE' });
     await Promise.all([carregarTarefas(), carregarTarefasCadastro()]);
-    render();
-  }
-
-  // ---------- calendário ----------
-  function uid() { return Math.random().toString(36).slice(2, 9); } // mesmo padrão de id do PDV Jabá
-
-  async function carregarCalendario() {
-    const { inicio, fim } = limitesMes(state.calendarioMesRef);
-    const resposta = await api(`/calendario?inicio=${inicio}&fim=${fim}`);
-    state.calendarioConfigurado = resposta.configurado;
-    state.calendarioEventos = resposta.eventos;
-  }
-
-  async function mudarMesCalendario(delta) {
-    let { ano, mes } = state.calendarioMesRef;
-    mes += delta;
-    if (mes < 0) { mes = 11; ano -= 1; } else if (mes > 11) { mes = 0; ano += 1; }
-    state.calendarioMesRef = { ano, mes };
-    await carregarCalendario();
-    render();
-  }
-
-  async function adicionarEvento() {
-    const data = document.getElementById('novo-evento-data').value;
-    const horaInicio = document.getElementById('novo-evento-hora-inicio').value.trim();
-    const horaFim = document.getElementById('novo-evento-hora-fim').value.trim();
-    const tipo = 'evento'; // a ATPN tem equipe/escala própria — aqui só eventos
-    const titulo = document.getElementById('novo-evento-titulo').value.trim();
-    const observacao = document.getElementById('novo-evento-observacao').value.trim();
-    if (!data || !titulo) { alert('Preencha pelo menos data e título.'); return; }
-    try {
-      await api('/calendario', {
-        method: 'POST',
-        body: { id: uid(), tipo, data, horaInicio: horaInicio || null, horaFim: horaFim || null, titulo, observacao: observacao || null },
-      });
-      await carregarCalendario();
-      render();
-    } catch (err) {
-      alert(err.message);
-    }
-  }
-
-  async function removerEvento(id) {
-    if (!confirm('Remover esse evento?')) return;
-    await api(`/calendario/${id}`, { method: 'DELETE' });
-    await carregarCalendario();
     render();
   }
 
