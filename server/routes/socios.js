@@ -55,8 +55,8 @@ router.get('/', async (req, res, next) => {
 // verdade, não estimada a partir da lista limitada acima).
 router.get('/resumo', async (req, res, next) => {
   try {
-    const { rows } = await pool.query('SELECT clube, status, count(*) FROM socios GROUP BY clube, status');
-    res.json(rows.map((r) => ({ clube: r.clube, status: r.status, total: Number(r.count) })));
+    const { rows } = await pool.query('SELECT clube, status, origem_planilha, count(*) FROM socios GROUP BY clube, status, origem_planilha');
+    res.json(rows.map((r) => ({ clube: r.clube, status: r.status, origem: r.origem_planilha, total: Number(r.count) })));
   } catch (err) {
     next(err);
   }

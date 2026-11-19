@@ -1525,6 +1525,7 @@
         <div class="cartao-resumo faixa-3_a_5_meses"><span class="cartao-resumo-label">3 a 5 meses</span><strong class="cartao-resumo-valor">${n('3_a_5_meses')}</strong></div>
         <div class="cartao-resumo faixa-6_meses_ou_mais"><span class="cartao-resumo-label">6 meses ou mais</span><strong class="cartao-resumo-valor cor-atraso">${n('6_meses_ou_mais')}</strong></div>
         <div class="cartao-resumo faixa-desligado"><span class="cartao-resumo-label">Desativados</span><strong class="cartao-resumo-valor">${n('desligado')}</strong></div>
+        <div class="cartao-resumo"><span class="cartao-resumo-label">Já saíram (aba DESLIGADOS)</span><strong class="cartao-resumo-valor">${d.saiu ?? 0}</strong></div>
       </div>
       <h3>Dependentes</h3>
       <div class="cartoes-resumo">
@@ -2723,8 +2724,11 @@
   };
 
   function resumoAgregadoSocios(resumo) {
-    const soma = { total: 0, emDia: 0, atrasados: 0, desligados: 0 };
+    // Total = aba ATIVO GERAL (é o que a planilha conta: 403 na ATPN, com os desativados/rosa dentro).
+    // Quem está na aba DESLIGADOS já saiu e vem separado.
+    const soma = { total: 0, emDia: 0, atrasados: 0, desligados: 0, saiu: 0 };
     resumo.forEach((r) => {
+      if (r.origem === 'desligados') { soma.saiu += r.total; return; }
       soma.total += r.total;
       if (r.status === 'em_dia') soma.emDia += r.total;
       else if (r.status === 'desligado') soma.desligados += r.total;
@@ -2795,7 +2799,7 @@
 
       <div class="cartoes-resumo">
         <div class="cartao-resumo">
-          <span class="cartao-resumo-label">Total de sócios</span>
+          <span class="cartao-resumo-label">Total no quadro (ATIVO GERAL)</span>
           <strong class="cartao-resumo-valor">${soma.total}</strong>
         </div>
         <div class="cartao-resumo">
@@ -2807,8 +2811,12 @@
           <strong class="cartao-resumo-valor cor-atraso">${soma.atrasados}</strong>
         </div>
         <div class="cartao-resumo">
-          <span class="cartao-resumo-label">Desativados</span>
+          <span class="cartao-resumo-label">Desativados (rosa)</span>
           <strong class="cartao-resumo-valor">${soma.desligados}</strong>
+        </div>
+        <div class="cartao-resumo">
+          <span class="cartao-resumo-label">Já saíram (aba DESLIGADOS)</span>
+          <strong class="cartao-resumo-valor">${soma.saiu}</strong>
         </div>
       </div>
 

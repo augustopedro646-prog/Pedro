@@ -17,7 +17,7 @@ const CLUBE = CLUBE_FINANCEIRO;
 router.get('/socios', async (req, res, next) => {
   try {
     const [porStatus, porCategoria, especiais, datas, motivos, deps] = await Promise.all([
-      pool.query('SELECT clube, status, count(*)::int AS n FROM socios WHERE clube = $1 GROUP BY clube, status', [CLUBE]),
+      pool.query(`SELECT clube, status, count(*)::int AS n FROM socios WHERE clube = $1 AND origem_planilha = 'ativo_geral' GROUP BY clube, status`, [CLUBE]),
       pool.query(
         `SELECT clube, COALESCE(categoria, 'nao_identificada') AS categoria, count(*)::int AS n
          FROM socios WHERE clube = $1 AND status <> 'desligado' GROUP BY 1, 2`, [CLUBE]
@@ -41,7 +41,8 @@ router.get('/socios', async (req, res, next) => {
       pool.query(
         `SELECT (SELECT count(*)::int FROM dependentes d JOIN socios s ON s.id = d.socio_id WHERE s.clube = $1 AND s.status <> 'desligado') AS dependentes,
                 (SELECT count(*)::int FROM socios WHERE clube = $1 AND status <> 'desligado' AND origem_planilha = 'ativo_geral' AND possivel_duplicado) AS duplicados,
-                (SELECT count(*)::int FROM socios WHERE clube = $1 AND origem_planilha = 'ativo_geral') AS quadro`, [CLUBE]
+                (SELECT count(*)::int FROM socios WHERE clube = $1 AND origem_planilha = 'ativo_geral') AS quadro,
+                (SELECT count(*)::int FROM socios WHERE clube = $1 AND origem_planilha = 'desligados') AS saiu`, [CLUBE]
       ),
     ]);
     res.json({
@@ -53,6 +54,7 @@ router.get('/socios', async (req, res, next) => {
       dependentes: deps.rows[0].dependentes,
       possiveisDuplicados: deps.rows[0].duplicados,
       quadro: deps.rows[0].quadro,
+      saiu: deps.rows[0].saiu,
     });
   } catch (err) {
     next(err);
