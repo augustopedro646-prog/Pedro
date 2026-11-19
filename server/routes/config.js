@@ -125,7 +125,10 @@ const PIN_RE = /^\d{4}$/;
 router.get('/equipe', async (req, res, next) => {
   try {
     const { rows } = await pool.query(
-      `SELECT p.id, p.nome, p.ativo, p.cargo_id AS "cargoId", c.nome AS "cargoNome", c.administrador
+      `SELECT p.id, p.nome, p.ativo, p.cargo_id AS "cargoId", c.nome AS "cargoNome", c.administrador,
+              (SELECT e.hora_inicio || COALESCE('–' || e.hora_fim, '') FROM escalas e WHERE e.pessoa_id = p.id AND e.reserva_id IS NULL AND e.data = (now() AT TIME ZONE 'America/Fortaleza')::date) AS "escalaHoje",
+              (SELECT count(*)::int FROM escalas e WHERE e.pessoa_id = p.id AND e.data >= date_trunc('month', (now() AT TIME ZONE 'America/Fortaleza')::date) AND e.data < date_trunc('month', (now() AT TIME ZONE 'America/Fortaleza')::date) + interval '1 month') AS "escalasMes",
+              (SELECT pt.tipo || ' ' || to_char(pt.registrado_em AT TIME ZONE 'America/Fortaleza', 'HH24:MI') FROM pontos pt WHERE pt.pessoa_id = p.id AND (pt.registrado_em AT TIME ZONE 'America/Fortaleza')::date = (now() AT TIME ZONE 'America/Fortaleza')::date ORDER BY pt.registrado_em DESC LIMIT 1) AS "pontoHoje"
        FROM pessoas p JOIN cargos c ON c.id = p.cargo_id
        ORDER BY p.ativo DESC, p.nome`
     );

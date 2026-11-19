@@ -479,7 +479,7 @@
     mensForm: null,
     mensHoje: null,
     mensErro: null,
-    eventosAba: 'abertas',
+    eventosAba: 'agenda',
     eventosMesesAbertos: {},
     reservas: null,
     reservasErro: null,
@@ -793,6 +793,7 @@
   function sidebarHtml() {
     const itens = [...state.abas];
     if (state.usuario.administrador) {
+      itens.push({ id: 'equipe', nome: 'Equipe' });
       itens.push({ id: 'config', nome: 'Configurações' });
       itens.push({ id: 'historico', nome: 'Histórico' });
     }
@@ -837,6 +838,7 @@
 
   function viewConteudo() {
     if (state.abaAtual === 'config') return viewConfiguracoes();
+    if (state.abaAtual === 'equipe') return viewEquipe();
     if (state.abaAtual === 'ponto') return viewPonto();
     if (state.abaAtual === 'fluxo_caixa') return viewFluxoCaixa();
     if (state.abaAtual === 'tarefas') return viewTarefas();
@@ -2118,22 +2120,33 @@
   // ---------- eventos (próximos 90 dias, só leitura, mesma agenda) ----------
   function viewAgenda90() {
     if (!state.eventosCarregado) return '<p class="placeholder">Carregando…</p>';
-    const linhas = state.eventosProximos.map((e) => `
-      <tr>
-        <td>${esc(e.data.split('-').reverse().join('/'))}</td>
-        <td>${e.horaInicio ? esc(e.horaInicio) + (e.horaFim ? '–' + esc(e.horaFim) : '') : '—'}</td>
-        <td>${esc(e.titulo)}</td>
-        <td>${esc(e.observacao || '—')}</td>
-        <td>${esc(e.origem || '—')}</td>
-      </tr>`).join('') || '<tr><td colspan="5" class="placeholder">Nenhum evento nos próximos 90 dias.</td></tr>';
-    return `
-      <div class="secao">
-        <p class="placeholder">Próximos 90 dias — eventos e reservas do espaço (agenda compartilhada com o PDV Jabá) e os da ATPN. Reservas da ATPN só aparecem aqui depois de confirmadas.</p>
-        <table class="tabela-lista">
-          <thead><tr><th>Data</th><th>Horário</th><th>Evento</th><th>Detalhes</th><th>Origem</th></tr></thead>
-          <tbody>${linhas}</tbody>
-        </table>
+    const lista = [...state.eventosProximos].sort((a, b) => a.data.localeCompare(b.data) || (a.horaInicio || '').localeCompare(b.horaInicio || ''));
+    const grupos = new Map();
+    lista.forEach((e) => { const k = e.data.slice(0, 7); if (!grupos.has(k)) grupos.set(k, []); grupos.get(k).push(e); });
+    const nomeMes = (k) => {
+      const [a, m] = k.split('-').map(Number);
+      const t = new Date(a, m - 1, 1).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+      return t.charAt(0).toUpperCase() + t.slice(1);
+    };
+    const cartao = (e) => {
+      const dt = new Date(`${e.data}T12:00:00`);
+      const dia = dt.toLocaleDateString('pt-BR', { weekday: 'short' }).replace('.', '');
+      const hora = e.horaInicio ? `${e.horaInicio}${e.horaFim ? '–' + e.horaFim : ''}` : 'sem horário';
+      return `<div class="cartao-reserva">
+        <div class="topo-reserva">
+          <div><strong>${esc(e.titulo)}</strong>
+            <div class="placeholder">📅 ${esc(dia)}, ${esc(e.data.split('-').reverse().join('/'))} · ${esc(hora)}</div>
+            ${e.observacao ? `<div class="placeholder">${esc(e.observacao)}</div>` : ''}
+          </div>
+          <span class="tag-status ${e.proprio ? 'tag-confirmado' : 'tag-novo'}">${e.proprio ? 'ATPN' : esc(e.origem || 'Restaurante')}</span>
+        </div>
       </div>`;
+    };
+    const corpo = [...grupos.keys()].map((k) => `<h3 style="margin:14px 0 6px;">${esc(nomeMes(k))} <span class="placeholder">· ${grupos.get(k).length} ${grupos.get(k).length === 1 ? 'evento' : 'eventos'}</span></h3>${grupos.get(k).map(cartao).join('')}`).join('')
+      || '<div class="vazio"><h3>Nenhum evento nos próximos 90 dias</h3><p>Os eventos do espaço (agenda do restaurante) e os da ATPN aparecem aqui.</p></div>';
+    return `
+      <p class="placeholder">Próximos 90 dias — eventos e reservas do espaço (agenda compartilhada com o PDV Jabá) e os da ATPN. Reservas da ATPN só aparecem aqui depois de confirmadas.</p>
+      ${corpo}`;
   }
 
   // ---------- eventos / reservas da ATPN (funil + conflito de espaço + equipe) ----------
@@ -2149,7 +2162,7 @@
     recusado: [['novo', '↩ Reabrir', 'botao-sec']],
     concluido: [['confirmado', '↩ Reabrir', 'botao-sec']],
   };
-  const ABAS_EVENTOS = ['abertas', 'confirmadas', 'encerradas', 'agenda'];
+  const ABAS_EVENTOS = ['agenda', 'abertas', 'confirmadas', 'encerradas'];
 
   function textoConflito(c) {
     const quando = c.horaInicio ? `${c.horaInicio}${c.horaFim ? '–' + c.horaFim : ''}` : 'sem horário';
@@ -2224,7 +2237,7 @@
 
   function viewEventos() {
     const ehAdmin = state.usuario.administrador;
-    const aba = ABAS_EVENTOS.includes(state.eventosAba) ? state.eventosAba : 'abertas';
+    const aba = ABAS_EVENTOS.includes(state.eventosAba) ? state.eventosAba : 'agenda';
     const cab = cabecalho('Eventos/Reservas', 'Reservas e pedidos de evento no espaço da ATPN. Só as confirmadas entram na agenda compartilhada com o restaurante; antes de confirmar, o sistema avisa se já há algo no mesmo dia.',
       ehAdmin ? '<button class="botao" data-rv="nova">+ Novo evento/reserva</button>' : '');
     if (state.reservasErro) {
@@ -2239,7 +2252,7 @@
       encerradas: todas.filter((r) => r.status === 'recusado' || r.status === 'concluido').sort((a, b) => b.data.localeCompare(a.data)),
     };
     const pilula = (id, rot, n) => `<button class="pilula ${aba === id ? 'sel' : ''}" data-rv="aba" data-valor="${id}">${rot}${n != null ? ` (${n})` : ''}</button>`;
-    const filtros = `<div class="pilulas-escolha" style="margin:0 0 14px;">${pilula('abertas', 'Em aberto', grupo.abertas.length)}${pilula('confirmadas', 'Confirmadas', grupo.confirmadas.length)}${pilula('encerradas', 'Recusadas / concluídas', grupo.encerradas.length)}${pilula('agenda', 'Agenda (90 dias)')}</div>`;
+    const filtros = `<div class="pilulas-escolha" style="margin:0 0 14px;">${pilula('agenda', 'Agenda', state.eventosCarregado ? state.eventosProximos.length : null)}${pilula('abertas', 'Reservas em aberto', grupo.abertas.length)}${pilula('confirmadas', 'Confirmadas', grupo.confirmadas.length)}${pilula('encerradas', 'Recusadas / concluídas', grupo.encerradas.length)}</div>`;
     if (aba === 'agenda') return `${cab}${filtros}${viewAgenda90()}`;
 
     const lista = grupo[aba];
@@ -3100,6 +3113,9 @@
       });
     });
 
+    document.querySelectorAll('[data-eq]').forEach((el) => {
+      el.addEventListener('click', () => acaoEquipeAba(el));
+    });
     document.querySelectorAll('[data-equipe]').forEach((el) => {
       el.addEventListener('click', () => acaoEquipe(el));
     });
@@ -3259,7 +3275,7 @@
       abas: [], abaAtual: null, configCarregado: false,
       rel: null, relErro: null, inicio: null, inicioCarregado: false, inicioErro: null, iniBusca: '', iniResultados: [], iniMsg: null,
       configAssoc: null, historicoVersoes: null, historicoErro: null,
-      reservas: null, reservasErro: null, eventosAba: 'abertas', eventosMesesAbertos: {},
+      reservas: null, reservasErro: null, eventosAba: 'agenda', eventosMesesAbertos: {},
       mensBusca: '', mensResultados: [], mensFicha: null, mensForm: null, mensHoje: null, mensErro: null,
       despForm: null, despAnexos: null, financeiroAPagar: null,
       calEscalas: [], calPontos: [], calReservas: [], calendarioErro: null,
@@ -3337,6 +3353,11 @@
       render();
       await carregarRelatorios();
     }
+    if (id === 'equipe') {
+      state.equipeLista = null;
+      render();
+      await carregarEquipeAba();
+    }
     if (id === 'config' && !state.configCarregado) {
       render();
       await carregarConfiguracoes();
@@ -3390,6 +3411,95 @@
       const campo = document.getElementById('busca-socios');
       if (campo) campo.focus();
     }
+  }
+
+  // ---------- equipe (igual à aba Equipe do PDV: cartões, papel, PIN oculto, editar) ----------
+  async function carregarEquipeAba() {
+    state.equipeErro = null;
+    try {
+      const [lista, cargos] = await Promise.all([api('/config/equipe'), api('/config/cargos')]);
+      state.equipeLista = lista;
+      state.configCargos = cargos;
+    } catch (err) { state.equipeLista = null; state.equipeErro = err.message; }
+    if (state.abaAtual === 'equipe') render();
+  }
+
+  function viewEquipe() {
+    const cab = cabecalho('Equipe', 'Quem usa o sistema: cargo, escala e ponto de hoje. O PIN nunca aparece depois de salvo. Desativar não apaga — o histórico de ponto e tarefas continua.',
+      '<button class="botao" data-eq="nova">+ Nova pessoa</button>');
+    if (state.equipeErro) return `${cab}<div class="secao"><p>Não foi possível carregar (${esc(state.equipeErro)}). <button class="botao" data-eq="recarregar">Tentar de novo</button></p></div>`;
+    if (!state.equipeLista) return `${cab}<p class="placeholder">Carregando…</p>`;
+    const linhas = state.equipeLista.map((p) => {
+      const voce = p.nome === state.usuario.nome;
+      return `<div class="linha-item" style="${p.ativo ? '' : 'opacity:.55;'}">
+        <div><div class="nome">${esc(p.nome)}${voce ? ' <span class="placeholder">(você)</span>' : ''}</div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:3px;">
+            <span class="st-pill st-dep">${esc(p.cargoNome)}${p.administrador ? ' · irrestrito' : ''}</span>
+            ${p.ativo ? '' : '<span class="st-pill st-desligado">desativado</span>'}
+            ${p.escalaHoje ? `<span class="st-pill st-em_dia">escalado hoje ${esc(p.escalaHoje)}</span>` : ''}
+            ${p.pontoHoje ? `<span class="st-pill st-ate_2_meses">ponto: ${esc(p.pontoHoje)}</span>` : ''}
+          </div>
+          <div class="desc">${p.escalasMes} ${p.escalasMes === 1 ? 'dia escalado' : 'dias escalados'} neste mês · PIN ••••</div></div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;">
+          <button class="botao botao-sec botao-pq" data-eq="editar" data-id="${p.id}">Editar</button>
+          <button class="botao botao-sec botao-pq" data-eq="ativo" data-id="${p.id}" data-ativo="${p.ativo ? '0' : '1'}">${p.ativo ? 'Desativar' : 'Reativar'}</button>
+        </div>
+      </div>`;
+    }).join('') || '<p class="placeholder">Ninguém cadastrado.</p>';
+    return `${cab}<div class="secao">${linhas}</div>`;
+  }
+
+  function abrirPessoaModal(pessoa) {
+    const e = pessoa || {};
+    const est = { nome: e.nome || '', cargoId: e.cargoId || (state.configCargos.find((c) => !c.administrador) || state.configCargos[0] || {}).id, pin: '' };
+    abrirModal({
+      titulo: e.id ? 'Editar pessoa' : 'Nova pessoa',
+      fecharNoFundo: false,
+      render: () => `
+        <label class="campo"><span>Nome (aparece na tela de login)</span><input id="eqm-nome" maxlength="80" value="${esc(est.nome)}" placeholder="Ex.: João" /></label>
+        <label class="campo"><span>Cargo</span><select id="eqm-cargo">${state.configCargos.map((c) => `<option value="${c.id}" ${c.id === est.cargoId ? 'selected' : ''}>${esc(c.nome)}${c.administrador ? ' (irrestrito)' : ''}</option>`).join('')}</select></label>
+        <label class="campo"><span>${e.id ? 'Novo PIN (deixe vazio para manter)' : 'PIN (4 números)'}</span><input id="eqm-pin" type="password" inputmode="numeric" maxlength="4" autocomplete="new-password" placeholder="0000" value="${esc(est.pin)}" /></label>
+        ${e.id ? '<p class="placeholder">Mudança de cargo ou desativação vale na hora, mesmo para quem já está logado.</p>' : ''}
+        <div class="acoes-modal"><button class="botao" data-m="salvar">Salvar</button><button class="botao botao-sec" data-m="cancelar">Cancelar</button></div>`,
+      onInput: (c) => { if (c.id === 'eqm-nome') est.nome = c.value; else if (c.id === 'eqm-pin') est.pin = c.value; },
+      onMudou: (c) => { if (c.id === 'eqm-cargo') est.cargoId = Number(c.value); },
+      onClick: async (el) => {
+        if (el.dataset.m === 'cancelar') { fecharModal(); return; }
+        const nome = est.nome.trim();
+        if (!nome) { avisar('Digite o nome.'); return; }
+        if (est.pin && !/^\d{4}$/.test(est.pin)) { avisar('O PIN precisa ter exatamente 4 números.'); return; }
+        try {
+          if (e.id) {
+            await api(`/config/equipe/${e.id}`, { method: 'PUT', body: { nome, cargoId: est.cargoId } });
+            if (est.pin) await api(`/config/equipe/${e.id}/pin`, { method: 'PUT', body: { pin: est.pin } });
+          } else {
+            if (!est.pin) { avisar('Defina um PIN de 4 números.'); return; }
+            await api('/config/equipe', { method: 'POST', body: { nome, cargoId: est.cargoId, pin: est.pin } });
+          }
+          fecharModal();
+          state.configCarregado = false; // a tela Configurações relê a equipe
+          await carregarEquipeAba();
+        } catch (err) { avisar(err.message); }
+      },
+    });
+  }
+
+  async function acaoEquipeAba(el) {
+    const tipo = el.dataset.eq;
+    const id = Number(el.dataset.id);
+    try {
+      if (tipo === 'nova') { abrirPessoaModal(null); return; }
+      if (tipo === 'recarregar') { state.equipeLista = null; render(); await carregarEquipeAba(); return; }
+      const p = (state.equipeLista || []).find((x) => x.id === id);
+      if (tipo === 'editar') { abrirPessoaModal(p); return; }
+      if (tipo === 'ativo') {
+        const desativando = el.dataset.ativo === '0';
+        if (desativando && !await confirma(`Desativar ${p ? p.nome : 'essa pessoa'}? Ela perde o acesso na hora (o histórico fica).`, { ok: 'Desativar', perigo: true })) return;
+        await api(`/config/equipe/${id}`, { method: 'PUT', body: { ativo: !desativando } });
+        state.configCarregado = false;
+        await carregarEquipeAba();
+      }
+    } catch (err) { avisar(err.message); }
   }
 
   // ---------- configurações ----------
