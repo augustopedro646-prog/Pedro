@@ -1,0 +1,9 @@
+node_modules/
+.env
+auth/
+auth-backup/
+auth-antes-*/
+*.log
+aquecimento-estado.json
+dono-estado.json
+pausa-geral.json

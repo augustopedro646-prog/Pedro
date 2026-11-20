@@ -178,3 +178,7 @@ Padrões reaproveitados do PDV Jabá (mecanismo, não código copiado): históri
 sensível reescrito por inteiro (`app_dados_historico`), rate limiting por IP normalizado
 (`ipKeyGenerator`), `esc()` em todo texto livre antes do `innerHTML`, campo numérico como
 `type="text" inputmode="decimal"` + parser próprio.
+
+## WhatsApp (robô de atendimento)
+
+Aba **WhatsApp** (só Administrador) + serviço separado em `bot-whatsapp/` (cópia da mecânica do robô do PDV Jabá; só mudam as instruções e as ferramentas). Como ligar, como funciona e o que ele faz pra não travar/ser banido: `bot-whatsapp/LEIA-ME.md`.

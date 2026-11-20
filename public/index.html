@@ -493,6 +493,108 @@
 .rv-legenda{display:flex;gap:12px;flex-wrap:wrap;font-size:.82rem;color:var(--texto-fraco);margin:8px 0;}
 .rv-legenda i{display:inline-block;width:12px;height:12px;border-radius:3px;border:2px solid;margin-right:4px;vertical-align:-1px;}
 .mp-ex-parede{pointer-events:none;}
+  /* ---- aba WhatsApp (portada do PDV Jabá) ---- */
+  :root { --wa-suave: #e3f2e4; --wa-aviso-bg: #fbeed0; --wa-aviso-fg: #8a5a00; --wa-erro-bg: #f6dcda; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --wa-suave: #1d3524; --wa-aviso-bg: #3d3216; --wa-aviso-fg: #f2d68a; --wa-erro-bg: #3d1f1d; } }
+  :root[data-theme="dark"] { --wa-suave: #1d3524; --wa-aviso-bg: #3d3216; --wa-aviso-fg: #f2d68a; --wa-erro-bg: #3d1f1d; }
+/* aba WhatsApp — topo (conexão + saúde do número) e inbox (lista + conversa lado a lado). Mobile (corte de 820px,
+   o mesmo da sidebar): lista OU conversa, trocado pela classe .wa-inbox-aberta no container. */
+.wa-topo{display:grid;grid-template-columns:minmax(250px,1fr) minmax(320px,1.7fr);gap:12px;margin-bottom:12px;}
+.wa-card{background:var(--superficie);border:1px solid var(--borda);border-radius:12px;padding:14px 16px;min-width:0;}
+.wa-card-titulo{font-size:11px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:var(--texto-fraco);margin-bottom:10px;}
+.wa-conn{display:flex;align-items:center;gap:10px;margin-bottom:10px;}
+.wa-dot{width:10px;height:10px;border-radius:50%;background:var(--texto-fraco);flex-shrink:0;}
+.wa-dot-ok{background:var(--primaria);box-shadow:0 0 0 4px var(--wa-suave);}
+.wa-dot-aviso{background:var(--dourado);box-shadow:0 0 0 4px var(--wa-aviso-bg);}
+.wa-dot-erro{background:var(--perigo);box-shadow:0 0 0 4px var(--wa-erro-bg);}
+.wa-conn-txt{font-size:15px;font-weight:700;}
+.wa-conn-sub{font-size:12px;color:var(--texto-fraco);}
+.wa-qr{display:block;margin:6px auto 4px;max-width:200px;width:100%;border-radius:8px;}
+.wa-saude-topo{display:flex;align-items:baseline;justify-content:space-between;gap:8px;flex-wrap:wrap;}
+.wa-saude-num{font-size:28px;font-weight:700;font-variant-numeric:tabular-nums;line-height:1;}
+.wa-saude-de{font-size:13px;color:var(--texto-fraco);font-weight:400;}
+.wa-pill{display:inline-block;font-size:11px;font-weight:700;padding:3px 9px;border-radius:99px;white-space:nowrap;}
+.wa-pill-ok{background:var(--wa-suave);color:var(--primaria);}
+.wa-pill-atencao{background:var(--wa-aviso-bg);color:#7a5a08;}
+.wa-pill-acima{background:var(--wa-erro-bg);color:var(--perigo);}
+.wa-barra{height:8px;border-radius:99px;background:var(--borda);overflow:hidden;margin:10px 0;}
+.wa-barra span{display:block;height:100%;border-radius:99px;background:var(--primaria);transition:width .3s;}
+.wa-nivel-atencao .wa-barra span{background:var(--dourado);}
+.wa-nivel-acima .wa-barra span{background:var(--perigo);}
+.wa-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(104px,1fr));gap:8px;margin-bottom:10px;}
+.wa-stat{background:var(--fundo);border-radius:8px;padding:7px 9px;}
+.wa-stat b{display:block;font-size:17px;font-variant-numeric:tabular-nums;}
+.wa-stat small{font-size:11px;color:var(--texto-fraco);}
+.wa-saude-aviso{font-size:12.5px;line-height:1.45;color:var(--texto-fraco);}
+.wa-nivel-atencao .wa-saude-aviso{color:#7a5a08;}
+.wa-nivel-acima .wa-saude-aviso{color:var(--perigo);font-weight:600;}
+.wa-sem{display:flex;align-items:flex-end;gap:5px;height:36px;margin:8px 0 2px;}
+.wa-sem div{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;gap:2px;}
+.wa-sem i{display:block;width:100%;min-height:2px;border-radius:3px 3px 0 0;background:var(--primaria);}
+.wa-sem span{font-size:9.5px;color:var(--texto-fraco);}
+.wa-inbox{display:flex;border:1px solid var(--borda);border-radius:12px;overflow:hidden;height:clamp(460px,74vh,800px);background:var(--superficie);}
+.wa-lista{width:330px;flex-shrink:0;border-right:1px solid var(--borda);display:flex;flex-direction:column;min-height:0;}
+.wa-lista-topo{padding:10px;border-bottom:1px solid var(--borda);display:flex;flex-direction:column;gap:8px;}
+.wa-chips{display:flex;gap:6px;flex-wrap:wrap;}
+.wa-chip{border:1px solid var(--borda);background:transparent;color:var(--texto);border-radius:99px;padding:3px 10px;font-size:12px;cursor:pointer;font-family:inherit;}
+.wa-chip-on{background:var(--primaria);color:var(--primaria-texto);border-color:var(--primaria);}
+#flash-pedido{position:fixed;inset:0;pointer-events:none;z-index:9999;border:0 solid var(--perigo);}
+#flash-pedido.ativo{animation:flashPedido 0.7s ease-in-out 10;}
+@keyframes flashPedido{0%,100%{border-width:0;background:transparent;}50%{border-width:16px;background:rgba(198,67,47,0.12);}}
+@media (prefers-reduced-motion:reduce){#flash-pedido.ativo{animation:none;border-width:10px;}}
+.filtro-chips{display:flex;gap:8px;flex-wrap:wrap;margin:1rem 0 0.2rem;}
+.filtro-chip{border:1.5px solid var(--borda);background:var(--superficie);color:var(--texto);border-radius:99px;padding:7px 14px;font-size:13.5px;font-weight:600;cursor:pointer;font-family:inherit;display:inline-flex;align-items:center;gap:6px;}
+.filtro-chip small{font-weight:500;color:var(--texto-fraco);font-variant-numeric:tabular-nums;}
+.filtro-chip:hover{border-color:var(--primaria);}
+.filtro-chip-on{background:var(--primaria);border-color:var(--primaria);color:var(--primaria-texto);}
+.filtro-chip-on small{color:var(--primaria-texto);opacity:0.85;}
+.wa-lista-scroll{flex:1;overflow-y:auto;min-height:0;}
+.wa-list-item{display:flex;gap:10px;align-items:center;padding:0.65rem 0.8rem;border-bottom:1px solid var(--borda);cursor:pointer;border-left:3px solid transparent;}
+.wa-list-item:hover{background:var(--wa-suave);}
+.wa-list-item-ativo{background:var(--wa-suave);border-left-color:var(--primaria);}
+.wa-list-item-humano{border-left-color:var(--dourado);}
+.wa-avatar{width:40px;height:40px;border-radius:50%;background:var(--primaria);color:var(--primaria-texto);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;flex-shrink:0;}
+.wa-list-item-mid{flex:1;min-width:0;}
+.wa-list-item-nome{font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.wa-list-item-preview{font-size:12px;color:var(--texto-fraco);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.wa-list-item-side{display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex-shrink:0;}
+.wa-list-item-hora{font-size:10.5px;color:var(--texto-fraco);}
+.wa-badge{font-size:9.5px;padding:1px 6px;border-radius:8px;white-space:nowrap;font-weight:600;}
+.wa-badge-humano{background:var(--wa-aviso-bg);color:var(--wa-aviso-fg);}
+.badge-pausado{font-size:12px;font-weight:700;color:var(--wa-aviso-fg);background:var(--wa-aviso-bg);border:1px solid var(--dourado);border-radius:999px;padding:4px 10px;white-space:nowrap;}
+.wa-badge-pausado{background:var(--borda);color:var(--texto-fraco);}
+.wa-vazio{padding:2rem 1rem;text-align:center;color:var(--texto-fraco);font-size:13px;}
+.wa-chat{flex:1;display:flex;flex-direction:column;min-width:0;min-height:0;}
+.wa-chat-vazio{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;color:var(--texto-fraco);font-size:13px;}
+.wa-chat-head{display:flex;align-items:center;gap:10px;padding:0.6rem 0.9rem;border-bottom:1px solid var(--borda);flex-wrap:wrap;}
+.wa-chat-head-info{min-width:140px;flex:1;}
+.wa-voltar{display:none;}
+.wa-aviso-falha{background:var(--wa-aviso-bg);color:#7a5a08;font-size:12px;padding:6px 14px;border-bottom:1px solid var(--borda);}
+.wa-chat-scroll{flex:1;overflow-y:auto;padding:0.9rem;display:flex;flex-direction:column;gap:5px;background:var(--wa-suave);min-height:0;}
+.wa-dia{align-self:center;font-size:11px;color:var(--texto-fraco);background:var(--superficie);border:1px solid var(--borda);border-radius:99px;padding:2px 10px;margin:8px 0 4px;}
+.wa-bubble-row{display:flex;}
+.wa-bubble-row-cliente{justify-content:flex-start;}
+.wa-bubble-row-nos{justify-content:flex-end;}
+.wa-bubble{max-width:min(75%,560px);padding:0.4rem 0.65rem 0.3rem;border-radius:12px;font-size:13.5px;line-height:1.4;box-shadow:0 1px 1px rgba(0,0,0,0.08);}
+.wa-bubble-cliente{background:var(--superficie);border-bottom-left-radius:3px;}
+.wa-bubble-robo{background:var(--superficie);border:1px solid var(--primaria);border-bottom-right-radius:3px;}
+.wa-bubble-equipe{background:var(--wa-aviso-bg);color:var(--texto);border-bottom-right-radius:3px;}
+.wa-bubble-sistema{background:transparent;border:1px dashed var(--borda);border-bottom-right-radius:3px;color:var(--texto-fraco);}
+.wa-bubble-rotulo{font-size:10px;font-weight:700;opacity:0.7;margin-bottom:1px;}
+.wa-bubble-texto{white-space:pre-wrap;word-break:break-word;}
+.wa-bubble-hora{font-size:10px;color:var(--texto-fraco);text-align:right;margin-top:1px;}
+.wa-chat-input{display:flex;gap:8px;padding:0.6rem;border-top:1px solid var(--borda);align-items:flex-end;background:var(--superficie);}
+.wa-chat-input textarea{flex:1;resize:none;max-height:110px;border-radius:18px;padding:0.5rem 0.8rem;}
+.wa-instr-head{display:flex;align-items:center;justify-content:space-between;cursor:pointer;gap:8px;}
+@media (max-width:820px){
+  .wa-topo{grid-template-columns:1fr;}
+  .wa-inbox{height:calc(100vh - 150px);min-height:420px;}
+  .wa-lista{width:100%;border-right:none;}
+  .wa-chat{display:none;}
+  .wa-inbox-aberta .wa-lista{display:none;}
+  .wa-inbox-aberta .wa-chat{display:flex;width:100%;}
+  .wa-voltar{display:inline-flex;}
+}
 </style>
 </head>
 <body>
@@ -557,7 +659,7 @@
     historicoErro: null,
     rel: null,
     relErro: null,
-    relAba: 'mensalidades',
+    relAba: 'resumo',
     relPeriodo: '3m',
     relInadFaixa: 'todas',
     inicio: null,
@@ -796,7 +898,20 @@
 
   // ---------- render ----------
   function render() {
+    // aba WhatsApp: guarda onde a conversa e a lista estavam rolando (o render refaz tudo) e só desce pro fim se já estava no fim
+    const chatAntes = document.getElementById('wa-chat-scroll');
+    const waChatInfo = chatAntes ? { tel: chatAntes.dataset.tel, top: chatAntes.scrollTop, perto: chatAntes.scrollHeight - chatAntes.scrollTop - chatAntes.clientHeight < 60 } : null;
+    const listaAntes = document.getElementById('wa-lista-scroll');
+    const waListaTop = listaAntes ? listaAntes.scrollTop : null;
     document.getElementById('app').innerHTML = state.usuario ? viewApp() : viewLogin();
+    const chatNovo = document.getElementById('wa-chat-scroll');
+    if (chatNovo) {
+      if (state.waRolarFim || !waChatInfo || waChatInfo.tel !== chatNovo.dataset.tel || waChatInfo.perto) chatNovo.scrollTop = chatNovo.scrollHeight;
+      else chatNovo.scrollTop = waChatInfo.top;
+      state.waRolarFim = false;
+    }
+    const listaNova = document.getElementById('wa-lista-scroll');
+    if (listaNova && waListaTop !== null) listaNova.scrollTop = waListaTop;
     attachEvents();
   }
 
@@ -862,6 +977,7 @@
     const itens = [...state.abas];
     if (state.usuario.administrador) {
       itens.push({ id: 'equipe', nome: 'Equipe' });
+      itens.push({ id: 'whatsapp', nome: 'WhatsApp' });
       itens.push({ id: 'config', nome: 'Configurações' });
       itens.push({ id: 'historico', nome: 'Histórico' });
     }
@@ -907,6 +1023,7 @@
   function viewConteudo() {
     if (state.abaAtual === 'config') return viewConfiguracoes();
     if (state.abaAtual === 'equipe') return viewEquipe();
+    if (state.abaAtual === 'whatsapp') return viewWhatsApp();
     if (state.abaAtual === 'reveillon') return viewReveillon();
     if (state.abaAtual === 'ponto') return viewPonto();
     if (state.abaAtual === 'fluxo_caixa') return viewFluxoCaixa();
@@ -1170,6 +1287,35 @@
     return `R$ ${Number(valor).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   }
 
+  // Análise do fluxo de caixa: comparação com o mês anterior, margem, o que vence e o que mais pesou
+  function analiseFinanceiraHtml(resumo) {
+    const a = resumo.analise;
+    if (!a) return '';
+    const brl = formatarMoeda;
+    const variacao = (atual, ant) => (ant > 0 ? Math.round(((atual - ant) / ant) * 1000) / 10 : null);
+    const chip = (v, bomSeSobe) => (v === null ? '<span class="placeholder">sem mês anterior</span>'
+      : `<span class="${(v >= 0) === bomSeSobe ? 'cor-receita' : 'cor-despesa'}">${v >= 0 ? '▲' : '▼'} ${Math.abs(v).toLocaleString('pt-BR')}% vs mês anterior</span>`);
+    const vr = a.anterior ? variacao(resumo.totalReceitas, a.anterior.receitas) : null;
+    const vd = a.anterior ? variacao(resumo.totalDespesas, a.anterior.despesas) : null;
+    const prox = a.proximosVencimentos.map((c) => {
+      const dias = Math.round((new Date(c.data + 'T12:00:00') - new Date(hojeStr() + 'T12:00:00')) / 86400000);
+      const quando = dias < 0 ? `<span class="cor-despesa">venceu há ${-dias} ${-dias === 1 ? 'dia' : 'dias'}</span>` : dias === 0 ? '<strong>vence hoje</strong>' : `em ${dias} ${dias === 1 ? 'dia' : 'dias'}`;
+      return `<div class="linha-item"><div><div class="nome">${esc(c.descricao)}${c.fornecedor ? ` <span class="placeholder">· ${esc(c.fornecedor)}</span>` : ''}</div><div class="desc">${esc(formatarDataExibicao(c.data))} · ${quando}</div></div><strong>${brl(c.valor)}</strong></div>`;
+    }).join('') || '<p class="placeholder">Nada a vencer nos próximos 30 dias.</p>';
+    const maiores = a.maioresDespesas.map((d) => `<div class="linha-item"><div><div class="nome">${esc(d.descricao)}${d.fornecedor ? ` <span class="placeholder">· ${esc(d.fornecedor)}</span>` : ''}</div><div class="desc">${esc(formatarDataExibicao(d.data))}${d.categoria ? ' · ' + esc(d.categoria) : ''}</div></div><strong>${brl(d.valor)}</strong></div>`).join('') || '<p class="placeholder">Nenhuma despesa paga no período.</p>';
+    return `
+      <div class="cartoes-resumo">
+        <div class="cartao-resumo"><span class="cartao-resumo-label">Receitas</span><strong class="cartao-resumo-valor cor-receita">${brl(resumo.totalReceitas)}</strong><div class="desc">${chip(vr, true)}${resumo.mensalidades && resumo.mensalidades.parcial ? ' <span class="placeholder">(mês ainda incompleto na planilha)</span>' : ''}</div><div class="desc">média dos meses anteriores: ${brl(a.mediaReceitas)}</div></div>
+        <div class="cartao-resumo"><span class="cartao-resumo-label">Despesas</span><strong class="cartao-resumo-valor cor-despesa">${brl(resumo.totalDespesas)}</strong><div class="desc">${chip(vd, false)}</div><div class="desc">média dos meses anteriores: ${brl(a.mediaDespesas)}</div></div>
+        <div class="cartao-resumo"><span class="cartao-resumo-label">Margem do mês</span><strong class="cartao-resumo-valor ${a.saldo >= 0 ? 'cor-receita' : 'cor-despesa'}">${a.margem === null ? '—' : a.margem.toLocaleString('pt-BR') + '%'}</strong><div class="desc">quanto sobra de cada R$ 100 que entra</div></div>
+        <div class="cartao-resumo"><span class="cartao-resumo-label">Saldo depois das contas a pagar</span><strong class="cartao-resumo-valor ${a.saldoAposContas >= 0 ? 'cor-receita' : 'cor-despesa'}">${brl(a.saldoAposContas)}</strong><div class="desc">saldo ${brl(a.saldo)} − ${brl(a.aPagarTotal)} a pagar (do período + vencidas)</div></div>
+      </div>
+      <div class="graficos-lado-a-lado">
+        <div class="secao"><h3>Próximos vencimentos (30 dias)</h3>${prox}</div>
+        <div class="secao"><h3>Maiores despesas do período</h3>${maiores}</div>
+      </div>`;
+  }
+
   function cartoesResumoFinanceiro(resumo) {
     const saldo = resumo.totalReceitas - resumo.totalDespesas;
     return `
@@ -1290,6 +1436,8 @@
         <p class="placeholder">As receitas incluem <strong>${formatarMoeda(resumo.mensalidades.total)}</strong> de mensalidades dos <strong>sócios ATPN</strong> (planilha atualizada em ${esc(formatarDataExibicao(resumo.mensalidades.planilhaAtualizadaEm))} + o que a recepção registrou na aba Mensalidades). Entram sozinhas — não aparecem na lista de lançamentos abaixo. Sócios do CEPE não entram no financeiro.
         ${resumo.mensalidades.parcial ? '<strong>Mês parcial:</strong> a planilha ainda não cobre o mês inteiro, o valor sobe quando ela for atualizada.' : ''}</p>`
         : resumo.mensalidades && resumo.mensalidades.semCobertura ? '<p class="placeholder">Antes de 2026 a planilha não cobre o quadro inteiro de sócios, então não há receita de mensalidade nesse período.</p>' : ''}
+
+      ${analiseFinanceiraHtml(resumo)}
 
       ${contasAPagarHtml()}
 
@@ -1547,6 +1695,36 @@
     return lista.length === 1 ? f(lista[0]) : `${f(lista[0])} a ${f(lista[lista.length - 1])}`;
   }
 
+  function relAbaResumo() {
+    const r = state.rel.resumo;
+    if (!r) return '<p class="placeholder">Carregando…</p>';
+    const brl = formatarMoeda;
+    const cartao = (rotulo, valor, classe, sub) => `<div class="cartao-resumo"><span class="cartao-resumo-label">${rotulo}</span><strong class="cartao-resumo-valor ${classe || ''}">${valor}</strong>${sub ? `<div class="desc">${sub}</div>` : ''}</div>`;
+    const s = r.socios, c = r.caixaMes, p = r.aPagar, pr = r.presenca, rv = r.reveillon, rs = r.reservas;
+    return `
+      <h3>Sócios ATPN</h3>
+      <div class="cartoes-resumo">
+        ${cartao('Quadro de sócios', s.quadro, '', 'em dia + em atraso (sem os desativados)')}
+        ${cartao('Em dia', s.emDia, 'cor-receita', s.adimplencia.toLocaleString('pt-BR') + '% do quadro')}
+        ${cartao('Em atraso', s.emAtraso, 'cor-atraso', `1–2 meses: ${s.faixas.ate_2_meses} · 3–5: ${s.faixas['3_a_5_meses']} · 6+: ${s.faixas['6_meses_ou_mais']}`)}
+        ${cartao('Valor em aberto', brl(s.valorEmAberto), 'cor-atraso', 'detalhe na aba Cobrança')}
+      </div>
+      <h3>Dinheiro do mês</h3>
+      <div class="cartoes-resumo">
+        ${cartao('Receitas', brl(c.receitas), 'cor-receita', `inclui ${brl(c.mensalidades)} de mensalidades`)}
+        ${cartao('Despesas pagas', brl(c.despesas), 'cor-despesa')}
+        ${cartao('Saldo', brl(c.saldo), c.saldo >= 0 ? 'cor-receita' : 'cor-despesa')}
+        ${cartao('A pagar em 7 dias', brl(p.prox7), p.prox7 > 0 ? 'cor-despesa' : '', `${p.nProx7} ${p.nProx7 === 1 ? 'conta' : 'contas'} · em 30 dias: ${brl(p.prox30)}`)}
+        ${p.nVencidas > 0 ? cartao('Contas vencidas', brl(p.vencidas), 'cor-despesa', `${p.nVencidas} ${p.nVencidas === 1 ? 'conta' : 'contas'} sem pagar`) : ''}
+      </div>
+      <h3>Movimento e eventos</h3>
+      <div class="cartoes-resumo">
+        ${cartao('Presenças hoje', pr.hoje, '', `7 dias: ${pr.semana} · mês: ${pr.mes}`)}
+        ${cartao('Réveillon', `${rv.mesas} / 30 mesas`, '', `${rv.confirmadas} confirmadas · ${rv.pessoas} pessoas · recebido ${brl(rv.pago)} de ${brl(rv.total)}`)}
+        ${cartao('Pedidos de reserva', rs.novas, rs.novas > 0 ? 'cor-atraso' : '', `novos · ${rs.negociando} em negociação · ${rs.confirmadas} confirmados`)}
+      </div>`;
+  }
+
   function relAbaMensalidades() {
     const meses = relMeses();
     if (!meses.fechados.length) return '<p class="placeholder">Ainda não há mês fechado na planilha.</p>';
@@ -1702,12 +1880,12 @@
   }
 
   function viewRelatorios() {
-    const cab = cabecalho('Relatórios', 'Só sócios da ATPN: mensalidades, quadro de sócios e inadimplência');
+    const cab = cabecalho('Relatórios', 'Só da ATPN: resumo geral, mensalidades, quadro de sócios, cobrança e inadimplência');
     if (state.relErro) return `${cab}<div class="secao"><p>Não foi possível carregar (${esc(state.relErro)}). Isso é falha de carregamento, não "zero". <button class="botao" data-rel="recarregar">Tentar de novo</button></p></div>`;
     if (!state.rel) return `${cab}<p class="placeholder">Carregando…</p>`;
     const abaBtn = (id, r) => `<button class="${state.relAba === id ? 'ativa' : ''}" data-rel="aba" data-valor="${id}">${r}</button>`;
-    const corpo = state.relAba === 'socios' ? relAbaSocios() : state.relAba === 'inadimplentes' ? relAbaInadimplentes() : state.relAba === 'cobranca' ? relAbaCobranca() : relAbaMensalidades();
-    return `${cab}<div class="abas-secundarias">${abaBtn('mensalidades', 'Mensalidades')}${abaBtn('socios', 'Sócios')}${abaBtn('cobranca', 'Cobrança')}${abaBtn('inadimplentes', 'Inadimplentes')}</div><div class="secao">${corpo}</div>`;
+    const corpo = state.relAba === 'resumo' ? relAbaResumo() : state.relAba === 'socios' ? relAbaSocios() : state.relAba === 'inadimplentes' ? relAbaInadimplentes() : state.relAba === 'cobranca' ? relAbaCobranca() : relAbaMensalidades();
+    return `${cab}<div class="abas-secundarias">${abaBtn('resumo', 'Resumo')}${abaBtn('mensalidades', 'Mensalidades')}${abaBtn('socios', 'Sócios')}${abaBtn('cobranca', 'Cobrança')}${abaBtn('inadimplentes', 'Inadimplentes')}</div><div class="secao">${corpo}</div>`;
   }
 
   async function carregarInadimplentes() {
@@ -1719,8 +1897,8 @@
   async function carregarRelatorios() {
     state.relErro = null;
     try {
-      const [socios, mensal, cobranca] = await Promise.all([api('/relatorios/socios'), api('/relatorios/mensalidades'), api('/relatorios/cobranca')]);
-      state.rel = { socios, mensal, cobranca, inad: { total: 0, socios: [] } };
+      const [socios, mensal, cobranca, resumo] = await Promise.all([api('/relatorios/socios'), api('/relatorios/mensalidades'), api('/relatorios/cobranca'), api('/relatorios/resumo')]);
+      state.rel = { socios, mensal, cobranca, resumo, inad: { total: 0, socios: [] } };
       await carregarInadimplentes();
     } catch (err) {
       state.rel = null;
@@ -3182,6 +3360,7 @@
       });
     });
 
+    attachWhatsApp();
     document.querySelectorAll('[data-rev]').forEach((el) => {
       el.addEventListener('click', () => acaoReveillon(el));
     });
@@ -3430,6 +3609,8 @@
       render();
       await carregarReveillon();
     }
+    if (id !== 'whatsapp') sairDaAbaWhatsApp();
+    if (id === 'whatsapp') await abrirWhatsAppTab();
     if (id === 'equipe') {
       state.equipeLista = null;
       render();
@@ -3605,6 +3786,373 @@
     if (tipo === 'recarregar') { state.reveillon = null; render(); await carregarReveillon(); return; }
     if (tipo === 'filtro') { state.reveillonFiltro = el.dataset.valor; render(); return; }
     if (tipo === 'mesa' && state.reveillon) abrirReservaReveillon(Number(el.dataset.mesa));
+  }
+
+
+  // ---------- WhatsApp (só Administrador): mesma aba do PDV Jabá, falando com o robô da ATPN pelo proxy /api/whatsapp ----------
+  function waEditandoCampo() {
+    const el = document.activeElement;
+    return !!(el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA'));
+  }
+  const WA_VAZIO = { mensagens: [], precisaHumano: false, pausado: false, ultimaFalhaEnvio: null };
+  async function carregarBotStatus() {
+    try { return await api('/whatsapp/status'); } catch (e) { return { estado: 'desconectado', qrDataUrl: null, numero: null, erro: e.message }; }
+  }
+  async function carregarBotConversas() {
+    try { return await api('/whatsapp/conversas'); } catch (e) { return []; }
+  }
+  async function carregarBotConversaDetalhe(telefone) {
+    try { return await api('/whatsapp/conversas/' + encodeURIComponent(telefone)); } catch (e) { return WA_VAZIO; }
+  }
+  async function enviarMensagemBotApi(telefone, texto) { await api('/whatsapp/enviar', { method: 'POST', body: { telefone, texto } }); }
+  async function reativarBotApi(telefone) { await api('/whatsapp/reativar', { method: 'POST', body: { telefone } }); }
+  async function pausarBotApi(ativa) { await api('/whatsapp/pausa', { method: 'POST', body: { ativa } }); }
+  async function desconectarBotApi() { try { await api('/whatsapp/desconectar', { method: 'POST' }); } catch (e) { /* segue */ } }
+
+  function waAssinatura(){
+    const d = state.botConversaDetalhe;
+    return JSON.stringify([
+      state.botStatus,
+      (state.botConversas||[]).map(c=>[c.telefone, c.atualizadoEm, c.precisaHumano, c.pausado, c.ultimaFalhaEnvio]),
+      d ? [d.mensagens.length, d.pausado, d.precisaHumano, d.ultimaFalhaEnvio] : null
+    ]);
+  }
+  // redesenha a aba mantendo o cursor/foco do campo em que a pessoa está (resposta, busca ou instruções)
+  function waRenderMantendoFoco(){
+    const el = document.activeElement;
+    let sel = null;
+    if(el && el.id && (el.tagName==='TEXTAREA' || el.tagName==='INPUT')) sel = { id:el.id, ini:el.selectionStart, fim:el.selectionEnd };
+    render();
+    if(!sel) return;
+    const n = document.getElementById(sel.id);
+    if(n){ n.focus(); try{ n.setSelectionRange(sel.ini, sel.fim); }catch(e){} }
+  }
+  async function abrirWhatsAppTab(){
+    state.botInstrucoes = (await api('/whatsapp/instrucoes').catch(() => ({ texto: '' }))).texto || '';
+    state.waRascunhos = state.waRascunhos || {};
+    state.botStatus = await carregarBotStatus();
+    state.botConversas = await carregarBotConversas();
+    state.waFiltro = 'todas'; state.waBusca = '';
+    state._waSig = null;
+    render();
+    state._waSig = waAssinatura();
+    if(state.botPollId) clearInterval(state.botPollId);
+    // único poll próprio de aba deste painel (as outras são "carrega uma vez ao abrir" + o refreshLive global de 5s):
+    // aqui precisa de algo mais frequente pro QR/status e pra lista se comportar como caixa de entrada de verdade.
+    // Só redesenha se algo MUDOU (antes redesenhava a cada 4s e a conversa pulava pro topo) e, se a pessoa está
+    // digitando a resposta, redesenha mantendo foco, cursor e rolagem.
+    state.botPollId = setInterval(async ()=>{
+      if(state.abaAtual!=='whatsapp' || state.modal) return;
+      const ed = document.activeElement;
+      const digitandoResposta = !!(ed && ed.id==='f-bot-resposta');
+      if(waEditandoCampo() && !digitandoResposta) return; // instruções/busca: não mexe enquanto digita
+      state.botStatus = await carregarBotStatus();
+      state.botConversas = await carregarBotConversas();
+      if(state.botConversaSelecionada) state.botConversaDetalhe = await carregarBotConversaDetalhe(state.botConversaSelecionada);
+      const sig = waAssinatura();
+      if(sig===state._waSig) return;
+      state._waSig = sig;
+      if(digitandoResposta) waRenderMantendoFoco(); else render();
+    }, 4000);
+  }
+  // nome de exibição: usa o cadastro de fidelidade (mesmo telefone) se existir, senão o número
+  // formatado — `state.fidelidade` já é carregado pra todo mundo no login (ver carregarDadosProtegidos)
+  // "@lid" (número oculto): o código longo (14+ dígitos) não é telefone — nunca mostra como se fosse
+  function ehCodigoLid(tel){ return /^\d{14,}$/.test(String(tel||'')); }
+  // `conv` = objeto da conversa ({telefone, nome, telefoneReal}) — usa o nome do perfil do WhatsApp, ou o cadastro de
+  // clientes pelo telefone real; sem nada disso, o telefone formatado (ou "Contato sem número" se for só o código)
+  function nomeClienteWa(conv){
+    const c = typeof conv==='string' ? { telefone: conv } : (conv||{});
+    if(c.nome) return c.nome;
+    return ehCodigoLid(c.telefone) && !c.telefoneReal ? 'Contato sem nome' : formatarTelefoneWa(c.telefoneReal || c.telefone);
+  }
+  function telefoneExibidoWa(conv){
+    const c = typeof conv==='string' ? { telefone: conv } : (conv||{});
+    if(c.telefoneReal) return formatarTelefoneWa(c.telefoneReal);
+    return ehCodigoLid(c.telefone) ? 'Número oculto pelo WhatsApp' : formatarTelefoneWa(c.telefone);
+  }
+  function conversaWa(telefone){
+    const d = state.botConversaDetalhe;
+    const l = (state.botConversas||[]).find(x=>x.telefone===telefone) || {};
+    return { telefone, nome: (d && d.nome) || l.nome, telefoneReal: (d && d.telefoneReal) || l.telefoneReal };
+  }
+  function formatarTelefoneWa(tel){
+    let d = String(tel||'').replace(/\D/g,'');
+    if(d.length>=12 && d.startsWith('55')) d = d.slice(2); // tira o 55 do Brasil, se tiver
+    if(d.length===11) return `(${d.slice(0,2)}) ${d.slice(2,7)}-${d.slice(7)}`;
+    if(d.length===10) return `(${d.slice(0,2)}) ${d.slice(2,6)}-${d.slice(6)}`;
+    return tel;
+  }
+  function iniciaisWa(nome){
+    const partes = String(nome||'').trim().split(/\s+/).filter(Boolean);
+    if(!partes.length || /^[(\d]/.test(partes[0])) return '#';
+    return (partes[0][0] + (partes[1]?partes[1][0]:'')).toUpperCase();
+  }
+  function horaCurtaWa(iso){
+    const d = new Date(iso);
+    const hoje = new Date();
+    return d.toDateString()===hoje.toDateString()
+      ? d.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})
+      : d.toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'});
+  }
+  function diaLabelWa(ts){
+    const d = new Date(ts), hoje = new Date(), ontem = new Date(Date.now()-86400000);
+    if(d.toDateString()===hoje.toDateString()) return 'Hoje';
+    if(d.toDateString()===ontem.toDateString()) return 'Ontem';
+    return d.toLocaleDateString('pt-BR',{day:'2-digit',month:'long'});
+  }
+  function rolarChatWaPraFinal(){
+    const el = document.getElementById('wa-chat-scroll');
+    if(el) el.scrollTop = el.scrollHeight;
+  }
+  function textoDaMensagemWa(msg){
+    if(!msg) return '';
+    return typeof msg.content==='string' ? msg.content
+      : Array.isArray(msg.content) ? msg.content.filter(b=>b.type==='text').map(b=>b.text).join(' ') : '';
+  }
+  // marcadores internos de foto/áudio viram um texto legível na conversa e na prévia
+  function textoLegivelWa(t){
+    return String(t||'')
+      .replace(/^\[o cliente enviou uma foto\]$/,'📷 Foto')
+      .replace(/^\[foto do cliente\]\s*/,'📷 ')
+      .replace(/^\(o cliente enviou esta foto sem legenda\)$/,'📷 Foto')
+      .replace(/^\[Áudio transcrito automaticamente[^\]]*\]\s*/,'🎤 ');
+  }
+  function conversasFiltradasWa(){
+    const q = String(state.waBusca||'').trim().toLowerCase();
+    const qDig = q.replace(/\D/g,'');
+    let lista = (state.botConversas||[]).filter(c=>{
+      if(state.waFiltro==='humano' && !c.precisaHumano) return false;
+      if(state.waFiltro==='pausadas' && !c.pausado) return false;
+      if(!q) return true;
+      return nomeClienteWa(c).toLowerCase().includes(q)
+        || (qDig && (c.telefone.includes(qDig) || (c.telefoneReal||'').includes(qDig)))
+        || textoLegivelWa(textoDaMensagemWa(c.ultimaMensagem)).toLowerCase().includes(q);
+    });
+    // quem precisa de atendente sobe pro topo; o resto segue por mais recente
+    lista = lista.map((c,i)=>({c,i})).sort((a,b)=>(b.c.precisaHumano?1:0)-(a.c.precisaHumano?1:0) || a.i-b.i).map(x=>x.c);
+    return lista;
+  }
+  function whatsappListaHtml(){
+    const todas = state.botConversas||[];
+    const nHumano = todas.filter(c=>c.precisaHumano).length;
+    const nPausadas = todas.filter(c=>c.pausado).length;
+    const chip = (id,label,n)=>`<button class="wa-chip ${state.waFiltro===id?'wa-chip-on':''}" data-action="wa-filtro" data-filtro="${id}">${label}${n!=null?' · '+n:''}</button>`;
+    const lista = conversasFiltradasWa();
+    const itens = lista.length===0
+      ? `<div class="wa-vazio">${todas.length===0 ? 'Nenhuma conversa ainda.<br>Quando um cliente escrever, ela aparece aqui.' : 'Nenhuma conversa nesse filtro.'}</div>`
+      : lista.map(c=>{
+          const nome = nomeClienteWa(c);
+          const ativa = state.botConversaSelecionada===c.telefone;
+          const badge = c.precisaHumano ? { texto:'Precisa de atendente', cls:'wa-badge-humano' }
+            : c.pausado ? { texto:'Robô pausado', cls:'wa-badge-pausado' } : null;
+          const prev = textoLegivelWa(textoDaMensagemWa(c.ultimaMensagem));
+          const preview = (c.ultimaFalhaEnvio ? '⚠️ ' : '') + (c.ultimaMensagem && c.ultimaMensagem.role!=='user' ? 'Você/robô: ' : '') + prev;
+          return `<div class="wa-list-item ${ativa?'wa-list-item-ativo':''} ${c.precisaHumano?'wa-list-item-humano':''}" data-action="abrir-conversa-bot" data-telefone="${esc(c.telefone)}">
+            <div class="wa-avatar">${esc(iniciaisWa(nome))}</div>
+            <div class="wa-list-item-mid">
+              <div class="wa-list-item-nome">${esc(nome)}</div>
+              <div class="wa-list-item-preview">${esc(preview)}</div>
+            </div>
+            <div class="wa-list-item-side">
+              <div class="wa-list-item-hora">${horaCurtaWa(c.atualizadoEm)}</div>
+              ${badge ? `<span class="wa-badge ${badge.cls}">${badge.texto}</span>` : ''}
+            </div>
+          </div>`;
+        }).join('');
+    return `
+    <div class="wa-lista-topo">
+      <input id="f-wa-busca" type="search" placeholder="Buscar nome, número ou mensagem" value="${esc(state.waBusca)}">
+      <div class="wa-chips">${chip('todas','Todas',todas.length)}${chip('humano','Precisa de atendente',nHumano)}${chip('pausadas','Pausadas',nPausadas)}</div>
+    </div>
+    <div class="wa-lista-scroll" id="wa-lista-scroll">${itens}</div>`;
+  }
+  function whatsappChatHtml(){
+    if(!state.botConversaSelecionada){
+      return `<div class="wa-chat-vazio"><div style="font-size:34px;">💬</div><div>Selecione uma conversa pra ver as mensagens</div></div>`;
+    }
+    const telefone = state.botConversaSelecionada;
+    const convWa = conversaWa(telefone);
+    const nome = nomeClienteWa(convWa);
+    const conversa = state.botConversaDetalhe || { mensagens:[], precisaHumano:false, pausado:false, ultimaFalhaEnvio:null };
+    let diaAnterior = '';
+    const bolhas = conversa.mensagens.map(msg=>{
+      const texto = textoLegivelWa(textoDaMensagemWa(msg));
+      if(!texto) return ''; // blocos de tool_use/tool_result não viram bolha, só texto de verdade
+      const doCliente = msg.role==='user';
+      const tipo = doCliente ? 'cliente' : msg.remetente==='equipe' ? 'equipe' : msg.remetente==='sistema' ? 'sistema' : 'robo';
+      const rotulo = { cliente:'', equipe:'Você', sistema:'Aviso automático', robo:'Robô' }[tipo];
+      let sep = '';
+      if(msg.ts){
+        const dl = diaLabelWa(msg.ts);
+        if(dl!==diaAnterior){ sep = `<div class="wa-dia">${esc(dl)}</div>`; diaAnterior = dl; }
+      }
+      const hora = msg.ts ? new Date(msg.ts).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}) : '';
+      return sep + `<div class="wa-bubble-row ${doCliente?'wa-bubble-row-cliente':'wa-bubble-row-nos'}">
+        <div class="wa-bubble wa-bubble-${tipo}">
+          ${rotulo ? `<div class="wa-bubble-rotulo">${rotulo}</div>` : ''}
+          <div class="wa-bubble-texto">${esc(texto)}</div>
+          ${hora ? `<div class="wa-bubble-hora">${hora}</div>` : ''}
+        </div>
+      </div>`;
+    }).join('');
+    const precisaAcao = conversa.pausado || conversa.precisaHumano;
+    const chips = [
+      conversa.precisaHumano ? '<span class="wa-badge wa-badge-humano">Precisa de atendente</span>' : '',
+      conversa.pausado ? '<span class="wa-badge wa-badge-pausado">Robô pausado</span>' : ''
+    ].join(' ');
+    return `
+    <div class="wa-chat-head">
+      <button class="btn btn-sm wa-voltar" data-action="fechar-conversa-bot" aria-label="Voltar">&larr;</button>
+      <div class="wa-avatar">${esc(iniciaisWa(nome))}</div>
+      <div class="wa-chat-head-info">
+        <div class="wa-list-item-nome">${esc(nome)}</div>
+        <div class="subtle" style="font-size:11.5px;display:flex;gap:6px;align-items:center;flex-wrap:wrap;">${esc(telefoneExibidoWa(convWa))} ${chips}</div>
+      </div>
+      ${precisaAcao ? `<button class="btn btn-sm" data-action="reativar-bot-conversa">✓ Devolver pro robô</button>` : ''}
+    </div>
+    ${conversa.ultimaFalhaEnvio ? `<div class="wa-aviso-falha">⚠️ A última tentativa de envio falhou: ${esc(conversa.ultimaFalhaEnvio)}</div>` : ''}
+    <div class="wa-chat-scroll" id="wa-chat-scroll" data-tel="${esc(telefone)}">${bolhas || '<div class="wa-vazio">Sem mensagens ainda.</div>'}</div>
+    <div class="wa-chat-input">
+      <textarea id="f-bot-resposta" rows="1" placeholder="Escreva uma mensagem… (Enter envia, Shift+Enter quebra linha)">${esc(state.waRascunhos[telefone]||'')}</textarea>
+      <button class="btn btn-primary" data-action="enviar-resposta-bot">Enviar</button>
+    </div>`;
+  }
+  function waSaudeHtml(aq){
+    if(!aq) return '<div class="subtle">Conecte o WhatsApp pra ver a saúde do número.</div>';
+    // servidor antigo (sem o novo contador) ainda responde no formato velho — mostra o básico
+    if(aq.limiteBase===undefined){
+      return `<div class="wa-saude-num">${aq.enviadasHoje}<span class="wa-saude-de"> mensagens hoje</span></div>`;
+    }
+    const pct = Math.min(100, Math.round(aq.enviadasHoje/aq.limiteHoje*100));
+    const nivelTxt = { ok:'Tranquilo', atencao:'Atenção', acima:'Acima do recomendado' }[aq.nivel];
+    const maxSem = Math.max(aq.limiteHoje, ...aq.ultimos7.map(x=>x.total), 1);
+    const sem = aq.ultimos7.map(x=>{
+      const d = new Date(x.dia+'T12:00:00');
+      return `<div title="${x.dia}: ${x.total} mensagens"><i style="height:${Math.max(2,Math.round(x.total/maxSem*100))}%"></i><span>${['D','S','T','Q','Q','S','S'][d.getDay()]}</span></div>`;
+    }).join('');
+    return `<div class="wa-nivel-${aq.nivel}">
+      <div class="wa-saude-topo">
+        <div class="wa-saude-num">${aq.enviadasHoje}<span class="wa-saude-de"> de ${aq.limiteHoje} recomendadas hoje</span></div>
+        <span class="wa-pill wa-pill-${aq.nivel}">${nivelTxt}</span>
+      </div>
+      <div class="wa-barra"><span style="width:${pct}%"></span></div>
+      <div class="wa-stats">
+        <div class="wa-stat"><b>${aq.respostasRobo}</b><small>respostas do robô</small></div>
+        <div class="wa-stat"><b>${aq.respostasEquipe}</b><small>respostas da equipe</small></div>
+        <div class="wa-stat"><b>${aq.avisosAutomaticos}<span style="font-size:11px;font-weight:400;color:var(--coco-soft)"> / ${aq.limiteIniciadas}</span></b><small>avisos automáticos</small></div>
+        <div class="wa-stat"><b>${aq.contatosUnicos}</b><small>contatos diferentes</small></div>
+        <div class="wa-stat"><b>${aq.recebidasHoje}</b><small>msgs recebidas</small></div>
+      </div>
+      <div class="wa-saude-aviso">${esc(aq.aviso)}</div>
+      <div class="wa-sem">${sem}</div>
+      <div class="subtle" style="font-size:11px;">Fase: <b>${esc(aq.fase)}</b> (dia ${aq.diaAtual}). Limite de hoje = ${aq.limiteBase} pelo tempo do número + ${aq.bonusReputacao} por ${aq.clientesSemana} cliente(s) que escreveram esta semana. Sobe sozinho com o tempo e com os atendimentos. Respostas a clientes nunca são bloqueadas; avisos automáticos param se passarem muito do limite.</div>
+    </div>`;
+  }
+  function viewWhatsApp(){
+    const st = state.botStatus || { estado: 'desconectado' };
+    let conexaoHtml;
+    if(st.estado==='conectado'){
+      conexaoHtml = `<div class="wa-conn"><span class="wa-dot wa-dot-ok"></span><div><div class="wa-conn-txt">Conectado</div><div class="wa-conn-sub">Número ${esc(formatarTelefoneWa(st.numero||''))}</div></div></div>
+        <button class="btn btn-sm ${st.pausaGeral?'btn-primary':''}" data-action="whatsapp-pausa">${st.pausaGeral?'▶ Retomar o robô':'⏸ Pausar o robô'}</button> <button class="btn btn-danger btn-sm" data-action="whatsapp-desconectar">Desconectar</button>`;
+    } else if(st.estado==='substituida'){
+      conexaoHtml = `<div class="wa-conn"><span class="wa-dot wa-dot-erro"></span><div><div class="wa-conn-txt">Sessão substituída</div><div class="wa-conn-sub">Outro QR foi escaneado pra esse número. Aguarde um QR novo aparecer aqui.</div></div></div>`;
+    } else if(st.qrDataUrl){
+      conexaoHtml = `<div class="wa-conn"><span class="wa-dot wa-dot-aviso"></span><div><div class="wa-conn-txt">Aguardando QR Code</div><div class="wa-conn-sub">WhatsApp → Aparelhos conectados → Conectar um aparelho</div></div></div>
+        <img class="wa-qr" src="${st.qrDataUrl}" alt="QR Code do WhatsApp">`;
+    } else {
+      conexaoHtml = `<div class="wa-conn"><span class="wa-dot wa-dot-aviso"></span><div><div class="wa-conn-txt">${st.estado==='reconectando' ? 'Reconectando…' : 'Gerando QR Code…'}</div><div class="wa-conn-sub">Pode levar alguns segundos.</div></div></div>`;
+    }
+    return `
+    ${cabecalho('WhatsApp', 'Atendente automático da ATPN + conversas. Ao pausar, o robô para de responder e a equipe atende por aqui ou pelo celular do número.')}
+    <div class="wa-topo">
+      <div class="wa-card"><div class="wa-card-titulo">Conexão</div>${conexaoHtml}</div>
+      <div class="wa-card"><div class="wa-card-titulo">Saúde do número</div>${st.estado==='conectado' ? waSaudeHtml(st.aquecimento) : '<div class="subtle">Conecte o WhatsApp pra acompanhar o volume de mensagens.</div>'}</div>
+    </div>
+    <div class="wa-inbox ${state.botConversaSelecionada ? 'wa-inbox-aberta' : ''}">
+      <div class="wa-lista">${whatsappListaHtml()}</div>
+      <div class="wa-chat">${whatsappChatHtml()}</div>
+    </div>
+    <div class="wa-card" style="margin-top:12px;">
+      <div class="wa-instr-head" data-action="wa-instr-toggle" role="button"><div class="wa-card-titulo" style="margin:0;">Instruções pro robô</div><span class="subtle">${state.waInstrAberta?'▲ recolher':'▼ abrir'}</span></div>
+      ${state.waInstrAberta ? `<div style="margin-top:10px;">
+        <div class="subtle" style="margin-bottom:0.5rem;">Vale na hora, sem reiniciar. Escreva fatos e regras da associação (horário da secretaria, valores combinados, regras do Réveillon, avisos). O robô consulta quando for relevante e nunca recita por conta própria. Ele não cobra nem negocia dívida — isso é sempre da equipe.</div>
+        <div class="field"><textarea id="f-bot-instrucoes" rows="6" placeholder="Ex.: A secretaria atende de segunda a sexta, das 8h às 17h. O Réveillon começa às 22h; criança até 8 anos não paga.">${esc(state.botInstrucoes)}</textarea></div>
+        <button class="btn btn-primary btn-sm" data-action="salvar-bot-instrucoes">Salvar instruções</button>
+      </div>` : ''}
+    </div>`;
+  }
+
+  function sairDaAbaWhatsApp() {
+    if (state.botPollId) { clearInterval(state.botPollId); state.botPollId = null; }
+  }
+
+  function attachWhatsApp() {
+    const alvo = (nome, fn) => document.querySelectorAll('[data-action="' + nome + '"]').forEach((el) => el.addEventListener('click', () => fn(el)));
+    alvo('salvar-bot-instrucoes', async () => {
+      const texto = document.getElementById('f-bot-instrucoes').value;
+      state.botInstrucoes = texto;
+      try { await api('/whatsapp/instrucoes', { method: 'PUT', body: { texto } }); avisar('Instruções salvas. Já valem pra próxima mensagem.'); }
+      catch (e) { avisar(e.message); }
+    });
+    alvo('whatsapp-pausa', async () => {
+      const pausar = !(state.botStatus && state.botStatus.pausaGeral);
+      const ok = await confirma(pausar
+        ? 'Pausar o robô? Ele para de responder TODAS as pessoas e as mensagens ficam aqui, marcadas "Precisa de atendente", pra equipe responder.'
+        : 'Retomar o robô? Ele volta a responder sozinho. (Precisa de chave da IA válida e com saldo.)', { ok: pausar ? 'Pausar' : 'Retomar' });
+      if (!ok) return;
+      try { await pausarBotApi(pausar); } catch (e) { avisar(e.message); return; }
+      state.botStatus = await carregarBotStatus();
+      render();
+    });
+    alvo('whatsapp-desconectar', async () => {
+      if (!await confirma('Desconectar o WhatsApp? Vai precisar escanear um QR novo pra voltar a atender.', { ok: 'Desconectar', perigo: true })) return;
+      await desconectarBotApi();
+      state.botStatus = await carregarBotStatus();
+      render();
+    });
+    alvo('abrir-conversa-bot', async (el) => {
+      const telefone = el.dataset.telefone;
+      state.botConversaSelecionada = telefone;
+      state.botConversaDetalhe = await carregarBotConversaDetalhe(telefone);
+      state.waRolarFim = true; state._waSig = waAssinatura();
+      render();
+    });
+    alvo('wa-filtro', (el) => { state.waFiltro = el.dataset.filtro; render(); });
+    alvo('wa-instr-toggle', () => { state.waInstrAberta = !state.waInstrAberta; render(); });
+    alvo('fechar-conversa-bot', () => { state.botConversaSelecionada = null; state.botConversaDetalhe = null; render(); });
+    alvo('enviar-resposta-bot', async () => {
+      const input = document.getElementById('f-bot-resposta');
+      const texto = input.value.trim();
+      if (!texto) return;
+      const telefone = state.botConversaSelecionada;
+      input.value = '';
+      delete state.waRascunhos[telefone];
+      try { await enviarMensagemBotApi(telefone, texto); }
+      catch (e) { avisar(e.message || 'Falha ao enviar mensagem.'); input.value = texto; state.waRascunhos[telefone] = texto; return; }
+      state.botConversaDetalhe = await carregarBotConversaDetalhe(telefone);
+      state.botConversas = await carregarBotConversas();
+      state.waRolarFim = true; state._waSig = waAssinatura();
+      render();
+    });
+    alvo('reativar-bot-conversa', async () => {
+      const telefone = state.botConversaSelecionada;
+      try { await reativarBotApi(telefone); } catch (e) { avisar(e.message); return; }
+      state.botConversaDetalhe = await carregarBotConversaDetalhe(telefone);
+      state.botConversas = await carregarBotConversas();
+      render();
+    });
+    const busca = document.getElementById('f-wa-busca');
+    if (busca) busca.oninput = (e) => { state.waBusca = e.target.value; waRenderMantendoFoco(); };
+    const instr = document.getElementById('f-bot-instrucoes');
+    if (instr) instr.oninput = (e) => { state.botInstrucoes = e.target.value; };
+    const resp = document.getElementById('f-bot-resposta');
+    if (resp) {
+      resp.oninput = (e) => { if (state.botConversaSelecionada) state.waRascunhos[state.botConversaSelecionada] = e.target.value; };
+      resp.onkeydown = (e) => {
+        if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); document.querySelector('[data-action="enviar-resposta-bot"]').click(); }
+      };
+    }
   }
 
   // ---------- equipe (igual à aba Equipe do PDV: cartões, papel, PIN oculto, editar) ----------

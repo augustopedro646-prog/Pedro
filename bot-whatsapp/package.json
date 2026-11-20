@@ -1,0 +1,16 @@
+{
+  "name": "atpn-bot-whatsapp",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Atendente com IA (Claude) da ATPN pelo WhatsApp — mesma mecânica do robô do PDV Jabá (Baileys, fila, ritmo humano, aquecimento, pausa, chamado ao responsável). Roda separado do sistema de gestão (porta própria, só localhost).",
+  "scripts": { "start": "node server.js" },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.32.1",
+    "@hapi/boom": "^10.0.1",
+    "baileys": "6.7.24",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "pg": "^8.12.0",
+    "qrcode": "^1.5.4"
+  }
+}

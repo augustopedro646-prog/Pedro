@@ -33,6 +33,7 @@ app.use('/api/escalas', require('./routes/escalas'));
 app.use('/api/badges', require('./routes/badges'));
 app.use('/api/presencas', require('./routes/presencas'));
 app.use('/api/reveillon', require('./routes/reveillon'));
+app.use('/api/whatsapp', require('./routes/whatsapp'));
 
 app.use((err, req, res, next) => {
   console.error(err);

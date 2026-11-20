@@ -1,7 +1,7 @@
 const express = require('express');
 const { pool } = require('../db');
 const { exigirAuth, exigirAba } = require('../auth');
-const { serieMensal, infoPlanilha, ANO_INICIAL, CLUBE_FINANCEIRO } = require('../mensalidades');
+const { serieMensal, infoPlanilha, ANO_INICIAL, CLUBE_FINANCEIRO, arrecadacaoPorMes } = require('../mensalidades');
 const { sobreporPagamentos, contarEmAberto } = require('../statusSocio');
 
 const router = express.Router();
@@ -135,8 +135,7 @@ router.get('/inadimplentes', async (req, res, next) => {
 // Cobrança: por faixa de atraso (a mesma da legenda da planilha), quantos sócios, quantos
 // meses somam e quanto isso vale. O valor de cada mês é o último valor pago pelo próprio
 // sócio; sem histórico em 2026, usa a mensalidade média de quem pagou (marcado como estimado).
-router.get('/cobranca', async (req, res, next) => {
-  try {
+async function calcularCobranca() {
     const lista = await listarInadimplentes({ status: null });
     const { rows: [base] } = await pool.query(
       `SELECT count(*) FILTER (WHERE status = 'em_dia')::int AS em_dia FROM socios WHERE clube = $1 AND origem_planilha = 'ativo_geral'`, [CLUBE]
@@ -161,7 +160,12 @@ router.get('/cobranca', async (req, res, next) => {
       f.valorEmAberto = Math.round(f.valorEmAberto * 100) / 100;
       f.mensalidadeMensal = Math.round(f.mensalidadeMensal * 100) / 100;
     }
-    res.json({ emDia: base.em_dia, mensalidadeMedia: Math.round(mensalidadeMedia * 100) / 100, faixas });
+    return { emDia: base.em_dia, mensalidadeMedia: Math.round(mensalidadeMedia * 100) / 100, faixas };
+}
+
+router.get('/cobranca', async (req, res, next) => {
+  try {
+    res.json(await calcularCobranca());
   } catch (err) {
     next(err);
   }
@@ -188,6 +192,73 @@ router.get('/inadimplentes.csv', async (req, res, next) => {
     res.setHeader('Content-Type', 'text/csv; charset=utf-8');
     res.setHeader('Content-Disposition', 'attachment; filename="inadimplentes-atpn.csv"');
     res.send('﻿' + linhas.map((l) => l.map(celulaCsv).join(';')).join('\r\n'));
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Resumo geral (primeira aba dos Relatórios): o que a diretoria quer ver de relance — situação dos sócios,
+// dinheiro do mês, o que vence, presença e Réveillon. Tudo da ATPN (sócios CEPE só na aba Sócios).
+router.get('/resumo', async (req, res, next) => {
+  try {
+    const hoje = new Date().toLocaleDateString('sv-SE', { timeZone: 'America/Fortaleza' });
+    const [ano, mes] = hoje.split('-').map(Number);
+    const inicioMes = `${ano}-${String(mes).padStart(2, '0')}-01`;
+    const fimMes = new Date(ano, mes, 0).toISOString().slice(0, 10);
+    const [cobranca, mensalidadesPorMes, caixa, aPagar, presenca, reveillon, reservas] = await Promise.all([
+      calcularCobranca(),
+      arrecadacaoPorMes(inicioMes, fimMes),
+      pool.query(
+        `SELECT (SELECT COALESCE(sum(valor), 0)::float8 FROM receitas WHERE data BETWEEN $1 AND $2) AS receitas,
+                (SELECT COALESCE(sum(valor), 0)::float8 FROM despesas WHERE pago = true AND data BETWEEN $1 AND $2) AS despesas`,
+        [inicioMes, fimMes]
+      ),
+      pool.query(
+        `SELECT COALESCE(sum(valor) FILTER (WHERE data < $1), 0)::float8 AS vencidas,
+                count(*) FILTER (WHERE data < $1)::int AS "nVencidas",
+                COALESCE(sum(valor) FILTER (WHERE data BETWEEN $1 AND $1::date + 7), 0)::float8 AS prox7,
+                count(*) FILTER (WHERE data BETWEEN $1 AND $1::date + 7)::int AS "nProx7",
+                COALESCE(sum(valor) FILTER (WHERE data BETWEEN $1 AND $1::date + 30), 0)::float8 AS prox30
+         FROM despesas WHERE pago = false`, [hoje]
+      ),
+      pool.query(
+        `SELECT count(DISTINCT (socio_id, COALESCE(dependente_id, 0))) FILTER (WHERE data = $1)::int AS hoje,
+                count(DISTINCT (socio_id, COALESCE(dependente_id, 0))) FILTER (WHERE data > $1::date - 7)::int AS semana,
+                count(DISTINCT (socio_id, COALESCE(dependente_id, 0))) FILTER (WHERE data >= $2)::int AS mes
+         FROM presencas`, [hoje, inicioMes]
+      ),
+      pool.query(
+        `SELECT count(*)::int AS mesas, count(*) FILTER (WHERE status = 'confirmada')::int AS confirmadas,
+                COALESCE(sum(pessoas), 0)::int AS pessoas, COALESCE(sum(valor_total), 0)::float8 AS total, COALESCE(sum(valor_pago), 0)::float8 AS pago
+         FROM reveillon_reservas WHERE status <> 'cancelada'`
+      ),
+      pool.query(
+        `SELECT count(*) FILTER (WHERE status = 'novo')::int AS novas, count(*) FILTER (WHERE status = 'negociando')::int AS negociando,
+                count(*) FILTER (WHERE status = 'confirmado' AND data >= $1)::int AS confirmadas
+         FROM reservas`, [hoje]
+      ),
+    ]);
+    let mensalidades = 0;
+    for (const [, v] of mensalidadesPorMes) mensalidades += v;
+    const receitas = caixa.rows[0].receitas + mensalidades;
+    const despesas = caixa.rows[0].despesas;
+    const f = cobranca.faixas;
+    const emAtraso = Object.values(f).reduce((a, x) => a + x.socios, 0);
+    const quadro = cobranca.emDia + emAtraso;
+    res.json({
+      hoje,
+      socios: {
+        quadro, emDia: cobranca.emDia, emAtraso,
+        adimplencia: quadro ? Math.round((cobranca.emDia / quadro) * 1000) / 10 : 0,
+        valorEmAberto: Math.round(Object.values(f).reduce((a, x) => a + x.valorEmAberto, 0) * 100) / 100,
+        faixas: { ate_2_meses: f.ate_2_meses.socios, '3_a_5_meses': f['3_a_5_meses'].socios, '6_meses_ou_mais': f['6_meses_ou_mais'].socios },
+      },
+      caixaMes: { receitas, mensalidades, despesas, saldo: receitas - despesas },
+      aPagar: aPagar.rows[0],
+      presenca: presenca.rows[0],
+      reveillon: reveillon.rows[0],
+      reservas: reservas.rows[0],
+    });
   } catch (err) {
     next(err);
   }

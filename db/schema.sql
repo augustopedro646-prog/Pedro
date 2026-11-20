@@ -350,3 +350,26 @@ CREATE TABLE IF NOT EXISTS reveillon_reservas (
 );
 -- uma reserva ativa por mesa
 CREATE UNIQUE INDEX IF NOT EXISTS idx_reveillon_mesa_ativa ON reveillon_reservas (mesa_numero) WHERE status <> 'cancelada';
+
+-- WhatsApp (bot-whatsapp/): mesma estrutura do robô do PDV Jabá. As outras tabelas do robô
+-- (bot_chamados, bot_chamado_msgs, wa_chats, wa_mensagens) o próprio robô cria ao subir.
+CREATE TABLE IF NOT EXISTS bot_conversas (
+  loja_id INTEGER NOT NULL DEFAULT 1,
+  telefone TEXT NOT NULL,
+  mensagens JSONB NOT NULL DEFAULT '[]',
+  atualizado_em TIMESTAMPTZ NOT NULL DEFAULT now(),
+  precisa_humano BOOLEAN NOT NULL DEFAULT false,
+  pausado BOOLEAN NOT NULL DEFAULT false,
+  pausado_em TIMESTAMPTZ,
+  nome TEXT,
+  telefone_real TEXT,
+  ultima_falha_envio TEXT,
+  idioma TEXT,
+  PRIMARY KEY (loja_id, telefone)
+);
+-- instruções livres da diretoria pro robô (Bloco B), editadas na aba WhatsApp
+CREATE TABLE IF NOT EXISTS bot_config (
+  chave TEXT PRIMARY KEY,
+  valor TEXT NOT NULL DEFAULT '',
+  atualizado_em TIMESTAMPTZ NOT NULL DEFAULT now()
+);

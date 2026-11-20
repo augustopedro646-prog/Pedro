@@ -142,6 +142,8 @@ async function tendenciaMensal(fimRef, nMeses, mensalidadesPorMes) {
       receitas: (mapaReceitas.get(chave) || 0) + (mensalidadesPorMes.get(chave) || 0),
     });
   }
+  let acum = 0;
+  for (const m of lista) { acum += m.receitas - m.despesas; m.saldoAcumulado = acum; }
   return lista;
 }
 
@@ -191,7 +193,34 @@ router.get('/resumo', async (req, res, next) => {
               COALESCE(sum(valor) FILTER (WHERE data < $3), 0)::float8 AS "totalVencidas"
        FROM despesas WHERE pago = false`, [inicio, fim, hojeStr]
     )).rows[0];
+    // análise: próximos vencimentos, maiores despesas, comparação com o mês anterior e previsão
+    const [proximos, maiores] = await Promise.all([
+      pool.query(
+        `SELECT id, to_char(data, 'YYYY-MM-DD') AS data, descricao, fornecedor, valor::float8 AS valor
+         FROM despesas WHERE pago = false AND data <= $1::date + 30 ORDER BY data, id LIMIT 8`, [hojeStr]
+      ),
+      pool.query(
+        `SELECT descricao, fornecedor, categoria, to_char(data, 'YYYY-MM-DD') AS data, valor::float8 AS valor
+         FROM despesas WHERE pago = true AND data BETWEEN $1 AND $2 ORDER BY valor DESC LIMIT 5`, [inicio, fim]
+      ),
+    ]);
+    const anterior = tendencia.length >= 2 ? tendencia[tendencia.length - 2] : null;
+    const mediaMeses = tendencia.slice(0, -1);
+    const media = (campo) => (mediaMeses.length ? mediaMeses.reduce((a, m) => a + m[campo], 0) / mediaMeses.length : 0);
+    const saldo = totalReceitas - totalDespesas;
+    const aPagarTotal = ap.totalPeriodo + ap.totalVencidas;
     res.json({
+      analise: {
+        anterior: anterior ? { mes: anterior.mes, receitas: anterior.receitas, despesas: anterior.despesas } : null,
+        mediaReceitas: media('receitas'),
+        mediaDespesas: media('despesas'),
+        margem: totalReceitas > 0 ? Math.round((saldo / totalReceitas) * 1000) / 10 : null,
+        saldo,
+        aPagarTotal,
+        saldoAposContas: saldo - aPagarTotal,
+        proximosVencimentos: proximos.rows,
+        maioresDespesas: maiores.rows,
+      },
       aPagar: ap,
       totalDespesas, totalReceitas, categoriasDespesas, categoriasReceitas, tendencia,
       mensalidades: {
