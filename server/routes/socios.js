@@ -40,8 +40,16 @@ router.get('/', async (req, res, next) => {
       `SELECT id, matricula, nome, clube, categoria, status, situacao_especial AS "situacaoEspecial",
               telefone, to_char(planilha_atualizada_em, 'YYYY-MM-DD') AS "planilhaAtualizadaEm",
               meses_em_aberto AS "mesesEmAberto", possivel_duplicado AS "possivelDuplicado",
-              (SELECT count(*)::int FROM dependentes d WHERE d.socio_id = socios.id) AS "qtdDependentes"
-       FROM socios ${where}
+              (SELECT count(*)::int FROM dependentes d WHERE d.socio_id = socios.id) AS "qtdDependentes",
+              (telefone IS NOT NULL AND regexp_replace(telefone, '[^0-9]', '', 'g') ~ '^(55)?[0-9]{10,11}$') AS "temTelefone",
+              uc.enviado_em AS "ultimoContatoEm",
+              (uc.enviado_em IS NOT NULL AND EXISTS (
+                SELECT 1 FROM bot_conversas b, jsonb_array_elements(b.mensagens) m
+                WHERE right(b.telefone, 8) = right(uc.tel_c, 8) AND m->>'role' = 'user'
+                  AND (m->>'ts')::bigint > extract(epoch FROM uc.enviado_em) * 1000)) AS "respondeu"
+       FROM socios
+       LEFT JOIN LATERAL (SELECT c.enviado_em, c.telefone AS tel_c FROM socios_contatos c WHERE c.socio_id = socios.id AND c.ok ORDER BY c.enviado_em DESC LIMIT 1) uc ON true
+       ${where}
        ORDER BY (clube = 'cepe_atpn') DESC, (status = 'desligado'), nome LIMIT $${params.length}`,
       params
     );

@@ -211,6 +211,10 @@ CREATE TABLE IF NOT EXISTS reservas (
   atualizado_em TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS idx_reservas_data ON reservas(data);
+-- tipo (reserva/evento), serviço e "quem vê" (atpn = só ATPN, ambos = Jabá e ATPN), como na aba Eventos do PDV
+ALTER TABLE reservas ADD COLUMN IF NOT EXISTS categoria TEXT NOT NULL DEFAULT 'reserva' CHECK (categoria IN ('reserva', 'evento'));
+ALTER TABLE reservas ADD COLUMN IF NOT EXISTS servico TEXT;
+ALTER TABLE reservas ADD COLUMN IF NOT EXISTS escopo TEXT NOT NULL DEFAULT 'atpn' CHECK (escopo IN ('atpn', 'ambos'));
 
 -- Baixa direta de mensalidade (fase 2): pagamentos registrados NA ATPN, só de
 -- sócios ATPN ativos. Tabela própria de propósito: a importação da planilha
@@ -373,3 +377,19 @@ CREATE TABLE IF NOT EXISTS bot_config (
   valor TEXT NOT NULL DEFAULT '',
   atualizado_em TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+-- Mensagens de cobrança/prospecção enviadas a sócios pelo robô de WhatsApp (aba Sócios). Serve pra não repetir
+-- contato em poucos dias, mostrar "enviada / respondeu / voltou a pagar" e conferir o que foi mandado.
+CREATE TABLE IF NOT EXISTS socios_contatos (
+  id SERIAL PRIMARY KEY,
+  socio_id INTEGER NOT NULL REFERENCES socios(id),
+  tipo TEXT NOT NULL DEFAULT 'cobranca',
+  faixa TEXT,
+  telefone TEXT,
+  texto TEXT NOT NULL,
+  enviado_por INTEGER REFERENCES pessoas(id),
+  enviado_em TIMESTAMPTZ NOT NULL DEFAULT now(),
+  ok BOOLEAN NOT NULL DEFAULT true,
+  erro TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_socios_contatos_socio ON socios_contatos(socio_id, enviado_em DESC);

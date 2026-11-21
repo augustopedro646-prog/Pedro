@@ -86,6 +86,19 @@ app.post('/enviar', exigirSegredoBot, async (req, res) => {
   res.json({ ok: true });
 });
 
+// Mensagem que COMEÇA a conversa (lembrete de mensalidade, convite): sai como "sistema" — passa pela fila com ritmo
+// humano, conta no limite diário de avisos automáticos (proteção do número) e NÃO pausa a conversa, então quando
+// o sócio responde é o robô quem atende, já sabendo o que foi enviado (fica no histórico).
+app.post('/prospectar', exigirSegredoBot, async (req, res) => {
+  const { telefone, texto } = req.body || {};
+  const numero = String(telefone || '').replace(/\D/g, '');
+  if (!/^\d{10,13}$/.test(numero)) return res.status(400).json({ erro: 'telefone inválido (use DDD + número)' });
+  if (!texto || String(texto).length > 1500) return res.status(400).json({ erro: 'texto obrigatório (até 1500 caracteres)' });
+  const r = await conexao.enviarParaNumero(numero, String(texto), { remetente: 'sistema' });
+  if (!r.ok) return res.status(502).json({ erro: r.erro || 'falha ao enviar' });
+  res.json({ ok: true });
+});
+
 app.post('/reativar-bot', exigirSegredoBot, async (req, res) => {
   const { telefone } = req.body || {};
   if (!telefone) return res.status(400).json({ erro: 'telefone é obrigatório' });

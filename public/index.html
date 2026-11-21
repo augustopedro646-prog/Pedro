@@ -291,6 +291,11 @@
   .painel-anexos { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
 
   /* ---------- Eventos / Reservas ---------- */
+  .linha-tags { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; margin-bottom: 3px; }
+  .tag-pill { display: inline-block; font-size: .72rem; font-weight: 700; padding: 1px 8px; border-radius: 999px; background: var(--fundo); border: 1px solid var(--borda); color: var(--texto-fraco); white-space: nowrap; }
+  .tag-escopo { display: inline-block; font-size: .72rem; font-weight: 700; padding: 1px 8px; border-radius: 999px; border: 1px solid currentColor; color: var(--texto-fraco); white-space: nowrap; }
+  .tag-escopo.escopo-atpn { color: var(--primaria); }
+  .tag-escopo.escopo-ambos { color: var(--dourado); }
   .mes-grupo { margin-bottom: 14px; }
   .mes-grupo-cab { width: 100%; display: flex; justify-content: space-between; align-items: center; padding: 10px 14px; border: 1px solid var(--borda); background: var(--superficie); color: var(--texto); border-radius: 10px; cursor: pointer; font-weight: 700; font-family: 'Baloo 2', 'Inter', sans-serif; margin-bottom: 10px; }
   .mes-grupo-cab:hover { border-color: var(--primaria); }
@@ -649,7 +654,7 @@
     mensForm: null,
     mensHoje: null,
     mensErro: null,
-    eventosAba: 'agenda',
+    eventosAba: 'abertas',
     eventosMesesAbertos: {},
     reservas: null,
     reservasErro: null,
@@ -714,6 +719,7 @@
     sociosBusca: '',
     sociosFiltroClube: 'cepe_atpn',
     sociosFiltroStatus: 'todos',
+    sociosMsg: null, sociosMsgResumo: null,
     sociosLista: [],
     sociosTotal: 0,
     sociosResumo: [],
@@ -758,6 +764,7 @@
     if (!resp.ok) {
       const erro = new Error(dado.erro || 'Erro na requisição');
       if (dado.conflitos) erro.conflitos = dado.conflitos; // reservas: conflito de espaço (409)
+      if (dado.jaEnviado) erro.jaEnviado = true; // sócios: já recebeu mensagem há poucos dias
       if (dado.precisaConfirmar) erro.precisaConfirmar = true; // mensalidades: mês já tem pagamento registrado
       throw erro;
     }
@@ -2409,7 +2416,7 @@
     recusado: [['novo', '↩ Reabrir', 'botao-sec']],
     concluido: [['confirmado', '↩ Reabrir', 'botao-sec']],
   };
-  const ABAS_EVENTOS = ['agenda', 'abertas', 'confirmadas', 'encerradas'];
+  const ABAS_EVENTOS = ['abertas', 'encerradas'];
 
   function textoConflito(c) {
     const quando = c.horaInicio ? `${c.horaInicio}${c.horaFim ? '–' + c.horaFim : ''}` : 'sem horário';
@@ -2425,12 +2432,49 @@
     return '<div class="aviso-livre">✓ Nenhum conflito de espaço nesse dia.</div>';
   }
 
+  // "Quem vê": a ATPN divide o salão com o Jabá. Mesmos 4 valores do PDV; a ATPN só cria 'atpn' e 'ambos'.
+  const ESCOPO_ROTULO = { jaba: 'Só Jabá', atpn: 'Só ATPN', ambos: 'Jabá e ATPN', externo: 'Fora do salão' };
+  const ESCOPO_DICA = {
+    jaba: 'Só do Jabá: a ATPN não vê no calendário dela, mas o salão conta como ocupado.',
+    atpn: 'Só da ATPN: o Jabá vê como salão ocupado.',
+    ambos: 'Aparece nos dois calendários.',
+    externo: 'Fora do salão: não bloqueia o salão.',
+  };
+  const escopoTagHtml = (v) => `<span class="tag-escopo escopo-${esc(ESCOPO_ROTULO[v] ? v : 'atpn')}" title="${esc(ESCOPO_DICA[v] || '')}">${esc(ESCOPO_ROTULO[v] || ESCOPO_ROTULO.atpn)}</span>`;
+  const fmtDiaEvento = (data) => {
+    const d = new Date(`${data}T12:00:00`);
+    return `${d.toLocaleDateString('pt-BR', { weekday: 'short' }).replace('.', '')} ${data.split('-').reverse().join('/')}`;
+  };
+
+  // evento que vem da agenda compartilhada (calendário ou do Jabá, quando marcado "ambos"): só leitura aqui
+  function cartaoEventoAgendaHtml(e) {
+    const ehReserva = String(e.titulo).startsWith('🍽');
+    const aConfirmar = / \(a confirmar\)$/.test(e.titulo);
+    const titulo = String(e.titulo).replace(/^(🍽|🎉)\s*/, '').replace(/ \(a confirmar\)$/, '');
+    const hora = e.horaInicio ? ` às ${esc(e.horaInicio)}${e.horaFim ? '–' + esc(e.horaFim) : ''}` : '';
+    return `
+      <div class="cartao-reserva status-confirmado">
+        <div class="topo-reserva">
+          <div>
+            <div class="linha-tags"><span class="tag-pill">${ehReserva ? '🍽 Reserva' : '🎉 Evento'}</span>${e.proprio ? '<span class="tag-pill">📅 calendário</span>' : ''}${escopoTagHtml(e.escopo)}</div>
+            <strong>${esc(titulo)}</strong>
+            <div class="placeholder">📅 ${esc(fmtDiaEvento(e.data))}${hora}${e.observacao ? ' · ' + esc(e.observacao) : ''}</div>
+          </div>
+          <span class="tag-status ${aConfirmar ? 'tag-novo' : 'tag-confirmado'}">${aConfirmar ? 'A confirmar' : 'Confirmado'}</span>
+        </div>
+      </div>`;
+  }
+
   function cartaoReservaHtml(r, ehAdmin) {
-    const dia = new Date(`${r.data}T12:00:00`).toLocaleDateString('pt-BR', { weekday: 'short', day: '2-digit', month: '2-digit', year: 'numeric' });
     const passou = ['novo', 'negociando', 'confirmado'].includes(r.status) && r.data < dataLocalStr(new Date());
     const aberta = r.status === 'novo' || r.status === 'negociando';
     const encerrada = r.status === 'recusado' || r.status === 'concluido';
-    const equipe = (r.equipe || []).length ? `<div class="placeholder" style="margin-top:3px;">👥 <strong>Equipe:</strong> ${esc(r.equipe.map((p) => p.nome).join(', '))}</div>` : '';
+    const equipe = (r.equipe || []).length ? `<div style="margin-top:3px;font-size:.88rem;">👥 <strong>Equipe:</strong> ${esc(r.equipe.map((p) => p.nome).join(', '))}</div>` : '';
+    const detalhes = [
+      `📅 ${fmtDiaEvento(r.data)}${r.horaInicio ? ' às ' + r.horaInicio + (r.horaFim ? '–' + r.horaFim : '') : ''}`,
+      r.numConvidados ? `👥 ${r.numConvidados} pessoas` : '',
+      r.servico || '',
+    ].filter(Boolean).join(' · ');
     const acoes = ehAdmin ? `
       <div class="acoes-reserva">
         ${encerrada ? '' : `<button class="botao botao-sec botao-pq" data-rv="obs" data-id="${r.id}">Salvar observação</button>`}
@@ -2440,30 +2484,33 @@
         <button class="botao botao-perigo botao-pq" data-rv="excluir" data-id="${r.id}">🗑 Excluir</button>
       </div>` : '';
     return `
-      <div class="cartao-reserva status-${esc(r.status)}">
+      <div class="cartao-reserva status-${esc(r.status)}" ${encerrada ? 'style="opacity:.8;"' : ''}>
         <div class="topo-reserva">
-          <div><strong>${esc(r.titulo)}</strong>
-            <div class="placeholder">📅 ${esc(dia)}${r.horaInicio ? ` · ${esc(r.horaInicio)}${r.horaFim ? '–' + esc(r.horaFim) : ''}` : ' · sem horário'}${r.numConvidados ? ` · 👥 ${r.numConvidados} pessoas` : ''}</div>
-            ${r.solicitante || r.telefone ? `<div class="placeholder">${esc(r.solicitante || '')}${r.telefone ? ' · ' + esc(r.telefone) : ''}</div>` : ''}
-            ${r.observacao ? `<div class="placeholder">${esc(r.observacao)}</div>` : ''}
+          <div>
+            <div class="linha-tags"><span class="tag-pill">${r.categoria === 'evento' ? '🎉 Evento' : '🍽 Reserva'}</span>${escopoTagHtml(r.escopo)}</div>
+            <strong>${esc(r.titulo)}</strong>${r.telefone ? ` · <span class="placeholder">${esc(r.telefone)}</span>` : ''}
+            <div class="placeholder">${detalhes}</div>
+            ${r.solicitante ? `<div class="placeholder">Solicitante: ${esc(r.solicitante)}</div>` : ''}
             ${equipe}
           </div>
           <span class="tag-status tag-${esc(r.status)}">${esc(STATUS_RESERVA[r.status])}</span>
         </div>
         ${passou ? '<div class="aviso-conflito">⚠ A data já passou — conclua, edite ou exclua.</div>' : ''}
         ${aberta ? avisosConflitoHtml(r.conflitos, state.reservas && state.reservas.configurado) : ''}
+        ${r.observacao ? `<div class="placeholder" style="margin:8px 0;white-space:pre-line;">${esc(r.observacao)}</div>` : ''}
         ${encerrada ? (r.obsEquipe ? `<div class="placeholder" style="margin-top:6px;">Equipe: ${esc(r.obsEquipe)}</div>` : '')
           : `<label class="campo" style="margin-top:10px;"><span>Observação da equipe</span><input id="obs-${r.id}" class="input-obs-equipe" maxlength="500" value="${esc(r.obsEquipe || '')}" placeholder="Ex.: orçamento enviado, sinal pago, cliente vai confirmar" ${ehAdmin ? '' : 'disabled'} /></label>`}
         ${acoes}
       </div>`;
   }
 
-  // agrupado por mês, cada mês numa seção que abre/fecha; "Este mês" abre sozinho
+  // agrupado por mês, cada mês numa seção que abre/fecha; "Este mês" e "Sem data" abrem sozinhos (como no PDV)
   function reservasPorMesHtml(lista, aba, ehAdmin) {
     const grupos = new Map();
-    lista.forEach((r) => { const k = r.data.slice(0, 7); if (!grupos.has(k)) grupos.set(k, []); grupos.get(k).push(r); });
+    lista.forEach((r) => { const k = r.data ? r.data.slice(0, 7) : 'sem-data'; if (!grupos.has(k)) grupos.set(k, []); grupos.get(k).push(r); });
     const mesAtual = dataLocalStr(new Date()).slice(0, 7);
     const rotulo = (k) => {
+      if (k === 'sem-data') return 'Sem data definida';
       if (k === mesAtual) return 'Este mês';
       const [a, m] = k.split('-').map(Number);
       const t = new Date(a, m - 1, 1).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
@@ -2471,21 +2518,21 @@
     };
     return [...grupos.keys()].map((k) => {
       const chave = `${aba}:${k}`;
-      const padrao = k <= mesAtual || grupos.size === 1; // meses passados/atual abertos; futuros fechados se houver muitos
-      const aberto = chave in state.eventosMesesAbertos ? state.eventosMesesAbertos[chave] : (k === mesAtual || grupos.size <= 3 || padrao);
+      const padrao = k === mesAtual || k === 'sem-data';
+      const aberto = chave in state.eventosMesesAbertos ? state.eventosMesesAbertos[chave] : padrao;
       const itens = grupos.get(k);
       return `<div class="mes-grupo">
         <button class="mes-grupo-cab" data-rv="mes" data-chave="${esc(chave)}" data-aberto="${aberto ? 1 : 0}" aria-expanded="${aberto}">
           <span>${esc(rotulo(k))} <span class="placeholder">· ${itens.length} ${itens.length === 1 ? 'item' : 'itens'}</span></span><span>${aberto ? '▴' : '▾'}</span></button>
-        ${aberto ? itens.map((r) => cartaoReservaHtml(r, ehAdmin)).join('') : ''}
+        ${aberto ? itens.map((r) => (r._agenda ? cartaoEventoAgendaHtml(r) : cartaoReservaHtml(r, ehAdmin))).join('') : ''}
       </div>`;
     }).join('');
   }
 
   function viewEventos() {
     const ehAdmin = state.usuario.administrador;
-    const aba = ABAS_EVENTOS.includes(state.eventosAba) ? state.eventosAba : 'agenda';
-    const cab = cabecalho('Eventos/Reservas', 'Reservas e pedidos de evento no espaço da ATPN. Só as confirmadas entram na agenda compartilhada com o restaurante; antes de confirmar, o sistema avisa se já há algo no mesmo dia.',
+    const aba = state.eventosAba === 'encerradas' ? 'encerradas' : 'abertas';
+    const cab = cabecalho('Eventos/Reservas', 'Reservas e eventos do espaço, pedidos de orçamento e eventos marcados no calendário',
       ehAdmin ? '<button class="botao" data-rv="nova">+ Novo evento/reserva</button>' : '');
     if (state.reservasErro) {
       return `${cab}<div class="secao"><p>Não foi possível carregar as reservas (${esc(state.reservasErro)}). Isso é falha de carregamento, não "nenhuma reserva". <button class="botao" data-rv="recarregar">Tentar de novo</button></p></div>`;
@@ -2493,21 +2540,17 @@
     if (!state.reservas) return `${cab}<p class="placeholder">Carregando…</p>`;
 
     const todas = state.reservas.reservas;
-    const grupo = {
-      abertas: todas.filter((r) => r.status === 'novo' || r.status === 'negociando').sort((a, b) => a.data.localeCompare(b.data) || (a.horaInicio || '').localeCompare(b.horaInicio || '')),
-      confirmadas: todas.filter((r) => r.status === 'confirmado').sort((a, b) => a.data.localeCompare(b.data) || (a.horaInicio || '').localeCompare(b.horaInicio || '')),
-      encerradas: todas.filter((r) => r.status === 'recusado' || r.status === 'concluido').sort((a, b) => b.data.localeCompare(a.data)),
-    };
-    const pilula = (id, rot, n) => `<button class="pilula ${aba === id ? 'sel' : ''}" data-rv="aba" data-valor="${id}">${rot}${n != null ? ` (${n})` : ''}</button>`;
-    const filtros = `<div class="pilulas-escolha" style="margin:0 0 14px;">${pilula('agenda', 'Agenda', state.eventosCarregado ? state.eventosProximos.length : null)}${pilula('abertas', 'Reservas em aberto', grupo.abertas.length)}${pilula('confirmadas', 'Confirmadas', grupo.confirmadas.length)}${pilula('encerradas', 'Recusadas / concluídas', grupo.encerradas.length)}</div>`;
-    if (aba === 'agenda') return `${cab}${filtros}${viewAgenda90()}`;
-
-    const lista = grupo[aba];
-    const vazio = {
-      abertas: ['Nada em aberto', 'Cadastre uma reserva em “+ Novo evento/reserva” ou marque no calendário.'],
-      confirmadas: ['Nenhuma reserva confirmada', 'As confirmadas aparecem aqui e na agenda do restaurante.'],
-      encerradas: ['Nada encerrado ainda', 'Reservas concluídas ou recusadas aparecem aqui.'],
-    }[aba];
+    const porData = (a, b) => (a.data || '9999').localeCompare(b.data || '9999') || (a.horaInicio || '').localeCompare(b.horaInicio || '');
+    // eventos da agenda compartilhada (calendário e "Jabá e ATPN"); as reservas da ATPN já aparecem como cartão próprio
+    const daAgenda = (state.eventosCarregado ? state.eventosProximos : []).filter((e) => !String(e.id).startsWith('atpn-res-')).map((e) => ({ ...e, _agenda: true }));
+    const abertos = [...todas.filter((r) => ['novo', 'negociando', 'confirmado'].includes(r.status)), ...daAgenda].sort(porData);
+    const encerrados = todas.filter((r) => r.status === 'recusado' || r.status === 'concluido').sort((a, b) => porData(b, a));
+    const chip = (id, rot, n) => `<button class="pilula ${aba === id ? 'sel' : ''}" data-rv="aba" data-valor="${id}">${rot} (${n})</button>`;
+    const filtros = `<div class="pilulas-escolha" style="margin:0 0 14px;">${chip('abertas', 'Em aberto', abertos.length)}${chip('encerradas', 'Concluídos', encerrados.length)}</div>`;
+    const lista = aba === 'abertas' ? abertos : encerrados;
+    const vazio = aba === 'abertas'
+      ? ['Nada em aberto', 'Cadastre uma reserva ou evento em “+ Novo evento/reserva”, marque no calendário ou aguarde pedidos de orçamento.']
+      : ['Nada concluído ainda', 'Eventos e reservas concluídos ou recusados aparecem aqui.'];
     return `${cab}${filtros}${lista.length ? reservasPorMesHtml(lista, aba, ehAdmin) : `<div class="vazio"><h3>${vazio[0]}</h3><p>${vazio[1]}</p></div>`}`;
   }
 
@@ -2539,7 +2582,7 @@
   function abrirReservaModal(r) {
     const e = r || {};
     const est = { id: e.id || null, titulo: e.titulo || '', solicitante: e.solicitante || '', telefone: e.telefone || '', data: e.data || '',
-      ini: e.horaInicio || '', fim: e.horaFim || '', conv: e.numConvidados || '', obs: e.observacao || '' };
+      ini: e.horaInicio || '', fim: e.horaFim || '', conv: e.numConvidados || '', obs: e.observacao || '', categoria: e.categoria === 'evento' ? 'evento' : 'reserva', servico: e.servico || '', escopo: e.escopo === 'ambos' ? 'ambos' : 'atpn' };
     const previa = async () => {
       const alvo = document.getElementById('rv-previa');
       if (!alvo) return;
@@ -2557,6 +2600,10 @@
       titulo: est.id ? 'Editar reserva' : 'Novo evento/reserva',
       fecharNoFundo: false,
       render: () => `
+        <div class="campo-linha">
+          <label class="campo"><span>Tipo</span><select id="rv-categoria"><option value="reserva"${est.categoria === 'reserva' ? ' selected' : ''}>Reserva</option><option value="evento"${est.categoria === 'evento' ? ' selected' : ''}>Evento</option></select></label>
+          <label class="campo"><span>Quem vê</span><select id="rv-escopo"><option value="atpn"${est.escopo === 'atpn' ? ' selected' : ''}>Só ATPN</option><option value="ambos"${est.escopo === 'ambos' ? ' selected' : ''}>Jabá e ATPN</option></select></label>
+        </div>
         <label class="campo"><span>Título (obrigatório)</span><input id="rv-titulo" maxlength="120" value="${esc(est.titulo)}" placeholder="Ex.: Formatura Turma 2026" /></label>
         <div class="campo-linha">
           <label class="campo"><span>Solicitante</span><input id="rv-solicitante" maxlength="100" value="${esc(est.solicitante)}" /></label>
@@ -2567,13 +2614,16 @@
           <label class="campo"><span>Início</span><input id="rv-inicio" type="time" value="${esc(est.ini)}" /></label>
           <label class="campo"><span>Fim</span><input id="rv-fim" type="time" value="${esc(est.fim)}" /></label>
         </div>
-        <label class="campo"><span>Convidados</span><input id="rv-convidados" inputmode="numeric" maxlength="6" value="${esc(est.conv)}" /></label>
+        <div class="campo-linha">
+          <label class="campo"><span>Nº de pessoas</span><input id="rv-convidados" inputmode="numeric" maxlength="6" value="${esc(est.conv)}" /></label>
+          <label class="campo"><span>Serviço</span><input id="rv-servico" list="rv-servicos" maxlength="60" placeholder="Buffet, Alacarte, salão inteiro…" value="${esc(est.servico)}" /><datalist id="rv-servicos"><option value="Buffet"><option value="Alacarte"><option value="Buffet + Alacarte"><option value="Salão fechado"></datalist></label>
+        </div>
         <label class="campo"><span>Observação do pedido</span><input id="rv-obs" maxlength="500" value="${esc(est.obs)}" /></label>
         <div id="rv-previa" class="placeholder">Escolha a data (e o horário) para ver se o espaço está livre.</div>
         <div class="acoes-modal"><button class="botao" data-m="salvar">${est.id ? 'Salvar alterações' : 'Adicionar reserva'}</button><button class="botao botao-sec" data-m="cancelar">Cancelar</button></div>`,
       onMontar: () => previa(),
       onInput: (c) => {
-        const mapa = { 'rv-titulo': 'titulo', 'rv-solicitante': 'solicitante', 'rv-telefone': 'telefone', 'rv-convidados': 'conv', 'rv-obs': 'obs' };
+        const mapa = { 'rv-titulo': 'titulo', 'rv-solicitante': 'solicitante', 'rv-telefone': 'telefone', 'rv-convidados': 'conv', 'rv-obs': 'obs', 'rv-servico': 'servico', 'rv-categoria': 'categoria', 'rv-escopo': 'escopo' };
         if (mapa[c.id]) est[mapa[c.id]] = c.value;
       },
       onMudou: (c) => {
@@ -2583,7 +2633,7 @@
       onClick: async (el) => {
         if (el.dataset.m === 'cancelar') { fecharModal(); return; }
         const corpo = { titulo: est.titulo, solicitante: est.solicitante, telefone: est.telefone, data: est.data,
-          horaInicio: est.ini, horaFim: est.fim, numConvidados: est.conv, observacao: est.obs };
+          horaInicio: est.ini, horaFim: est.fim, numConvidados: est.conv, observacao: est.obs, categoria: est.categoria, servico: est.servico, escopo: est.escopo };
         const chamar = (extra) => api(est.id ? `/reservas/${est.id}` : '/reservas', { method: est.id ? 'PUT' : 'POST', body: { ...corpo, ...extra } });
         try {
           try {
@@ -2720,7 +2770,7 @@
       <div class="linha-item" data-cal="dia" data-data="${e.data}" style="cursor:pointer;">
         <div><div class="nome">${esc(e.titulo)}</div>
           <div class="desc">${esc(fmtDataBr(e.data))}${e.horaInicio ? ' · ' + esc(faixaHora(e.horaInicio, e.horaFim)) : ''}${e.observacao ? ' · ' + esc(e.observacao) : ''}</div></div>
-        <span class="tag-tipo">${esc(e.origem || '—')}</span>
+        ${escopoTagHtml(e.escopo)}
       </div>`).join('') || '<div class="vazio"><h3>Nenhum evento neste mês</h3><p>Clique num dia da grade para ver o que há nele.</p></div>';
 
     return `
@@ -2775,7 +2825,7 @@
       ${eventos.length ? eventos.map((e) => {
         const daReserva = String(e.id).startsWith('atpn-res-');
         const editavel = ehAdmin && e.proprio && !daReserva;
-        return `<div class="linha-item"><div><div class="nome">${esc(e.titulo)} <span class="tag-tipo">${esc(e.origem || '')}</span></div>
+        return `<div class="linha-item"><div><div class="nome">${esc(e.titulo)} ${escopoTagHtml(e.escopo)}</div>
           ${e.horaInicio ? `<div class="desc">${esc(faixaHora(e.horaInicio, e.horaFim))}</div>` : ''}
           ${e.observacao ? `<div class="desc">${esc(e.observacao)}</div>` : ''}
           ${daReserva ? '<div class="desc">Vem de uma reserva — edite na aba Eventos.</div>' : ''}</div>
@@ -3103,6 +3153,53 @@
       </div>`;
   }
 
+  const FAIXAS_ATRASO = ['ate_2_meses', '3_a_5_meses', '6_meses_ou_mais'];
+  const primeiroNomeSocio = (nome) => {
+    const p = String(nome || '').trim().split(/\s+/)[0] || '';
+    return p ? p.charAt(0).toUpperCase() + p.slice(1).toLowerCase() : 'sócio(a)';
+  };
+  function textoMensagemSocio(s) {
+    const modelo = (state.sociosMsg && state.sociosMsg.modelos && state.sociosMsg.modelos[s.status]) || '';
+    const n = Number(s.mesesEmAberto) || 0;
+    return modelo.replace(/\{nome\}/g, primeiroNomeSocio(s.nome)).replace(/\{meses\}/g, n > 0 ? (n === 1 ? '1 mês' : n + ' meses') : 'alguns meses');
+  }
+  const diaMes = (iso) => new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+  function celulaContatoSocio(s) {
+    const atraso = FAIXAS_ATRASO.includes(s.status);
+    let info = '';
+    if (s.ultimoContatoEm) {
+      info = s.status === 'em_dia' ? '<span class="tag-status tag-confirmado">Voltou a pagar ✓</span>'
+        : s.respondeu ? '<span class="tag-status tag-negociando">Respondeu</span>'
+        : `<span class="placeholder">Enviada ${esc(diaMes(s.ultimoContatoEm))}</span>`;
+    }
+    const btn = atraso ? `<button class="botao botao-sec botao-pq" data-action="socio-msg" data-id="${s.id}" ${s.temTelefone ? '' : 'disabled title="Sem telefone válido no cadastro"'}>💬 ${s.ultimoContatoEm ? 'Enviar de novo' : 'Enviar mensagem'}</button>` : '';
+    return `<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">${btn}${info}</div>`;
+  }
+
+  // números do funil (30 dias): enviadas -> responderam -> voltaram a pagar
+  function funilContatoSociosHtml() {
+    const r = state.sociosMsgResumo;
+    if (!r) return '';
+    const lote = r.lote && r.lote.rodando ? `<p class="placeholder">⏳ Enviando em lote: ${r.lote.feitos + r.lote.falhas} de ${r.lote.total} (um por vez, com ritmo humano)… <button class="botao botao-sec botao-pq" data-action="socio-recarregar-msg">Atualizar</button></p>` : '';
+    if (!r.enviadas && !lote) return '';
+    return `${lote}<div class="cartoes-resumo">
+      <div class="cartao-resumo"><span class="cartao-resumo-label">Mensagens enviadas (30 dias)</span><strong class="cartao-resumo-valor">${r.enviadas}</strong></div>
+      <div class="cartao-resumo"><span class="cartao-resumo-label">Responderam</span><strong class="cartao-resumo-valor">${r.responderam}</strong></div>
+      <div class="cartao-resumo"><span class="cartao-resumo-label">Voltaram a pagar</span><strong class="cartao-resumo-valor cor-receita">${r.voltaramAPagar}</strong></div>
+    </div>`;
+  }
+
+  // só aparece com um filtro de atraso (1-2, 3-5, 6+) escolhido e só pro Administrador
+  function barraLoteSociosHtml() {
+    if (!state.usuario.administrador || !FAIXAS_ATRASO.includes(state.sociosFiltroStatus) || !state.sociosMsg) return '';
+    const elegiveis = state.sociosLista.filter((s) => s.temTelefone && !s.ultimoContatoEm);
+    return `<div class="secao" style="padding:10px 14px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+      <span>Cobrança pelo WhatsApp: <strong>${elegiveis.length}</strong> nessa lista com telefone e sem mensagem enviada.</span>
+      <button class="botao" data-action="socio-lote" ${elegiveis.length ? '' : 'disabled'}>💬 Enviar para os ${Math.min(elegiveis.length, state.sociosMsg.maxLote)} primeiros</button>
+      <button class="botao botao-sec" data-action="socio-modelos">✎ Editar os textos</button>
+    </div>`;
+  }
+
   function viewSocios() {
     if (!state.sociosCarregado) return '<h2>Sócios</h2><p class="placeholder">Carregando…</p>';
 
@@ -3119,15 +3216,16 @@
         <td class="col-sec">${s.clube === 'cepe_atpn' ? 'ATPN' : 'CEPE'}</td>
         <td class="col-sec">${s.categoria ? (s.categoria === 'efetivo' ? 'Efetivo' : 'Contribuinte') : '—'}</td>
         <td>${pilulaStatus(s.status)}${s.mesesEmAberto ? ` <span class="placeholder">(${s.mesesEmAberto} em aberto)</span>` : ''}${s.situacaoEspecial ? ` <span class="placeholder">(${esc(s.situacaoEspecial)})</span>` : ''}</td>
+        <td>${celulaContatoSocio(s)}</td>
       </tr>
-      ${state.sociosExpandidoId === s.id ? `<tr><td colspan="5">${viewDetalheSocio()}</td></tr>` : ''}
-    `).join('') || `<tr><td colspan="5" class="placeholder">Nenhum sócio encontrado.</td></tr>`;
+      ${state.sociosExpandidoId === s.id ? `<tr><td colspan="6">${viewDetalheSocio()}</td></tr>` : ''}
+    `).join('') || `<tr><td colspan="6" class="placeholder">Nenhum sócio encontrado.</td></tr>`;
 
     const filtroClubeBtn = (valor, rotulo) => `<button class="${state.sociosFiltroClube === valor ? 'ativa' : ''}" data-action="filtro-socio-clube" data-clube="${valor}">${esc(rotulo)}</button>`;
     const filtroStatusBtn = (valor, rotulo) => `<button class="${state.sociosFiltroStatus === valor ? 'ativa' : ''}" data-action="filtro-socio-status" data-status="${valor}">${esc(rotulo)}</button>`;
 
     return `
-      ${cabecalho('Sócios', 'Quadro completo (CEPE e ATPN): busca, situação de pagamento e histórico mensal')}
+      ${cabecalho('Sócios', 'Quadro completo (CEPE e ATPN): busca, situação de pagamento, histórico mensal e contato com quem está em atraso pelo WhatsApp')}
       <div class="secao">
         <input type="text" id="busca-socios" class="busca-socios-grande" placeholder="Buscar sócio por nome…" value="${esc(state.sociosBusca)}" autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false" enterkeyhint="search" />
       </div>
@@ -3164,6 +3262,7 @@
         </div>
       </div>
 
+      ${funilContatoSociosHtml()}
       <div class="secao">
         <div class="abas-secundarias">
           ${filtroClubeBtn('cepe_atpn', 'ATPN')}
@@ -3178,8 +3277,9 @@
           ${filtroStatusBtn('6_meses_ou_mais', '6 meses ou mais')}
           ${filtroStatusBtn('desligado', 'Desativados')}
         </div>
+        ${barraLoteSociosHtml()}
         <div style="overflow-x:auto;"><table class="tabela-lista">
-          <thead><tr><th>Nome</th><th>Matrícula</th><th class="col-sec">Clube</th><th class="col-sec">Categoria</th><th>Situação</th></tr></thead>
+          <thead><tr><th>Nome</th><th>Matrícula</th><th class="col-sec">Clube</th><th class="col-sec">Categoria</th><th>Situação</th><th>Contato</th></tr></thead>
           <tbody>${linhas}</tbody>
         </table></div>
         <p class="placeholder">Mostrando ${state.sociosLista.length} de ${state.sociosTotal}${state.sociosTotal > state.sociosLista.length ? ' — refine a busca pra achar mais rápido' : ''}.</p>
@@ -3466,6 +3566,13 @@
       el.addEventListener('click', () => filtrarSociosStatus(el.dataset.status));
     });
 
+    document.querySelectorAll('[data-action="socio-msg"]').forEach((el) => {
+      el.addEventListener('click', (e) => { e.stopPropagation(); abrirMensagemSocio(Number(el.dataset.id)); });
+    });
+    document.querySelectorAll('[data-action="socio-lote"]').forEach((el) => el.addEventListener('click', () => abrirLoteSocios()));
+    document.querySelectorAll('[data-action="socio-modelos"]').forEach((el) => el.addEventListener('click', () => abrirModelosMensagem()));
+    document.querySelectorAll('[data-action="socio-recarregar-msg"]').forEach((el) => el.addEventListener('click', async () => { await carregarMsgSocios(); await carregarSocios(); render(); }));
+
     document.querySelectorAll('[data-action="toggle-socio"]').forEach((el) => {
       el.addEventListener('click', () => toggleSocio(Number(el.dataset.id)));
     });
@@ -3530,7 +3637,7 @@
       abas: [], abaAtual: null, configCarregado: false,
       rel: null, relErro: null, inicio: null, inicioCarregado: false, inicioErro: null, iniBusca: '', iniResultados: [], iniMsg: null,
       configAssoc: null, historicoVersoes: null, historicoErro: null,
-      reservas: null, reservasErro: null, eventosAba: 'agenda', eventosMesesAbertos: {},
+      reservas: null, reservasErro: null, eventosAba: 'abertas', eventosMesesAbertos: {},
       mensBusca: '', mensResultados: [], mensFicha: null, mensForm: null, mensHoje: null, mensErro: null,
       despForm: null, despAnexos: null, financeiroAPagar: null,
       calEscalas: [], calPontos: [], calReservas: [], calendarioErro: null,
@@ -3542,7 +3649,7 @@
       tarefasCadastroCarregado: false, tarefasCadastro: [], novaTarefaFrequencia: 'diaria',
       calendarioCarregado: false, calendarioConfigurado: true, calendarioMesRef: null, calendarioEventos: [],
       eventosProximos: [], eventosCarregado: false,
-      sociosCarregado: false, sociosBusca: '', sociosFiltroClube: 'cepe_atpn', sociosFiltroStatus: 'todos',
+      sociosCarregado: false, sociosBusca: '', sociosFiltroClube: 'cepe_atpn', sociosFiltroStatus: 'todos', sociosMsg: null, sociosMsgResumo: null,
       sociosLista: [], sociosTotal: 0, sociosResumo: [], sociosExpandidoId: null, sociosDetalhe: null,
     });
     carregarCargos().then(render);
@@ -3665,7 +3772,7 @@
     }
     if (id === 'socios' && !state.sociosCarregado) {
       render();
-      await Promise.all([carregarSocios(), carregarResumoSocios()]);
+      await Promise.all([carregarSocios(), carregarResumoSocios(), carregarMsgSocios()]);
       state.sociosCarregado = true;
     }
     render();
@@ -4752,6 +4859,18 @@
     state.sociosTotal = resposta.total;
   }
 
+  // preparo das mensagens do robô (modelos, estado do WhatsApp) e o funil dos últimos 30 dias; falha aqui não derruba a aba
+  async function carregarMsgSocios() {
+    try {
+      const [preparo, resumo] = await Promise.all([api('/socios-msg/preparo'), api('/socios-msg/resumo')]);
+      state.sociosMsg = preparo;
+      state.sociosMsgResumo = resumo;
+    } catch (err) {
+      state.sociosMsg = null;
+      state.sociosMsgResumo = null;
+    }
+  }
+
   async function carregarResumoSocios() {
     state.sociosResumo = await api('/socios/resumo');
   }
@@ -4766,6 +4885,101 @@
     state.sociosFiltroStatus = status;
     await carregarSocios();
     render();
+  }
+
+  function avisoBotSociosHtml() {
+    const b = state.sociosMsg && state.sociosMsg.bot;
+    if (!state.sociosMsg) return '<div class="aviso-conflito aviso-incerto">Não deu pra checar o robô do WhatsApp agora.</div>';
+    if (!b.conectado) return `<div class="aviso-conflito aviso-forte">⚠ ${esc(b.motivo)}</div>`;
+    if (b.pausaGeral) return `<div class="aviso-conflito">⚠ ${esc(b.motivo)}</div>`;
+    return '';
+  }
+
+  function abrirMensagemSocio(id) {
+    const s = state.sociosLista.find((x) => x.id === id);
+    if (!s) return;
+    const est = { texto: textoMensagemSocio(s) };
+    abrirModal({
+      titulo: 'Mensagem pelo WhatsApp',
+      fecharNoFundo: false,
+      render: () => `
+        <p><strong>${esc(s.nome)}</strong> · ${pilulaStatus(s.status)}${s.mesesEmAberto ? ` <span class="placeholder">(${s.mesesEmAberto} em aberto)</span>` : ''}</p>
+        ${avisoBotSociosHtml()}
+        <label class="campo"><span>Mensagem (confira antes de enviar)</span><textarea id="msg-texto" rows="7" maxlength="1000" style="width:100%;">${esc(est.texto)}</textarea></label>
+        <p class="placeholder">Sai pelo WhatsApp da ATPN, com ritmo de digitação. Se o sócio responder, o robô atende e chama a equipe se for pagamento, desconto ou negociação.</p>
+        <div class="acoes-modal"><button class="botao" data-m="salvar">Enviar mensagem</button><button class="botao botao-sec" data-m="cancelar">Cancelar</button></div>`,
+      onInput: (c) => { if (c.id === 'msg-texto') est.texto = c.value; },
+      onClick: async (el) => {
+        if (el.dataset.m === 'cancelar') { fecharModal(); return; }
+        if (!est.texto.trim()) { avisar('Escreva a mensagem.'); return; }
+        const enviar = (forcar) => api(`/socios-msg/enviar/${id}`, { method: 'POST', body: { texto: est.texto, forcar } });
+        try {
+          try {
+            await enviar(false);
+          } catch (err) {
+            if (!err.jaEnviado) throw err;
+            if (!await confirma(`${err.message}\n\nEnviar de novo mesmo assim?`, { ok: 'Enviar de novo' })) return;
+            await enviar(true);
+          }
+          fecharModal();
+          await Promise.all([carregarSocios(), carregarMsgSocios()]);
+          render();
+          await avisar('Mensagem enviada.');
+        } catch (err) { avisar(err.message); }
+      },
+    });
+  }
+
+  function abrirLoteSocios() {
+    const faixa = state.sociosFiltroStatus;
+    const elegiveis = state.sociosLista.filter((s) => s.temTelefone && !s.ultimoContatoEm).slice(0, state.sociosMsg.maxLote);
+    if (!elegiveis.length) { avisar('Ninguém nessa lista está elegível.'); return; }
+    const modelo = state.sociosMsg.modelos[faixa] || '';
+    abrirModal({
+      titulo: `Enviar para ${elegiveis.length} sócios`,
+      fecharNoFundo: false,
+      render: () => `
+        ${avisoBotSociosHtml()}
+        <p>Cada sócio recebe o texto abaixo (com o nome e os meses dele), <strong>um por vez</strong>, com ritmo de digitação — pode levar alguns minutos. Quem já recebeu mensagem nos últimos ${state.sociosMsg.diasEntreMensagens} dias é pulado.</p>
+        <div class="secao" style="white-space:pre-line;">${esc(modelo)}</div>
+        <details><summary>Quem vai receber (${elegiveis.length})</summary><p class="placeholder">${elegiveis.map((s) => esc(s.nome)).join(' · ')}</p></details>
+        <p class="placeholder">Número de WhatsApp novo precisa ser aquecido aos poucos: prefira poucos por dia no começo. O robô para sozinho se passar do limite de segurança do número.</p>
+        <div class="acoes-modal"><button class="botao" data-m="salvar">Enviar agora</button><button class="botao botao-sec" data-m="cancelar">Cancelar</button></div>`,
+      onClick: async (el) => {
+        if (el.dataset.m === 'cancelar') { fecharModal(); return; }
+        try {
+          const r = await api('/socios-msg/lote', { method: 'POST', body: { ids: elegiveis.map((s) => s.id) } });
+          fecharModal();
+          await carregarMsgSocios();
+          render();
+          const pulados = (r.ignorados || []).length;
+          await avisar(`Enviando para ${r.aceitos} sócio(s)${pulados ? ` (${pulados} pulado(s))` : ''}. Acompanhe no topo da tela.`);
+        } catch (err) { avisar(err.message); }
+      },
+    });
+  }
+
+  function abrirModelosMensagem() {
+    const nomes = { ate_2_meses: '1 a 2 meses em aberto', '3_a_5_meses': '3 a 5 meses', '6_meses_ou_mais': '6 meses ou mais' };
+    const est = { ...state.sociosMsg.modelos };
+    abrirModal({
+      titulo: 'Textos das mensagens',
+      fecharNoFundo: false,
+      render: () => `
+        <p class="placeholder">Use <code>{nome}</code> (primeiro nome) e <code>{meses}</code> (ex.: "3 meses"). Não invente valor nem forma de pagamento aqui: o robô explica como pagar só se estiver nas Instruções da aba WhatsApp.</p>
+        ${FAIXAS_ATRASO.map((f) => `<label class="campo"><span>${nomes[f]}</span><textarea id="modelo-${f}" rows="4" maxlength="1000" style="width:100%;">${esc(est[f])}</textarea></label>`).join('')}
+        <div class="acoes-modal"><button class="botao" data-m="salvar">Salvar textos</button><button class="botao botao-sec" data-m="cancelar">Cancelar</button></div>`,
+      onInput: (c) => { const f = String(c.id).replace('modelo-', ''); if (FAIXAS_ATRASO.includes(f)) est[f] = c.value; },
+      onClick: async (el) => {
+        if (el.dataset.m === 'cancelar') { fecharModal(); return; }
+        try {
+          const r = await api('/socios-msg/modelos', { method: 'PUT', body: est });
+          state.sociosMsg.modelos = r.modelos;
+          fecharModal();
+          render();
+        } catch (err) { avisar(err.message); }
+      },
+    });
   }
 
   async function toggleSocio(id) {

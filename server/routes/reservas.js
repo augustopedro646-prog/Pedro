@@ -18,7 +18,7 @@ class ErroReserva extends Error {
 }
 
 const COLUNAS = `id, titulo, solicitante, telefone, to_char(data, 'YYYY-MM-DD') AS data, hora_inicio AS "horaInicio",
-  hora_fim AS "horaFim", num_convidados AS "numConvidados", observacao, obs_equipe AS "obsEquipe", status, agenda_id AS "agendaId",
+  hora_fim AS "horaFim", num_convidados AS "numConvidados", categoria, servico, escopo, observacao, obs_equipe AS "obsEquipe", status, agenda_id AS "agendaId",
   atualizado_em AS "atualizadoEm"`;
 
 function validar(corpo) {
@@ -51,6 +51,9 @@ function validar(corpo) {
     telefone: texto(b.telefone, 30, 'Telefone'),
     data, horaInicio, horaFim, numConvidados,
     observacao: texto(b.observacao, 500, 'Observação'),
+    categoria: b.categoria === 'evento' ? 'evento' : 'reserva',
+    servico: texto(b.servico, 60, 'Serviço'),
+    escopo: b.escopo === 'ambos' ? 'ambos' : 'atpn', // quem vê: só ATPN ou Jabá e ATPN
   };
 }
 
@@ -66,22 +69,22 @@ async function conflitosDoDia({ data, horaInicio, horaFim }, agendaIdIgnorado) {
 }
 
 function observacaoDaAgenda(r) {
-  return [r.num_convidados ? `${r.num_convidados} pessoas` : null, r.solicitante ? `Solicitante: ${r.solicitante}` : null, r.observacao]
+  return [r.num_convidados ? `${r.num_convidados} pessoas` : null, r.servico || null, r.solicitante ? `Solicitante: ${r.solicitante}` : null, r.observacao]
     .filter(Boolean).join(' · ') || null;
 }
 
 async function gravarNaAgenda(r, usuario) {
   if (!integracaoConfigurada()) throw new ErroReserva(409, 'Integração com o PDV Jabá não configurada — não dá pra confirmar (a reserva precisa entrar na agenda compartilhada)');
   const id = `${prefixoAgenda}${r.id}`;
-  // reserva da ATPN entra na agenda como 'atpn' (se mudarem pra 'ambos' no calendário, o upsert não desfaz)
+  // a reserva leva o "quem vê" escolhido ('atpn' ou 'ambos') pra agenda compartilhada
   const comEscopo = await temEscopo();
   await jabaPool.query(
     `INSERT INTO agenda_eventos (id, loja_id, tipo, data, hora_inicio, hora_fim, titulo, usuario_id, usuario_nome, observacao, criado_por${comEscopo ? ', escopo' : ''})
-     VALUES ($1, $2, 'evento', $3, $4, $5, $6, $7, $8, $9, $10${comEscopo ? ", 'atpn'" : ''})
+     VALUES ($1, $2, 'evento', $3, $4, $5, $6, $7, $8, $9, $10${comEscopo ? ', $11' : ''})
      ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data, hora_inicio = EXCLUDED.hora_inicio, hora_fim = EXCLUDED.hora_fim,
-       titulo = EXCLUDED.titulo, observacao = EXCLUDED.observacao
+       titulo = EXCLUDED.titulo, observacao = EXCLUDED.observacao${comEscopo ? ', escopo = EXCLUDED.escopo' : ''}
      WHERE agenda_eventos.loja_id = EXCLUDED.loja_id`,
-    [id, JABA_LOJA_ID, r.data, r.hora_inicio, r.hora_fim, r.titulo, String(usuario.pessoaId), usuario.nome, observacaoDaAgenda(r), usuario.nome]
+    [id, JABA_LOJA_ID, r.data, r.hora_inicio, r.hora_fim, r.titulo, String(usuario.pessoaId), usuario.nome, observacaoDaAgenda(r), usuario.nome, ...(comEscopo ? [r.escopo === 'ambos' ? 'ambos' : 'atpn'] : [])]
   );
   return id;
 }
@@ -156,9 +159,9 @@ router.post('/', ...admin, async (req, res, next) => {
   try {
     const v = validar(req.body);
     const { rows } = await pool.query(
-      `INSERT INTO reservas (titulo, solicitante, telefone, data, hora_inicio, hora_fim, num_convidados, observacao, criado_por)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING ${COLUNAS}`,
-      [v.titulo, v.solicitante, v.telefone, v.data, v.horaInicio, v.horaFim, v.numConvidados, v.observacao, req.usuario.pessoaId]
+      `INSERT INTO reservas (titulo, solicitante, telefone, data, hora_inicio, hora_fim, num_convidados, observacao, criado_por, categoria, servico, escopo)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING ${COLUNAS}`,
+      [v.titulo, v.solicitante, v.telefone, v.data, v.horaInicio, v.horaFim, v.numConvidados, v.observacao, req.usuario.pessoaId, v.categoria, v.servico, v.escopo]
     );
     res.status(201).json(rows[0]);
   } catch (err) {
@@ -170,7 +173,7 @@ router.post('/', ...admin, async (req, res, next) => {
 // data sempre como texto AAAA-MM-DD (o pg devolve DATE como objeto Date, e o
 // fuso do servidor já enganou muita conta de dia)
 const COLUNAS_CRUAS = `id, titulo, solicitante, telefone, to_char(data, 'YYYY-MM-DD') AS data, hora_inicio, hora_fim,
-  num_convidados, observacao, status, agenda_id`;
+  num_convidados, observacao, status, agenda_id, categoria, servico, escopo`;
 
 async function buscarReserva(id) {
   const { rows } = await pool.query(`SELECT ${COLUNAS_CRUAS} FROM reservas WHERE id = $1`, [id]);
@@ -194,9 +197,9 @@ router.put('/:id', ...admin, async (req, res, next) => {
 
     const { rows } = await pool.query(
       `UPDATE reservas SET titulo = $1, solicitante = $2, telefone = $3, data = $4, hora_inicio = $5, hora_fim = $6,
-              num_convidados = $7, observacao = $8, atualizado_em = now()
+              num_convidados = $7, observacao = $8, categoria = $10, servico = $11, escopo = $12, atualizado_em = now()
        WHERE id = $9 RETURNING ${COLUNAS_CRUAS}`,
-      [v.titulo, v.solicitante, v.telefone, v.data, v.horaInicio, v.horaFim, v.numConvidados, v.observacao, id]
+      [v.titulo, v.solicitante, v.telefone, v.data, v.horaInicio, v.horaFim, v.numConvidados, v.observacao, id, v.categoria, v.servico, v.escopo]
     );
     if (rows[0].status === 'confirmado' || rows[0].status === 'concluido') {
       if (rows[0].agenda_id) await gravarNaAgenda(rows[0], req.usuario);

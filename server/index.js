@@ -23,6 +23,7 @@ app.use('/api/ponto', pontoRoutes);
 app.use('/api/financeiro', financeiroRoutes);
 app.use('/api/tarefas', tarefasRoutes);
 app.use('/api/calendario', calendarioRoutes);
+app.use('/api/socios-msg', require('./routes/socios-msg'));
 app.use('/api/socios', sociosRoutes);
 app.use('/api/inicio', require('./routes/inicio'));
 app.use('/api/relatorios', require('./routes/relatorios'));

@@ -8,10 +8,10 @@ const ABAS = [
   { id: 'tarefas', nome: 'Tarefas' },
   { id: 'calendario', nome: 'Calendário' },
   { id: 'eventos', nome: 'Eventos' },
-  { id: 'reveillon', nome: 'Réveillon' },
-  { id: 'mensalidades', nome: 'Mensalidades' },
   { id: 'relatorios', nome: 'Relatórios' },
   { id: 'fluxo_caixa', nome: 'Fluxo de caixa' },
+  { id: 'reveillon', nome: 'Réveillon' },
+  { id: 'mensalidades', nome: 'Mensalidades' },
   { id: 'ponto', nome: 'Bater ponto' },
 ];
 
