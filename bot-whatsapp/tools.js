@@ -125,11 +125,15 @@ const execucoes = {
   async consultar_data({ data }) {
     if (!DATA_RE.test(String(data || ''))) return { erro: 'Data inválida — use AAAA-MM-DD.' };
     if (!jabaPool) return { tem_evento: null, aviso: 'Agenda indisponível agora — a equipe confirma a data.' };
-    const { rows } = await jabaPool.query(
-      `SELECT (SELECT count(*) FROM agenda_eventos a WHERE a.tipo = 'evento' AND a.evento_id IS NULL AND a.data = $1)
-            + (SELECT count(*) FROM encomendas_evento e WHERE e.data_evento = $1 AND e.status NOT IN ('recusado'))::int AS n`,
+    // Disponibilidade do salão: tudo que ocupa o espaço conta (Jabá, ATPN, ambos); só
+    // evento 'externo' (fora do salão) não bloqueia. O robô só diz "tem/não tem", sem título.
+    const consulta = (comEscopo) => jabaPool.query(
+      `SELECT (SELECT count(*) FROM agenda_eventos a WHERE a.tipo = 'evento' AND a.evento_id IS NULL AND a.data = $1${comEscopo ? " AND a.escopo <> 'externo'" : ''})
+            + (SELECT count(*) FROM encomendas_evento e WHERE e.data_evento = $1 AND e.status NOT IN ('recusado')${comEscopo ? " AND e.escopo <> 'externo'" : ''})::int AS n`,
       [data]
     );
+    let rows;
+    try { ({ rows } = await consulta(true)); } catch (e) { ({ rows } = await consulta(false)); } // coluna escopo ainda não criada no PDV
     const n = Number(rows[0].n);
     return { data, tem_evento: n > 0, aviso: 'A disponibilidade final é confirmada pela equipe.' };
   },

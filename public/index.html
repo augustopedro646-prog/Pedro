@@ -2832,7 +2832,7 @@
   // ---- evento (novo / editar) ----
   function abrirEventoModal(ev, voltarPara) {
     const e = ev || {};
-    const est = { id: e.id || null, data: e.data || dataLocalStr(new Date()), titulo: e.titulo || '', ini: e.horaInicio || '', fim: e.horaFim || '', obs: e.observacao || '' };
+    const est = { id: e.id || null, data: e.data || dataLocalStr(new Date()), titulo: e.titulo || '', ini: e.horaInicio || '', fim: e.horaFim || '', obs: e.observacao || '', escopo: e.escopo === 'ambos' ? 'ambos' : 'atpn' };
     abrirModal({
       titulo: est.id ? 'Editar evento' : 'Novo evento',
       fecharNoFundo: false,
@@ -2843,10 +2843,14 @@
           <label class="campo"><span>Hora início (opcional)</span><input id="ev-ini" type="time" value="${esc(est.ini)}" /></label>
           <label class="campo"><span>Hora fim (opcional)</span><input id="ev-fim" type="time" value="${esc(est.fim)}" /></label>
         </div>
+        <label class="campo"><span>Quem vê esse evento</span><select id="ev-escopo">
+          <option value="atpn"${est.escopo === 'atpn' ? ' selected' : ''}>Só a ATPN</option>
+          <option value="ambos"${est.escopo === 'ambos' ? ' selected' : ''}>ATPN e Jabá (aparece nos dois)</option>
+        </select></label>
         <label class="campo"><span>Observação (opcional)</span><input id="ev-obs" maxlength="300" value="${esc(est.obs)}" /></label>
         <div class="acoes-modal"><button class="botao" data-m="salvar">Salvar</button><button class="botao botao-sec" data-m="cancelar">Cancelar</button></div>`,
       onInput: (c) => {
-        const mapa = { 'ev-data': 'data', 'ev-titulo': 'titulo', 'ev-ini': 'ini', 'ev-fim': 'fim', 'ev-obs': 'obs' };
+        const mapa = { 'ev-data': 'data', 'ev-titulo': 'titulo', 'ev-ini': 'ini', 'ev-fim': 'fim', 'ev-obs': 'obs', 'ev-escopo': 'escopo' };
         if (mapa[c.id]) est[mapa[c.id]] = c.value;
       },
       onClick: async (el) => {
@@ -2854,7 +2858,7 @@
         if (!est.data || !est.titulo.trim()) { avisar('Preencha pelo menos a data e o título.'); return; }
         if (est.ini && est.fim && est.fim < est.ini) { avisar('A hora fim precisa ser depois da hora início.'); return; }
         try {
-          const corpo = { data: est.data, titulo: est.titulo.trim(), horaInicio: est.ini || null, horaFim: est.fim || null, observacao: est.obs.trim() || null };
+          const corpo = { data: est.data, titulo: est.titulo.trim(), horaInicio: est.ini || null, horaFim: est.fim || null, observacao: est.obs.trim() || null, escopo: est.escopo };
           if (est.id) await api(`/calendario/${encodeURIComponent(est.id)}`, { method: 'PUT', body: corpo });
           else await api('/calendario', { method: 'POST', body: { id: uid(), tipo: 'evento', ...corpo } });
           await recarregarCalendario();

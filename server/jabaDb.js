@@ -22,4 +22,25 @@ function integracaoConfigurada() {
   return Boolean(jabaPool && JABA_LOJA_ID);
 }
 
-module.exports = { jabaPool, JABA_LOJA_ID, integracaoConfigurada };
+// Escopo do evento ('jaba' | 'atpn' | 'ambos' | 'externo'): coluna `escopo` em
+// agenda_eventos e encomendas_evento, criada pelo lado do PDV Jabá. A ATPN só
+// mostra 'atpn' e 'ambos' (e o que ela mesma criou). Enquanto a coluna não
+// existir, a ATPN mostra SÓ o que ela mesma criou (nada do Jabá vaza). A
+// checagem é reaproveitada por 60 s pra pegar a coluna assim que ela aparecer.
+let escopoCache = { em: 0, valor: false };
+async function temEscopo() {
+  if (!jabaPool) return false;
+  if (Date.now() - escopoCache.em < 60000) return escopoCache.valor;
+  try {
+    const { rows } = await jabaPool.query(
+      `SELECT count(DISTINCT table_name)::int AS n FROM information_schema.columns
+       WHERE column_name = 'escopo' AND table_name IN ('agenda_eventos', 'encomendas_evento')`
+    );
+    escopoCache = { em: Date.now(), valor: rows[0].n === 2 };
+  } catch (e) {
+    escopoCache = { em: Date.now(), valor: false };
+  }
+  return escopoCache.valor;
+}
+
+module.exports = { jabaPool, JABA_LOJA_ID, integracaoConfigurada, temEscopo };

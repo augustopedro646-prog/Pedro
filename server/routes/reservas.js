@@ -1,6 +1,6 @@
 const express = require('express');
 const { pool } = require('../db');
-const { jabaPool, JABA_LOJA_ID, integracaoConfigurada } = require('../jabaDb');
+const { jabaPool, JABA_LOJA_ID, integracaoConfigurada, temEscopo } = require('../jabaDb');
 const { exigirAuth, exigirAba, exigirPapel } = require('../auth');
 const { detectarConflitos } = require('../conflitos');
 const { buscarEventos } = require('./calendario');
@@ -57,7 +57,7 @@ function validar(corpo) {
 // O que já está marcado no mesmo dia no restaurante/ATPN (fora a própria reserva).
 async function conflitosDoDia({ data, horaInicio, horaFim }, agendaIdIgnorado) {
   if (!integracaoConfigurada()) return { configurado: false, conflitos: [] };
-  const eventos = await buscarEventos(data, data);
+  const eventos = await buscarEventos(data, data, { paraConflito: true });
   const existentes = eventos.filter((e) => e.id !== agendaIdIgnorado);
   const lista = detectarConflitos({ horaInicio, horaFim }, existentes).map((e) => ({
     titulo: e.titulo, horaInicio: e.horaInicio, horaFim: e.horaFim, origem: e.origem, motivo: e.motivo,
@@ -73,9 +73,11 @@ function observacaoDaAgenda(r) {
 async function gravarNaAgenda(r, usuario) {
   if (!integracaoConfigurada()) throw new ErroReserva(409, 'Integração com o PDV Jabá não configurada — não dá pra confirmar (a reserva precisa entrar na agenda compartilhada)');
   const id = `${prefixoAgenda}${r.id}`;
+  // reserva da ATPN entra na agenda como 'atpn' (se mudarem pra 'ambos' no calendário, o upsert não desfaz)
+  const comEscopo = await temEscopo();
   await jabaPool.query(
-    `INSERT INTO agenda_eventos (id, loja_id, tipo, data, hora_inicio, hora_fim, titulo, usuario_id, usuario_nome, observacao, criado_por)
-     VALUES ($1, $2, 'evento', $3, $4, $5, $6, $7, $8, $9, $10)
+    `INSERT INTO agenda_eventos (id, loja_id, tipo, data, hora_inicio, hora_fim, titulo, usuario_id, usuario_nome, observacao, criado_por${comEscopo ? ', escopo' : ''})
+     VALUES ($1, $2, 'evento', $3, $4, $5, $6, $7, $8, $9, $10${comEscopo ? ", 'atpn'" : ''})
      ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data, hora_inicio = EXCLUDED.hora_inicio, hora_fim = EXCLUDED.hora_fim,
        titulo = EXCLUDED.titulo, observacao = EXCLUDED.observacao
      WHERE agenda_eventos.loja_id = EXCLUDED.loja_id`,

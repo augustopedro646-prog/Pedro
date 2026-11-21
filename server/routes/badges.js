@@ -15,7 +15,7 @@ router.get('/', async (req, res, next) => {
   try {
     const u = req.usuario;
     let abas;
-    if (u.administrador) abas = new Set(['eventos', 'tarefas']);
+    if (u.administrador) abas = new Set(['eventos', 'tarefas', 'fluxo_caixa']);
     else abas = new Set((await pool.query('SELECT aba FROM permissoes WHERE cargo_id = $1 AND permitido', [u.cargoId])).rows.map((r) => r.aba));
     const out = {};
 
@@ -24,6 +24,18 @@ router.get('/', async (req, res, next) => {
       out.eventos = (await pool.query(
         `SELECT count(*)::int AS n FROM reservas WHERE status IN ('novo', 'negociando') AND data >= (now() AT TIME ZONE 'America/Fortaleza')::date`
       )).rows[0].n;
+    }
+
+    // contas a pagar vencidas ou que vencem hoje
+    if (abas.has('fluxo_caixa')) {
+      out.fluxo_caixa = (await pool.query(
+        `SELECT count(*)::int AS n FROM despesas WHERE pago = false AND data <= (now() AT TIME ZONE 'America/Fortaleza')::date`
+      )).rows[0].n;
+    }
+
+    // conversas do robô esperando uma pessoa (só Administrador vê a aba)
+    if (u.administrador) {
+      out.whatsapp = (await pool.query('SELECT count(*)::int AS n FROM bot_conversas WHERE precisa_humano')).rows[0].n;
     }
 
     if (abas.has('tarefas')) {

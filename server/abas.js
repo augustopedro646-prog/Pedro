@@ -4,14 +4,14 @@
 // contexto. Ordem aqui é a ordem fixa no menu.
 const ABAS = [
   { id: 'inicio', nome: 'Início' },
-  { id: 'relatorios', nome: 'Relatórios' },
-  { id: 'fluxo_caixa', nome: 'Fluxo de caixa' },
+  { id: 'socios', nome: 'Sócios' },
+  { id: 'tarefas', nome: 'Tarefas' },
   { id: 'calendario', nome: 'Calendário' },
   { id: 'eventos', nome: 'Eventos' },
   { id: 'reveillon', nome: 'Réveillon' },
-  { id: 'tarefas', nome: 'Tarefas' },
-  { id: 'socios', nome: 'Sócios' },
   { id: 'mensalidades', nome: 'Mensalidades' },
+  { id: 'relatorios', nome: 'Relatórios' },
+  { id: 'fluxo_caixa', nome: 'Fluxo de caixa' },
   { id: 'ponto', nome: 'Bater ponto' },
 ];
 
